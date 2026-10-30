@@ -24,6 +24,10 @@ function resolveWindowBackgroundColor() {
   return nativeTheme.shouldUseDarkColors ? '#08080c' : '#f4f7fb';
 }
 
+// 데스크톱 안내 문구 언어: 한국어 포크라 기본은 한국어이고,
+// DSA_DESKTOP_LANGUAGE=zh 로 실행하면 원래 중국어 문구를 쓴다.
+const DESKTOP_UI_LANGUAGE = String(process.env.DSA_DESKTOP_LANGUAGE || 'ko').toLowerCase().startsWith('zh') ? 'zh' : 'ko';
+const dt = (zh, ko) => (DESKTOP_UI_LANGUAGE === 'zh' ? zh : ko);
 const isWindows = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 const appRootDev = path.resolve(__dirname, '..', '..');
@@ -237,7 +241,7 @@ function evaluateReleaseUpdate({ currentVersion, release, checkedAt = new Date()
       status: UPDATE_STATUS.ERROR,
       currentVersion: normalizedCurrentVersion,
       checkedAt,
-      message: '当前桌面端版本不是有效的语义化版本，无法检查更新。',
+      message: dt('当前桌面端版本不是有效的语义化版本，无法检查更新。', '현재 데스크톱 앱 버전 형식이 올바르지 않아 업데이트를 확인할 수 없어요.'),
     });
   }
 
@@ -247,7 +251,7 @@ function evaluateReleaseUpdate({ currentVersion, release, checkedAt = new Date()
       status: UPDATE_STATUS.ERROR,
       currentVersion: normalizedCurrentVersion,
       checkedAt,
-      message: 'GitHub Release 未返回可识别的语义化版本标签。',
+      message: dt('GitHub Release 未返回可识别的语义化版本标签。', 'GitHub Release에서 알아볼 수 있는 버전 태그를 받지 못했어요.'),
     });
   }
 
@@ -261,7 +265,7 @@ function evaluateReleaseUpdate({ currentVersion, release, checkedAt = new Date()
       checkedAt,
       releaseName: releaseMetadata.releaseName,
       tagName: releaseMetadata.tagName,
-      message: '版本比较失败，无法判断是否存在可用更新。',
+      message: dt('版本比较失败，无法判断是否存在可用更新。', '버전 비교에 실패해 새 업데이트가 있는지 알 수 없어요.'),
     });
   }
 
@@ -275,7 +279,7 @@ function evaluateReleaseUpdate({ currentVersion, release, checkedAt = new Date()
       publishedAt: releaseMetadata.publishedAt,
       releaseName: releaseMetadata.releaseName,
       tagName: releaseMetadata.tagName,
-      message: `发现新版本 ${releaseMetadata.version}，可前往 GitHub Releases 下载更新。`,
+      message: dt(`发现新版本 ${releaseMetadata.version}，可前往 GitHub Releases 下载更新。`, `새 버전 ${releaseMetadata.version}이 나왔어요. GitHub Releases에서 내려받을 수 있어요.`),
     });
   }
 
@@ -288,7 +292,7 @@ function evaluateReleaseUpdate({ currentVersion, release, checkedAt = new Date()
     publishedAt: releaseMetadata.publishedAt,
     releaseName: releaseMetadata.releaseName,
     tagName: releaseMetadata.tagName,
-    message: '当前桌面端已是最新版本。',
+    message: dt('当前桌面端已是最新版本。', '이미 최신 버전이에요.'),
   });
 }
 
@@ -1565,15 +1569,15 @@ async function maybePromptDesktopUpdate(state) {
   }
 
   lastNotifiedUpdateVersion = state.latestVersion;
-  const currentVersion = state.currentVersion || resolveDesktopVersion() || '当前版本';
+  const currentVersion = state.currentVersion || resolveDesktopVersion() || dt('当前版本', '현재 버전');
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'info',
-    buttons: ['稍后', '前往下载'],
+    buttons: [dt('稍后', '나중에'), dt('前往下载', '다운로드 페이지로 이동')],
     defaultId: 1,
     cancelId: 0,
-    title: '发现新版本',
-    message: `检测到桌面端新版本 ${state.latestVersion}`,
-    detail: `当前版本 ${currentVersion}。新版本将跳转到 GitHub Releases 下载页，不会静默下载或自动安装。`,
+    title: dt('发现新版本', '새 버전이 있어요'),
+    message: dt(`检测到桌面端新版本 ${state.latestVersion}`, `데스크톱 앱 새 버전 ${state.latestVersion}을 찾았어요`),
+    detail: dt(`当前版本 ${currentVersion}。新版本将跳转到 GitHub Releases 下载页，不会静默下载或自动安装。`, `현재 버전은 ${currentVersion}이에요. GitHub Releases 다운로드 페이지로 이동하며, 몰래 내려받거나 자동 설치하지 않아요.`),
     noLink: true,
   });
 
@@ -1585,10 +1589,10 @@ async function maybePromptDesktopUpdate(state) {
 async function installDownloadedUpdate() {
   const updater = getElectronAutoUpdater();
   if (!updater) {
-    throw new Error('当前运行模式不支持自动安装更新。');
+    throw new Error(dt('当前运行模式不支持自动安装更新。', '지금 실행 방식에서는 자동 업데이트 설치를 지원하지 않아요.'));
   }
   if (desktopUpdateState?.status !== UPDATE_STATUS.UPDATE_DOWNLOADED) {
-    throw new Error('更新尚未下载完成，无法自动安装。');
+    throw new Error(dt('更新尚未下载完成，无法自动安装。', '업데이트를 아직 다 내려받지 않아 자동 설치할 수 없어요.'));
   }
 
   setDesktopUpdateState({
@@ -1596,7 +1600,7 @@ async function installDownloadedUpdate() {
     updateMode: UPDATE_MODE.AUTO,
     latestVersion: desktopUpdateState?.latestVersion || '',
     releaseUrl: desktopUpdateState?.releaseUrl || RELEASES_PAGE_URL,
-    message: '正在重启并安装更新...',
+    message: dt('正在重启并安装更新...', '다시 시작하고 업데이트를 설치하는 중...'),
   });
   let backupRoot = null;
   try {
@@ -1618,7 +1622,7 @@ async function installDownloadedUpdate() {
             latestVersion: desktopUpdateState?.latestVersion || '',
             releaseUrl: desktopUpdateState?.releaseUrl || RELEASES_PAGE_URL,
             checkedAt: new Date().toISOString(),
-            message: `更新安装准备失败：${error instanceof Error ? error.message : String(error)}`,
+            message: dt(`更新安装准备失败：${error instanceof Error ? error.message : String(error)}`, `업데이트 설치 준비에 실패했어요: ${error instanceof Error ? error.message : String(error)}`),
           });
           throw error;
         }
@@ -1653,12 +1657,12 @@ async function maybePromptInstallDownloadedUpdate(state) {
   lastPromptedInstallVersion = state.latestVersion;
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'info',
-    buttons: ['稍后', '立即重启安装'],
+    buttons: [dt('稍后', '나중에'), dt('立即重启安装', '지금 다시 시작해서 설치')],
     defaultId: 1,
     cancelId: 0,
-    title: '更新已下载',
-    message: `桌面端新版本 ${state.latestVersion} 已下载`,
-    detail: '重启应用后会自动完成安装。未保存的设置草稿请先保存。',
+    title: dt('更新已下载', '업데이트를 내려받았어요'),
+    message: dt(`桌面端新版本 ${state.latestVersion} 已下载`, `데스크톱 앱 새 버전 ${state.latestVersion}을 내려받았어요`),
+    detail: dt('重启应用后会自动完成安装。未保存的设置草稿请先保存。', '앱을 다시 시작하면 설치가 끝나요. 저장하지 않은 설정이 있으면 먼저 저장해 주세요.'),
     noLink: true,
   });
 
@@ -1675,7 +1679,7 @@ async function maybePromptInstallDownloadedUpdate(state) {
         latestVersion: state.latestVersion || desktopUpdateState?.latestVersion || '',
         releaseUrl: state.releaseUrl || desktopUpdateState?.releaseUrl || RELEASES_PAGE_URL,
         checkedAt: new Date().toISOString(),
-        message: `更新安装失败：${message}。可先保存草稿并前往下载页，或稍后重试。`,
+        message: dt(`更新安装失败：${message}。可先保存草稿并前往下载页，或稍后重试。`, `업데이트 설치에 실패했어요: ${message}. 작업 중인 내용을 저장한 뒤 다운로드 페이지로 가거나 잠시 후 다시 시도해 주세요.`),
       });
     }
   }
@@ -1702,14 +1706,14 @@ function configureElectronAutoUpdater() {
       status: UPDATE_STATUS.CHECKING,
       updateMode: UPDATE_MODE.AUTO,
       currentVersion: resolveDesktopVersion(),
-      message: '正在检查桌面端更新...',
+      message: dt('正在检查桌面端更新...', '업데이트를 확인하는 중...'),
     });
   });
 
   updater.on('update-available', (info = {}) => {
-    const latestVersion = resolveUpdaterLatestVersion(info) || '最新版本';
+    const latestVersion = resolveUpdaterLatestVersion(info) || dt('最新版本', '최신 버전');
     const nextState = buildElectronUpdaterState(UPDATE_STATUS.UPDATE_AVAILABLE, info, {
-      message: `发现新版本 ${latestVersion}，正在后台下载更新...`,
+      message: dt(`发现新版本 ${latestVersion}，正在后台下载更新...`, `새 버전 ${latestVersion}을 찾았어요. 백그라운드에서 내려받는 중...`),
     });
     setDesktopUpdateState(nextState);
     logLine(`[update] auto update available latest=${nextState.latestVersion || 'unknown'}`);
@@ -1717,7 +1721,7 @@ function configureElectronAutoUpdater() {
 
   updater.on('update-not-available', (info = {}) => {
     const nextState = buildElectronUpdaterState(UPDATE_STATUS.UP_TO_DATE, info, {
-      message: '当前桌面端已是最新版本。',
+      message: dt('当前桌面端已是最新版本。', '이미 최신 버전이에요.'),
     });
     setDesktopUpdateState(nextState);
     logLine(`[update] auto update not available current=${nextState.currentVersion || 'unknown'}`);
@@ -1735,8 +1739,8 @@ function configureElectronAutoUpdater() {
       totalBytes: progress.total,
       message:
         percent === null
-          ? '正在下载桌面端更新...'
-          : `正在下载桌面端更新（${percent.toFixed(percent % 1 === 0 ? 0 : 1)}%）...`,
+          ? dt('正在下载桌面端更新...', '업데이트를 내려받는 중...')
+          : dt(`正在下载桌面端更新（${percent.toFixed(percent % 1 === 0 ? 0 : 1)}%）...`, `업데이트를 내려받는 중 (${percent.toFixed(percent % 1 === 0 ? 0 : 1)}%)...`),
     });
     logLine(`[update] download progress percent=${nextState.downloadPercent ?? 'unknown'}`);
   });
@@ -1747,8 +1751,8 @@ function configureElectronAutoUpdater() {
       latestVersion,
       downloadPercent: 100,
       message: latestVersion
-        ? `新版本 ${latestVersion} 已下载，可重启应用完成安装。`
-        : '新版本已下载，可重启应用完成安装。',
+        ? dt(`新版本 ${latestVersion} 已下载，可重启应用完成安装。`, `새 버전 ${latestVersion}을 내려받았어요. 앱을 다시 시작하면 설치가 끝나요.`)
+        : dt('新版本已下载，可重启应用完成安装。', '새 버전을 내려받았어요. 앱을 다시 시작하면 설치가 끝나요.'),
     });
     setDesktopUpdateState(nextState);
     logLine(`[update] downloaded latest=${nextState.latestVersion || 'unknown'}`);
@@ -1765,7 +1769,7 @@ function configureElectronAutoUpdater() {
       latestVersion: desktopUpdateState?.latestVersion || '',
       releaseUrl: desktopUpdateState?.releaseUrl || RELEASES_PAGE_URL,
       checkedAt: new Date().toISOString(),
-      message: `自动更新失败：${message}`,
+      message: dt(`自动更新失败：${message}`, `자동 업데이트에 실패했어요: ${message}`),
     });
   });
 
@@ -1776,7 +1780,7 @@ function configureElectronAutoUpdater() {
 async function performElectronUpdaterCheck({ manual = false } = {}) {
   const updater = configureElectronAutoUpdater();
   if (!updater) {
-    throw new Error('当前平台不支持自动安装更新。');
+    throw new Error(dt('当前平台不支持自动安装更新。', '이 운영체제에서는 자동 업데이트 설치를 지원하지 않아요.'));
   }
   if (electronUpdateCheckInFlight) {
     return desktopUpdateState;
@@ -1787,7 +1791,7 @@ async function performElectronUpdaterCheck({ manual = false } = {}) {
     status: UPDATE_STATUS.CHECKING,
     updateMode: UPDATE_MODE.AUTO,
     currentVersion: resolveDesktopVersion(),
-    message: manual ? '正在检查桌面端更新...' : '正在后台检查桌面端更新...',
+    message: manual ? dt('正在检查桌面端更新...', '업데이트를 확인하는 중...') : dt('正在后台检查桌面端更新...', '백그라운드에서 업데이트를 확인하는 중...'),
   });
 
   try {
@@ -1801,7 +1805,7 @@ async function performElectronUpdaterCheck({ manual = false } = {}) {
       updateMode: UPDATE_MODE.AUTO,
       currentVersion: resolveDesktopVersion(),
       checkedAt: new Date().toISOString(),
-      message: manual ? `检查更新失败：${message}` : '',
+      message: manual ? dt(`检查更新失败：${message}`, `업데이트 확인에 실패했어요: ${message}`) : '',
     });
     return nextState;
   } finally {
@@ -1823,7 +1827,7 @@ async function performDesktopUpdateCheck({ manual = false, notify = false } = {}
   setDesktopUpdateState({
     status: UPDATE_STATUS.CHECKING,
     currentVersion,
-    message: manual ? '正在检查桌面端更新...' : '正在后台检查桌面端更新...',
+    message: manual ? dt('正在检查桌面端更新...', '업데이트를 확인하는 중...') : dt('正在后台检查桌面端更新...', '백그라운드에서 업데이트를 확인하는 중...'),
   });
 
   try {
@@ -1845,7 +1849,7 @@ async function performDesktopUpdateCheck({ manual = false, notify = false } = {}
         status: UPDATE_STATUS.ERROR,
         currentVersion,
         checkedAt: new Date().toISOString(),
-        message: `检查更新失败：${message}`,
+        message: dt(`检查更新失败：${message}`, `업데이트 확인에 실패했어요: ${message}`),
       });
     }
 
@@ -1896,10 +1900,10 @@ async function createWindow() {
   }
   const restoreFailed = Boolean(restoreResult && restoreResult.failed.length);
   const restoreIssueDetails = restoreResult
-    ? restoreResult.failed.join('；')
+    ? restoreResult.failed.join(dt('；', '; '))
     : '';
   const restoreErrorMessage = restoreFailed
-    ? `上次更新安装未完成或恢复运行时文件失败，已保留备份目录 ${restoreResult.backupRoot}，请确认后手动恢复并重启应用。明细：${restoreIssueDetails}`
+    ? dt(`上次更新安装未完成或恢复运行时文件失败，已保留备份目录 ${restoreResult.backupRoot}，请确认后手动恢复并重启应用。明细：${restoreIssueDetails}`, `지난 업데이트 설치가 끝나지 않았거나 실행 파일 복구에 실패했어요. 백업 폴더 ${restoreResult.backupRoot}를 남겨 두었으니 확인 후 직접 복구하고 앱을 다시 시작해 주세요. 자세한 내용: ${restoreIssueDetails}`)
     : '';
   setDesktopUpdateState({
     status: restoreFailed ? UPDATE_STATUS.ERROR : UPDATE_STATUS.IDLE,

@@ -41,8 +41,12 @@ import {
 } from '../api/screening';
 import { formatParsedApiError, getParsedApiError, toApiErrorMessage, type ParsedApiError } from '../api/error';
 import { AppPage, Button, InlineAlert, Select } from '../components/common';
+import { getRuntimeInitialLanguage, koOrZh } from '../utils/uiLanguage';
 
 const MARKETS = [{ id: 'cn', label: 'A 股' }];
+const MARKET_LABELS_KO: Record<string, string> = { cn: '중국 A주' };
+const isKoUi = () => getRuntimeInitialLanguage() === 'ko';
+const getMarketLabel = (item: { id: string; label: string }) => (isKoUi() && MARKET_LABELS_KO[item.id]) || item.label;
 const SCREEN_TASK_STORAGE_KEY = 'dsa.screening.activeScreenTask.v1';
 const SCREEN_TASK_POLL_INTERVAL_MS = 2000;
 const CUSTOM_STRATEGY_OPTION_VALUE = '__custom_strategy__';
@@ -55,13 +59,22 @@ const STRATEGY_CATEGORY_LABELS: Record<string, string> = {
   trend: '趋势',
   value: '价值',
 };
+const STRATEGY_CATEGORY_LABELS_KO: Record<string, string> = {
+  framework: '종합',
+  income: '수익',
+  momentum: '모멘텀',
+  quality: '우량',
+  reversal: '반등',
+  trend: '추세',
+  value: '가치',
+};
 
 const formatStrategyCategory = (value?: string) => {
   const normalized = value?.trim();
   if (!normalized) {
-    return '自定义';
+    return koOrZh('自定义', '직접 입력');
   }
-  return STRATEGY_CATEGORY_LABELS[normalized.toLowerCase()] || normalized;
+  return (isKoUi() ? STRATEGY_CATEGORY_LABELS_KO : STRATEGY_CATEGORY_LABELS)[normalized.toLowerCase()] || normalized;
 };
 
 type PersistedScreenTask = {
@@ -74,13 +87,13 @@ type PersistedScreenTask = {
 
 const formatRunCreatedAt = (value: string | null | undefined) => {
   if (!value) {
-    return '时间未知';
+    return koOrZh('时间未知', '시간 정보 없음');
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return parsed.toLocaleString('zh-CN', {
+  return parsed.toLocaleString(koOrZh('zh-CN', 'ko-KR'), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -92,12 +105,15 @@ const formatRunCreatedAt = (value: string | null | undefined) => {
 // 历史条目里展示筛选条件：策略 ID → 中文名（找不到时回退到原始 ID）
 const formatHistoryStrategyName = (strategyId: string, strategies: ScreeningStrategy[]): string => {
   const matched = strategies.find((item) => item.id === strategyId);
-  return matched?.name || matched?.title || strategyId || '未知策略';
+  return matched?.name || matched?.title || strategyId || koOrZh('未知策略', '알 수 없는 전략');
 };
 
 // 历史条目里展示筛选条件：市场 ID → 中文标签
 const formatHistoryMarketLabel = (marketId: string | null | undefined): string =>
-  MARKETS.find((item) => item.id === marketId)?.label || marketId || 'cn';
+  (() => {
+    const matched = MARKETS.find((item) => item.id === marketId);
+    return matched ? getMarketLabel(matched) : marketId || 'cn';
+  })();
 
 const readPersistedScreenTask = (): PersistedScreenTask | null => {
   if (typeof window === 'undefined') {
@@ -146,12 +162,12 @@ const isUnrecoverableScreenTaskError = (error: ParsedApiError) =>
 
 const formatRecoverableScreenTaskPollingError = (error: ParsedApiError) => {
   if (error.category === 'upstream_timeout') {
-    return '选股任务仍在后台运行，状态轮询暂时超时，将自动重试。';
+    return koOrZh('选股任务仍在后台运行，状态轮询暂时超时，将自动重试。', '종목 발굴 작업은 백그라운드에서 계속 진행 중이에요. 상태 확인이 잠시 늦어지고 있어 자동으로 다시 시도할게요.');
   }
   if (error.category === 'upstream_network' || error.category === 'local_connection_failed') {
-    return '选股任务仍在后台运行，暂时无法连接本地服务获取状态，将自动重试。';
+    return koOrZh('选股任务仍在后台运行，暂时无法连接本地服务获取状态，将自动重试。', '종목 발굴 작업은 백그라운드에서 계속 진행 중이에요. 지금은 로컬 서비스에 연결할 수 없어 자동으로 다시 시도할게요.');
   }
-  return formatParsedApiError(error) || '暂时无法获取选股任务状态，稍后将自动重试。';
+  return formatParsedApiError(error) || koOrZh('暂时无法获取选股任务状态，稍后将自动重试。', '종목 발굴 작업 상태를 아직 가져오지 못했어요. 잠시 후 자동으로 다시 시도할게요.');
 };
 
 const formatScore = (score: ScreeningCandidate['score']) => {
@@ -174,10 +190,10 @@ const formatAmount = (value: unknown) => {
   }
   const amount = Number(value);
   if (Math.abs(amount) >= 100_000_000) {
-    return `${(amount / 100_000_000).toFixed(2)} 亿`;
+    return koOrZh(`${(amount / 100_000_000).toFixed(2)} 亿`, `${(amount / 100_000_000).toFixed(2)}억`);
   }
   if (Math.abs(amount) >= 10_000) {
-    return `${(amount / 10_000).toFixed(2)} 万`;
+    return koOrZh(`${(amount / 10_000).toFixed(2)} 万`, `${(amount / 10_000).toFixed(2)}만`);
   }
   return amount.toFixed(2);
 };
@@ -201,11 +217,30 @@ const FACTOR_LABELS: Record<string, string> = {
   topic_alignment: '题材匹配',
 };
 
+const FACTOR_LABELS_KO: Record<string, string> = {
+  value: '밸류에이션',
+  liquidity: '유동성',
+  momentum: '모멘텀',
+  reversal: '반등',
+  activity: '거래 활발도',
+  stability: '안정성',
+  size: '규모',
+  theme_heat: '테마 관심도',
+  topic_alignment: '테마 부합도',
+};
+
 const HOTSPOT_QUALITY_LABELS: Record<string, string> = {
   available: '可用',
   failed: '不可用',
   partial: '部分可用',
   stale: '缓存',
+};
+
+const HOTSPOT_QUALITY_LABELS_KO: Record<string, string> = {
+  available: '정상',
+  failed: '사용 불가',
+  partial: '일부만 가능',
+  stale: '저장된 데이터',
 };
 
 const HOTSPOT_STAGE_LABELS: Record<string, string> = {
@@ -218,12 +253,30 @@ const HOTSPOT_STAGE_LABELS: Record<string, string> = {
   weakening: '降温退潮',
 };
 
+const HOTSPOT_STAGE_LABELS_KO: Record<string, string> = {
+  accelerating: '상승 가속',
+  cooling: '열기 식는 중',
+  diverging: '의견 엇갈림·거래 급증',
+  initial: '첫 움직임',
+  persistent_hot: '확산 확인',
+  warming: '확산 확인',
+  weakening: '열기 식는 중',
+};
+
 const HOTSPOT_ROLE_LABELS: Record<string, string> = {
   core_leader: '核心龙头',
   follower: '助攻',
   laggard: '掉队',
   leader: '核心龙头',
   secondary: '补涨',
+};
+
+const HOTSPOT_ROLE_LABELS_KO: Record<string, string> = {
+  core_leader: '대장주',
+  follower: '동반 상승',
+  laggard: '뒤처짐',
+  leader: '대장주',
+  secondary: '뒤따라 상승',
 };
 
 const HOTSPOT_MISSING_FIELD_LABELS: Record<string, string> = {
@@ -237,30 +290,41 @@ const HOTSPOT_MISSING_FIELD_LABELS: Record<string, string> = {
   timeline: '发酵时间线',
 };
 
+const HOTSPOT_MISSING_FIELD_LABELS_KO: Record<string, string> = {
+  canonical_topic: '표준 테마',
+  hotspot_constituents: '관련 종목 목록',
+  leader_stocks: '핵심 종목',
+  live_stocks: '관련 종목 실시간 시세',
+  route: '테마 흐름',
+  source: '데이터 출처',
+  stocks: '관련 종목 목록',
+  timeline: '흐름 타임라인',
+};
+
 const getHotspotStageLabel = (value: unknown) => {
   const text = String(value || '').trim();
   if (!text) {
     return '';
   }
-  return HOTSPOT_STAGE_LABELS[text.toLowerCase()] || text;
+  return (isKoUi() ? HOTSPOT_STAGE_LABELS_KO : HOTSPOT_STAGE_LABELS)[text.toLowerCase()] || text;
 };
 
 const getHotspotRoleLabel = (value: unknown) => {
   const text = String(value || '').trim();
   if (!text) {
-    return '概念股';
+    return koOrZh('概念股', '관련 종목');
   }
-  return HOTSPOT_ROLE_LABELS[text.toLowerCase()] || text;
+  return (isKoUi() ? HOTSPOT_ROLE_LABELS_KO : HOTSPOT_ROLE_LABELS)[text.toLowerCase()] || text;
 };
 
 const getHotspotQualityLabel = (value: unknown) => {
   const text = String(value || '').trim();
-  return HOTSPOT_QUALITY_LABELS[text.toLowerCase()] || '待确认';
+  return (isKoUi() ? HOTSPOT_QUALITY_LABELS_KO : HOTSPOT_QUALITY_LABELS)[text.toLowerCase()] || koOrZh('待确认', '확인 중');
 };
 
 const getCandidateReason = (item: ScreeningCandidate) => {
   if (item.llmThesis || item.llmScore != null) {
-    return item.reason || item.llmThesis || 'LLM 已完成相对排序。';
+    return item.reason || item.llmThesis || koOrZh('LLM 已完成相对排序。', 'AI가 후보끼리 비교해 순위를 매겼어요.');
   }
   if (item.reason) {
     return item.reason;
@@ -270,12 +334,12 @@ const getCandidateReason = (item: ScreeningCandidate) => {
   if (typeof summary === 'string') {
     return summary;
   }
-  return '暂无摘要，请查看因子和风险信息。';
+  return koOrZh('暂无摘要，请查看因子和风险信息。', '요약이 없어요. 점수 요인과 위험 정보를 확인해 주세요.');
 };
 
 const getSignal = (item: ScreeningCandidate) => {
   const rawSignal = item.raw.action ?? item.raw.signal ?? item.raw.recommendation;
-  return typeof rawSignal === 'string' && rawSignal.trim() ? rawSignal : '观察';
+  return typeof rawSignal === 'string' && rawSignal.trim() ? rawSignal : koOrZh('观察', '관망');
 };
 
 const getFactorEntries = (item: ScreeningCandidate) =>
@@ -295,7 +359,7 @@ const getSelectionExplanations = (item: ScreeningCandidate): ScreeningExplanatio
   ));
   return summaries.map((summary) => ({
     code: 'legacy_summary',
-    text: `历史摘要（来源未记录）：${summary}`,
+    text: koOrZh(`历史摘要（来源未记录）：${summary}`, `이전 요약(출처 기록 없음): ${summary}`),
     source: 'legacy_result',
     quality: 'unknown',
   }));
@@ -308,7 +372,7 @@ const ExplanationItems = ({ items, emptyText }: { items?: ScreeningExplanationIt
         <li key={`${item.code}-${item.source}-${index}`} className="rounded-lg border border-border/50 bg-background/30 p-2">
           <p className="text-sm leading-6 text-foreground">{item.text}</p>
           <p className="mt-1 text-xs text-secondary-text">
-            来源：{item.source || 'unknown'} · 质量：{item.quality || 'unknown'}
+            {koOrZh('来源：', '출처: ')}{item.source || 'unknown'} · {koOrZh('质量：', '품질: ')}{item.quality || 'unknown'}
           </p>
         </li>
       ))}
@@ -332,31 +396,31 @@ const truncateMessageDetail = (value: string, maxLength = MAX_MESSAGE_DETAIL_LEN
 
 const summarizeScreeningDiagnostic = (detail: string) => {
   if (/no_json_found|invalid_response|coverage below threshold/i.test(detail)) {
-    return '模型未返回可用的结构化排序结果';
+    return koOrZh('模型未返回可用的结构化排序结果', 'AI 모델이 쓸 수 있는 순위 결과를 주지 않음');
   }
   if (/call_failed/i.test(detail)) {
-    return '模型调用失败';
+    return koOrZh('模型调用失败', 'AI 모델 호출 실패');
   }
   if (/trade_cal returned no open trading days/i.test(detail)) {
-    return '交易日历暂无可用开市日';
+    return koOrZh('交易日历暂无可用开市日', '거래일 달력에 개장일이 없음');
   }
   if (/too many requests|rate limit|http\s*429/i.test(detail)) {
-    return '请求过于频繁';
+    return koOrZh('请求过于频繁', '요청이 너무 잦음');
   }
   if (/403 forbidden|forbidden|access denied/i.test(detail)) {
-    return '访问被拒绝';
+    return koOrZh('访问被拒绝', '접근 거부됨');
   }
   if (/timeout|timed out/i.test(detail)) {
-    return '请求超时';
+    return koOrZh('请求超时', '요청 시간 초과');
   }
   if (/RemoteDisconnected|Connection aborted|ProtocolError|ConnectionPool|Max retries exceeded|ProxyError|NameResolutionError/i.test(detail)) {
-    return '网络连接中断';
+    return koOrZh('网络连接中断', '네트워크 연결 끊김');
   }
   if (/missing .*api key|GEMINI_API_KEY|GOOGLE_API_KEY|gemini_api_key/i.test(detail)) {
-    return '缺少可用 LLM API Key';
+    return koOrZh('缺少可用 LLM API Key', '사용할 수 있는 LLM API 키 없음');
   }
   if (/returned no data|empty/i.test(detail)) {
-    return '未返回可用数据';
+    return koOrZh('未返回可用数据', '받은 데이터 없음');
   }
 
   const withoutUrl = detail
@@ -384,22 +448,22 @@ const normalizeScreenMessageKey = (value: string) => {
 
 const formatEnrichmentSummary = (value: string) =>
   value
-    .replace(/DSA行情\s*[:：]\s*/gi, '行情：')
-    .replace(/DSA新闻\s*[:：]\s*/gi, '新闻：')
-    .replace(/DSA事件\s*[:：]\s*/gi, '事件：');
+    .replace(/DSA行情\s*[:：]\s*/gi, koOrZh('行情：', '시세: '))
+    .replace(/DSA新闻\s*[:：]\s*/gi, koOrZh('新闻：', '뉴스: '))
+    .replace(/DSA事件\s*[:：]\s*/gi, koOrZh('事件：', '이벤트: '));
 
 const formatScreenMessage = (value: string) => {
   if (/^DSA provider context applied \d+ of \d+ candidates/i.test(value)) {
     return '';
   }
   if (/^LLM ranking skipped:\s*no LLM config/i.test(value)) {
-    return '未配置智能重排模型，当前使用确定性因子排序。';
+    return koOrZh('未配置智能重排模型，当前使用确定性因子排序。', 'AI 재정렬 모델이 설정되지 않아 점수 요인 기준으로 정렬했어요.');
   }
   if (/^LLM ranking failed/i.test(value)) {
-    return `未完成智能重排：${summarizeScreeningDiagnostic(value)}；当前结果继续使用确定性因子评分。`;
+    return koOrZh(`未完成智能重排：${summarizeScreeningDiagnostic(value)}；当前结果继续使用确定性因子评分。`, `AI 재정렬을 마치지 못했어요(${summarizeScreeningDiagnostic(value)}). 결과는 점수 요인 기준으로 보여드려요.`);
   }
   if (/no_json_found|invalid_response|coverage below threshold|call_failed/i.test(value)) {
-    return `未完成智能重排：${summarizeScreeningDiagnostic(value)}；当前结果继续使用确定性因子评分。`;
+    return koOrZh(`未完成智能重排：${summarizeScreeningDiagnostic(value)}；当前结果继续使用确定性因子评分。`, `AI 재정렬을 마치지 못했어요(${summarizeScreeningDiagnostic(value)}). 결과는 점수 요인 기준으로 보여드려요.`);
   }
   if (/^(?:LLM ranking prompt|LLM context) truncated:/i.test(value)) {
     return '';
@@ -411,33 +475,33 @@ const formatScreenMessage = (value: string) => {
     return '';
   }
   if (/^Daily K-line enrichment row errors:/i.test(value)) {
-    return '部分候选的日线数据未能补齐，结果已按可用数据生成。';
+    return koOrZh('部分候选的日线数据未能补齐，结果已按可用数据生成。', '일부 후보의 일봉 데이터를 채우지 못해 있는 데이터로 결과를 만들었어요.');
   }
   if (/^Daily K-line enrichment skipped:/i.test(value)) {
-    return '可选日线数据补充未完成，结果已按快照数据生成。';
+    return koOrZh('可选日线数据补充未完成，结果已按快照数据生成。', '추가 일봉 데이터를 채우지 못해 스냅샷 데이터로 결과를 만들었어요.');
   }
   if (/^Candidate context row errors:/i.test(value)) {
-    return '部分候选的辅助数据未能补齐。';
+    return koOrZh('部分候选的辅助数据未能补齐。', '일부 후보의 보조 데이터를 채우지 못했어요.');
   }
   if (/^Industry\/concepts enrichment:/i.test(value)) {
-    return '部分行业或题材信息未能补齐。';
+    return koOrZh('部分行业或题材信息未能补齐。', '일부 업종·테마 정보를 채우지 못했어요.');
   }
   if (/^DSA deep analysis failed for /i.test(value)) {
-    return '部分候选的深度分析未完成。';
+    return koOrZh('部分候选的深度分析未完成。', '일부 후보의 심층 분석을 마치지 못했어요.');
   }
 
   const snapshotFallback = value.match(/^Snapshot source fallback:\s*(.+)$/i);
   if (snapshotFallback) {
     const parsed = parseSourceDiagnostic(snapshotFallback[1]);
     if (parsed) {
-      return `数据源降级：${parsed.source}（${summarizeScreeningDiagnostic(parsed.detail)}）`;
+      return koOrZh(`数据源降级：${parsed.source}（${summarizeScreeningDiagnostic(parsed.detail)}）`, `데이터 출처 대체: ${parsed.source}(${summarizeScreeningDiagnostic(parsed.detail)})`);
     }
-    return `数据源降级：${summarizeScreeningDiagnostic(snapshotFallback[1])}`;
+    return koOrZh(`数据源降级：${summarizeScreeningDiagnostic(snapshotFallback[1])}`, `데이터 출처 대체: ${summarizeScreeningDiagnostic(snapshotFallback[1])}`);
   }
 
   const parsed = parseSourceDiagnostic(value);
   if (parsed && KNOWN_SNAPSHOT_SOURCES.has(parsed.source.toLowerCase())) {
-    return `数据源降级：${parsed.source}（${summarizeScreeningDiagnostic(parsed.detail)}）`;
+    return koOrZh(`数据源降级：${parsed.source}（${summarizeScreeningDiagnostic(parsed.detail)}）`, `데이터 출처 대체: ${parsed.source}(${summarizeScreeningDiagnostic(parsed.detail)})`);
   }
   return truncateMessageDetail(value);
 };
@@ -470,9 +534,9 @@ const isRunningScreenTask = (status: string | undefined | null) => status === 'p
 const formatScreenTaskFailure = (value: string | null | undefined) => {
   const text = String(value || '').trim();
   if (!text) {
-    return '选股任务失败，请稍后重试。';
+    return koOrZh('选股任务失败，请稍后重试。', '종목 발굴 작업이 실패했어요. 잠시 후 다시 시도해 주세요.');
   }
-  return `选股任务失败：${summarizeScreeningDiagnostic(text)}`;
+  return koOrZh(`选股任务失败：${summarizeScreeningDiagnostic(text)}`, `종목 발굴 작업 실패: ${summarizeScreeningDiagnostic(text)}`);
 };
 
 const SCREENING_HOTSPOT_NO_CACHE_HINT = 'No cached Screening hotspot snapshot. Click refresh to fetch live hotspots.';
@@ -485,13 +549,13 @@ const formatHotspotEmptyMessage = (result: ScreeningHotspotsResponse) => {
     return message;
   }
   if (message === SCREENING_HOTSPOT_NO_CACHE_HINT) {
-    return '暂无热点缓存';
+    return koOrZh('暂无热点缓存', '저장된 인기 테마가 없어요');
   }
   const sourceError = sourceErrors[0];
   if (sourceError) {
-    return `热点题材暂未返回数据：${summarizeScreeningDiagnostic(sourceError)}`;
+    return koOrZh(`热点题材暂未返回数据：${summarizeScreeningDiagnostic(sourceError)}`, `인기 테마 데이터를 아직 받지 못했어요: ${summarizeScreeningDiagnostic(sourceError)}`);
   }
-  return '热点题材暂未返回数据';
+  return koOrZh('热点题材暂未返回数据', '인기 테마 데이터를 아직 받지 못했어요');
 };
 
 const ScreenAlertMessage: React.FC<{ messages: string[] }> = ({ messages }) => {
@@ -531,23 +595,23 @@ const getRiskClassName = (riskLevel: string | undefined) => {
 };
 
 const getRiskLabel = (riskLevel: string | undefined) => {
-  if (riskLevel === 'high') return '高';
-  if (riskLevel === 'medium') return '中';
-  if (riskLevel === 'low') return '低';
-  return '待评估';
+  if (riskLevel === 'high') return koOrZh('高', '높음');
+  if (riskLevel === 'medium') return koOrZh('中', '보통');
+  if (riskLevel === 'low') return koOrZh('低', '낮음');
+  return koOrZh('待评估', '평가 전');
 };
 
 const getRouteTimeLabel = (item: ScreeningHotspotDetail['route'][number]) => {
   const rawTime = item.publishedAt || item.date || item.time || '';
   if (!rawTime) {
-    return '时间待确认';
+    return koOrZh('时间待确认', '시간 확인 중');
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(rawTime)) {
     return rawTime;
   }
   const parsed = new Date(rawTime);
   if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleString('zh-CN', {
+    return parsed.toLocaleString(koOrZh('zh-CN', 'ko-KR'), {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -562,46 +626,46 @@ const formatHotspotRouteTitle = (value: string) => {
   const text = String(value || '').trim();
   const normalized = text.toLowerCase();
   if (normalized === 'current fermentation') {
-    return '当前发酵';
+    return koOrZh('当前发酵', '지금 흐름');
   }
   if (normalized === 'news catalyst') {
-    return '消息催化';
+    return koOrZh('消息催化', '뉴스 재료');
   }
-  return text || '热点变化';
+  return text || koOrZh('热点变化', '테마 변화');
 };
 
 const formatHotspotRouteDescription = (value: string) => {
   const text = String(value || '').trim();
   if (!text) {
-    return '暂无更多说明。';
+    return koOrZh('暂无更多说明。', '추가 설명이 없어요.');
   }
   const parts = text.split(/\s*;\s*/).map((part) => part.trim()).filter(Boolean);
   if (parts.some((part) => /\b(?:heat|stage|leaders?)\b/i.test(part))) {
     const localized = parts.map((part) => {
       const heat = part.match(/^(.*?)\s+heat\s+(-?\d+(?:\.\d+)?)$/i);
       if (heat) {
-        return `${heat[1]}热度 ${formatNumber(heat[2], 1)}`;
+        return koOrZh(`${heat[1]}热度 ${formatNumber(heat[2], 1)}`, `${heat[1]} 관심도 ${formatNumber(heat[2], 1)}`);
       }
       const stage = part.match(/^stage\s+(.+)$/i);
       if (stage) {
-        return `阶段 ${getHotspotStageLabel(stage[1])}`;
+        return koOrZh(`阶段 ${getHotspotStageLabel(stage[1])}`, `단계 ${getHotspotStageLabel(stage[1])}`);
       }
       const leaders = part.match(/^leaders?\s+(.+)$/i);
       if (leaders) {
-        return `核心股 ${leaders[1].split(/\s*,\s*/).filter(Boolean).join('、')}`;
+        return koOrZh(`核心股 ${leaders[1].split(/\s*,\s*/).filter(Boolean).join('、')}`, `핵심 종목 ${leaders[1].split(/\s*,\s*/).filter(Boolean).join(', ')}`);
       }
       return part;
     });
-    return `${localized.join('，')}。`;
+    return koOrZh(`${localized.join('，')}。`, `${localized.join(', ')}.`);
   }
   if (/Dsa[A-Z]|Provider\b|stock_board_|concept_constituents|leader_stocks|last_good_cache/i.test(text)) {
-    return '热点数据出现新变化。';
+    return koOrZh('热点数据出现新变化。', '테마 데이터에 새 변화가 있어요.');
   }
   return text;
 };
 
 const getHotspotMissingFieldLabels = (values: string[] | undefined) => {
-  const labels = (values || []).map((value) => HOTSPOT_MISSING_FIELD_LABELS[String(value).trim().toLowerCase()] || '部分明细');
+  const labels = (values || []).map((value) => (isKoUi() ? HOTSPOT_MISSING_FIELD_LABELS_KO : HOTSPOT_MISSING_FIELD_LABELS)[String(value).trim().toLowerCase()] || koOrZh('部分明细', '일부 세부 정보'));
   return [...new Set(labels)];
 };
 
@@ -609,27 +673,27 @@ const formatHotspotDiagnostic = (value: string) => {
   const text = String(value || '').trim();
   const timeoutSeconds = text.match(/timed out after\s*(\d+(?:\.\d+)?)s/i);
   if (timeoutSeconds) {
-    return `热点明细请求超时（${timeoutSeconds[1]} 秒）`;
+    return koOrZh(`热点明细请求超时（${timeoutSeconds[1]} 秒）`, `테마 세부 정보 요청 시간 초과(${timeoutSeconds[1]}초)`);
   }
   if (/timeout|timed out/i.test(text)) {
-    return '热点明细请求超时';
+    return koOrZh('热点明细请求超时', '테마 세부 정보 요청 시간 초과');
   }
   if (/RemoteDisconnected|Connection aborted|ProtocolError|ConnectionPool|Max retries exceeded|ProxyError|NameResolutionError/i.test(text)) {
-    return '热点数据源连接中断';
+    return koOrZh('热点数据源连接中断', '테마 데이터 출처 연결 끊김');
   }
   if (/eastmoney_hotspot_unavailable|returned no data|no live hotspot rows|\bempty\b/i.test(text)) {
-    return '热点数据源暂未返回数据';
+    return koOrZh('热点数据源暂未返回数据', '테마 데이터 출처에서 아직 데이터를 받지 못했어요');
   }
   if (/rate limit|too many requests|http\s*429/i.test(text)) {
-    return '热点数据请求过于频繁';
+    return koOrZh('热点数据请求过于频繁', '테마 데이터 요청이 너무 잦아요');
   }
   if (/Dsa[A-Z]|Provider\b|stock_board_|concept_constituents|leader_stocks|last_good_cache|^[a-z0-9_.:-]+$/i.test(text)) {
-    return '部分热点数据暂不可用';
+    return koOrZh('部分热点数据暂不可用', '일부 테마 데이터를 지금은 쓸 수 없어요');
   }
   if (/[\u0080-\uFFFF]/.test(text)) {
     return truncateMessageDetail(text);
   }
-  return '部分热点数据暂不可用';
+  return koOrZh('部分热点数据暂不可用', '일부 테마 데이터를 지금은 쓸 수 없어요');
 };
 
 const getHotspotDiagnosticMessages = (values: string[] | undefined) =>
@@ -649,10 +713,10 @@ const hasHotspotDetailDegradation = (detail: ScreeningHotspotDetail) => {
 const getHotspotFallbackLabel = (detail: ScreeningHotspotDetail) => {
   if (detail.stale || detail.cacheUsed) {
     return detail.staleAgeHours != null
-      ? `缓存回退 ${formatNumber(detail.staleAgeHours, 1)}h`
-      : '缓存回退';
+      ? koOrZh(`缓存回退 ${formatNumber(detail.staleAgeHours, 1)}h`, `저장 데이터 사용(${formatNumber(detail.staleAgeHours, 1)}시간 전)`)
+      : koOrZh('缓存回退', '저장 데이터 사용');
   }
-  return '备用数据源';
+  return koOrZh('备用数据源', '보조 데이터 출처');
 };
 
 const getHotspotSummaryText = (detail: ScreeningHotspotDetail, hotspot?: ScreeningHotspot) => {
@@ -665,33 +729,33 @@ const getHotspotSummaryText = (detail: ScreeningHotspotDetail, hotspot?: Screeni
     : [];
   const parts: string[] = [];
   if (heatScore != null && !Number.isNaN(Number(heatScore))) {
-    parts.push(`热度 ${formatNumber(heatScore, 1)}`);
+    parts.push(koOrZh(`热度 ${formatNumber(heatScore, 1)}`, `관심도 ${formatNumber(heatScore, 1)}`));
   }
   if (stage) {
-    parts.push(`阶段 ${getHotspotStageLabel(stage)}`);
+    parts.push(koOrZh(`阶段 ${getHotspotStageLabel(stage)}`, `단계 ${getHotspotStageLabel(stage)}`));
   }
   if (leaders.length > 0) {
-    parts.push(`核心股 ${leaders.join('、')}`);
+    parts.push(koOrZh(`核心股 ${leaders.join('、')}`, `핵심 종목 ${leaders.join(', ')}`));
   }
   if (parts.length > 0) {
-    return `${detail.name || detail.canonicalTopic || detail.topic}：${parts.join('，')}。`;
+    return koOrZh(`${detail.name || detail.canonicalTopic || detail.topic}：${parts.join('，')}。`, `${detail.name || detail.canonicalTopic || detail.topic}: ${parts.join(', ')}.`);
   }
   const summary = String(detail.summary || '').trim();
   if (summary && !/\b(?:heat|stage|leaders?|quality status|available|partial|stale|failed)\b|Dsa[A-Z]|Provider\b|stock_board_/i.test(summary)) {
     return summary;
   }
-  return '已加载热点详情。';
+  return koOrZh('已加载热点详情。', '테마 세부 정보를 불러왔어요.');
 };
 
 const buildHotspotPreviewDetail = (hotspot: ScreeningHotspot): ScreeningHotspotDetail => {
   const leaders = (hotspot.leaders || []).map((value) => String(value).trim()).filter(Boolean);
   const stage = getHotspotStageLabel(hotspot.stage || hotspot.state);
-  const descriptionParts = [`${hotspot.name || hotspot.topic}热度 ${formatHotspotMetric(hotspot.heatScore)}`];
+  const descriptionParts = [koOrZh(`${hotspot.name || hotspot.topic}热度 ${formatHotspotMetric(hotspot.heatScore)}`, `${hotspot.name || hotspot.topic} 관심도 ${formatHotspotMetric(hotspot.heatScore)}`)];
   if (stage) {
-    descriptionParts.push(`阶段 ${stage}`);
+    descriptionParts.push(koOrZh(`阶段 ${stage}`, `단계 ${stage}`));
   }
   if (leaders.length > 0) {
-    descriptionParts.push(`核心股 ${leaders.slice(0, 3).join('、')}`);
+    descriptionParts.push(koOrZh(`核心股 ${leaders.slice(0, 3).join('、')}`, `핵심 종목 ${leaders.slice(0, 3).join(', ')}`));
   }
   const stocks = (hotspot.leaderStocks || []).slice(0, 10);
   return {
@@ -705,7 +769,7 @@ const buildHotspotPreviewDetail = (hotspot: ScreeningHotspot): ScreeningHotspotD
       stage: hotspot.stage || hotspot.state,
       leaders,
     },
-    route: [{ title: '当前发酵', description: `${descriptionParts.join('，')}。` }],
+    route: [{ title: koOrZh('当前发酵', '지금 흐름'), description: koOrZh(`${descriptionParts.join('，')}。`, `${descriptionParts.join(', ')}.`) }],
     stocks,
     stockCount: hotspot.sampleStockCount ?? stocks.length,
     sourceErrors: hotspot.sourceErrors,
@@ -748,7 +812,7 @@ const getHotspotRouteItems = (detail: ScreeningHotspotDetail) => {
 
 const formatHotspotMetric = (value: unknown, digits = 1) => {
   const formatted = formatNumber(value, digits);
-  return formatted === '-' ? '观察中' : formatted;
+  return formatted === '-' ? koOrZh('观察中', '관찰 중') : formatted;
 };
 
 const getHotspotLeadersText = (item: ScreeningHotspot) => {
@@ -756,30 +820,30 @@ const getHotspotLeadersText = (item: ScreeningHotspot) => {
   if (leaders.length > 0) {
     return leaders.slice(0, 2).join('、');
   }
-  return '观察中';
+  return koOrZh('观察中', '관찰 중');
 };
 
 const getHotspotSampleText = (item: ScreeningHotspot) => {
   if (item.sampleStockCount == null || Number.isNaN(Number(item.sampleStockCount))) {
-    return '活跃股观察中';
+    return koOrZh('活跃股观察中', '활발한 종목 관찰 중');
   }
-  return `覆盖 ${item.sampleStockCount} 股`;
+  return koOrZh(`覆盖 ${item.sampleStockCount} 股`, `${item.sampleStockCount}개 종목 포함`);
 };
 
 const formatStockChangeText = (value: unknown) => {
   const formatted = formatNumber(value);
-  return formatted === '-' ? '暂无行情' : `${formatted}%`;
+  return formatted === '-' ? koOrZh('暂无行情', '시세 없음') : `${formatted}%`;
 };
 
 const formatHotspotUpdatedAt = (value: string | null) => {
   if (!value) {
-    return '待刷新';
+    return koOrZh('待刷新', '새로고침 필요');
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return parsed.toLocaleString('zh-CN', {
+  return parsed.toLocaleString(koOrZh('zh-CN', 'ko-KR'), {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -794,12 +858,12 @@ const getHotspotStrength = (item: ScreeningHotspot, index: number) => {
   const heat = Number(item.heatScore ?? 0);
   const changePct = Number(item.changePct ?? 0);
   if (index === 0 || heat >= 90 || changePct >= 8) {
-    return { label: '强势领先', className: 'bg-red-500/10 text-red-500' };
+    return { label: koOrZh('强势领先', '가장 강함'), className: 'bg-red-500/10 text-red-500' };
   }
   if (heat >= 80 || changePct >= 5) {
-    return { label: '强势', className: 'bg-blue-500/10 text-blue-500' };
+    return { label: koOrZh('强势', '강함'), className: 'bg-blue-500/10 text-blue-500' };
   }
-  return { label: '较强', className: 'bg-cyan/10 text-cyan' };
+  return { label: koOrZh('较强', '다소 강함'), className: 'bg-cyan/10 text-cyan' };
 };
 
 const HOTSPOT_ICON_RULES: Array<{
@@ -882,14 +946,14 @@ const StockScreeningPage: React.FC = () => {
   const [strategyLoadError, setStrategyLoadError] = useState('');
   const [activeTaskId, setActiveTaskId] = useState<string | null>(restoredTask?.taskId ?? null);
   const [taskProgress, setTaskProgress] = useState(restoredTask?.taskId ? 10 : 0);
-  const [taskMessage, setTaskMessage] = useState(restoredTask?.taskId ? '正在恢复选股任务状态...' : '');
+  const [taskMessage, setTaskMessage] = useState(restoredTask?.taskId ? koOrZh('正在恢复选股任务状态...', '종목 발굴 작업 상태를 불러오는 중...') : '');
 
   const selectedStrategy = useMemo(() => strategies.find((item) => item.id === strategy), [strategies, strategy]);
-  const selectedStrategyTitle = selectedStrategy?.name || selectedStrategy?.title || '自定义策略';
+  const selectedStrategyTitle = selectedStrategy?.name || selectedStrategy?.title || koOrZh('自定义策略', '직접 입력한 전략');
   const selectedStrategyTag = formatStrategyCategory(
     selectedStrategy?.category || selectedStrategy?.tag || selectedStrategy?.tags?.[0],
   );
-  const displayedStrategy = selectedStrategy ? selectedStrategyTitle : `自定义策略 (${strategy})`;
+  const displayedStrategy = selectedStrategy ? selectedStrategyTitle : koOrZh(`自定义策略 (${strategy})`, `직접 입력한 전략 (${strategy})`);
   const screenMessages = useMemo(() => getScreenMessages(screenMeta), [screenMeta]);
   const selectedHotspot = useMemo(
     () => hotspots.find((item) => item.topic === selectedHotspotTopic),
@@ -900,16 +964,16 @@ const StockScreeningPage: React.FC = () => {
   const alertMessages = llmFailed
     ? screenMessages.length > 0
       ? screenMessages
-      : ['智能重排未完成，当前候选继续使用确定性因子评分。']
+      : [koOrZh('智能重排未完成，当前候选继续使用确定性因子评分。', 'AI 재정렬을 마치지 못해 후보를 점수 요인 기준으로 보여드려요.')]
     : screenMessages;
   const isScreeningEnabled = statusState === 'ready' && enabled && available;
   const statusText = statusState === 'loading'
-    ? '正在检查选股状态'
+    ? koOrZh('正在检查选股状态', '종목 발굴 상태 확인 중')
     : statusState === 'error'
-      ? '选股状态未知'
+      ? koOrZh('选股状态未知', '종목 발굴 상태 알 수 없음')
       : !enabled
-        ? '选股未开启'
-        : available ? '选股已开启' : '选股功能不可用';
+        ? koOrZh('选股未开启', '종목 발굴 꺼짐')
+        : available ? koOrZh('选股已开启', '종목 발굴 켜짐') : koOrZh('选股功能不可用', '종목 발굴을 쓸 수 없어요');
 
   const applyScreenResult = useCallback((result: ScreeningScreenResponse) => {
     const nextCandidates = result.candidates || [];
@@ -925,7 +989,7 @@ const StockScreeningPage: React.FC = () => {
       const result = await screeningApi.getHistory({ limit: 10 });
       setHistoryRuns(result.runs || []);
     } catch (err) {
-      setHistoryError(toApiErrorMessage(err, '历史记录加载失败'));
+      setHistoryError(toApiErrorMessage(err, koOrZh('历史记录加载失败', '기록을 불러오지 못했어요')));
     } finally {
       setHistoryLoading(false);
     }
@@ -970,15 +1034,15 @@ const StockScreeningPage: React.FC = () => {
         }
         setError('');
         setTaskProgress(100);
-        setTaskMessage('已加载历史选股结果');
+        setTaskMessage(koOrZh('已加载历史选股结果', '이전 종목 발굴 결과를 불러왔어요'));
       } else {
-        setError('历史记录中未找到该次运行的结果。');
+        setError(koOrZh('历史记录中未找到该次运行的结果。', '기록에서 이 실행 결과를 찾지 못했어요.'));
       }
     } catch (err) {
       if (!isCurrentRequest()) {
         return;
       }
-      setError(toApiErrorMessage(err, '历史结果加载失败'));
+      setError(toApiErrorMessage(err, koOrZh('历史结果加载失败', '이전 결과를 불러오지 못했어요')));
     } finally {
       if (isCurrentRequest()) {
         setLoading(false);
@@ -1035,9 +1099,9 @@ const StockScreeningPage: React.FC = () => {
       };
       setHotspotDetail(options.includeSearch ? detail : cacheableDetail);
       if (options.includeSearch && detail.newsSearchStatus === 'no_results') {
-        setHotspotDetailError('暂未搜到该题材近期的有效消息。');
+        setHotspotDetailError(koOrZh('暂未搜到该题材近期的有效消息。', '이 테마의 최근 뉴스를 찾지 못했어요.'));
       } else if (options.includeSearch && detail.newsSearchStatus !== 'available') {
-        setHotspotDetailError('消息搜索失败，请稍后重试。');
+        setHotspotDetailError(koOrZh('消息搜索失败，请稍后重试。', '뉴스 검색에 실패했어요. 잠시 후 다시 시도해 주세요.'));
       }
     } catch (err) {
       if (!canApplyRequest()) {
@@ -1048,7 +1112,7 @@ const StockScreeningPage: React.FC = () => {
       }
       setHotspotDetailError(toApiErrorMessage(
         err,
-        options.includeSearch ? '消息搜索失败，请稍后重试。' : '热点题材详情加载失败，请稍后重试。',
+        options.includeSearch ? koOrZh('消息搜索失败，请稍后重试。', '뉴스 검색에 실패했어요. 잠시 후 다시 시도해 주세요.') : koOrZh('热点题材详情加载失败，请稍后重试。', '테마 세부 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'),
       ));
     } finally {
       if (isCurrentRequest()) {
@@ -1074,7 +1138,7 @@ const StockScreeningPage: React.FC = () => {
       }
     } catch (err) {
       setStrategies([]);
-      setStrategyLoadError(err instanceof Error ? err.message : '策略列表加载失败');
+      setStrategyLoadError(err instanceof Error ? err.message : koOrZh('策略列表加载失败', '전략 목록을 불러오지 못했어요'));
     } finally {
       setLoadingStrategies(false);
     }
@@ -1114,7 +1178,7 @@ const StockScreeningPage: React.FC = () => {
         setHotspotError(formatHotspotEmptyMessage(result));
       }
     } catch (err) {
-      setHotspotError(toApiErrorMessage(err, '热点题材加载失败，请稍后重试。'));
+      setHotspotError(toApiErrorMessage(err, koOrZh('热点题材加载失败，请稍后重试。', '인기 테마를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.')));
     } finally {
       setLoadingHotspots(false);
     }
@@ -1214,7 +1278,7 @@ const StockScreeningPage: React.FC = () => {
       })
       .catch((err) => {
         if (active) {
-          setStatusError(toApiErrorMessage(err, '无法确认选股状态，请重试。'));
+          setStatusError(toApiErrorMessage(err, koOrZh('无法确认选股状态，请重试。', '종목 발굴 상태를 확인하지 못했어요. 다시 시도해 주세요.')));
           setStatusState('error');
         }
       });
@@ -1255,7 +1319,7 @@ const StockScreeningPage: React.FC = () => {
           }
           setError('');
           setTaskProgress(100);
-          setTaskMessage('已从历史记录恢复上次选股结果');
+          setTaskMessage(koOrZh('已从历史记录恢复上次选股结果', '기록에서 지난 종목 발굴 결과를 불러왔어요'));
           setActiveTaskId(null);
         }
       })
@@ -1317,7 +1381,7 @@ const StockScreeningPage: React.FC = () => {
             });
           }
         } else {
-          setError('选股任务已完成，但服务端未返回候选结果。');
+          setError(koOrZh('选股任务已完成，但服务端未返回候选结果。', '종목 발굴 작업은 끝났지만 서버에서 후보 결과를 받지 못했어요.'));
           setCandidates([]);
           setScreenMeta(null);
         }
@@ -1341,7 +1405,7 @@ const StockScreeningPage: React.FC = () => {
         return;
       }
 
-      setError(`选股任务返回未知状态：${task.status || 'unknown'}`);
+      setError(koOrZh(`选股任务返回未知状态：${task.status || 'unknown'}`, `종목 발굴 작업 상태를 알 수 없어요: ${task.status || 'unknown'}`));
       clearPersistedScreenTask();
       finishTask();
     }
@@ -1359,7 +1423,7 @@ const StockScreeningPage: React.FC = () => {
         }
         const parsedError = getParsedApiError(err);
         if (isUnrecoverableScreenTaskError(parsedError)) {
-          setError(formatParsedApiError(parsedError) || '选股任务不可恢复，请重新提交。');
+          setError(formatParsedApiError(parsedError) || koOrZh('选股任务不可恢复，请重新提交。', '종목 발굴 작업을 이어갈 수 없어요. 다시 실행해 주세요.'));
           setCandidates([]);
           setScreenMeta(null);
           clearPersistedScreenTask();
@@ -1397,10 +1461,10 @@ const StockScreeningPage: React.FC = () => {
         setAvailable(status.available);
         setStatusState('ready');
       } catch (statusErr) {
-        setStatusError(toApiErrorMessage(statusErr, '无法确认选股状态，请重试。'));
+        setStatusError(toApiErrorMessage(statusErr, koOrZh('无法确认选股状态，请重试。', '종목 발굴 상태를 확인하지 못했어요. 다시 시도해 주세요.')));
         setStatusState('error');
       }
-      setError(err instanceof Error ? err.message : '开启选股失败');
+      setError(err instanceof Error ? err.message : koOrZh('开启选股失败', '종목 발굴을 켜지 못했어요'));
     } finally {
       setEnabling(false);
     }
@@ -1437,7 +1501,7 @@ const StockScreeningPage: React.FC = () => {
     setError('');
     setScreenMeta(null);
     setTaskProgress(0);
-    setTaskMessage('正在提交选股任务...');
+    setTaskMessage(koOrZh('正在提交选股任务...', '종목 발굴 작업을 보내는 중...'));
     try {
       const task = await screeningApi.startScreen({ market, strategy, maxResults });
       persistScreenTask({
@@ -1448,11 +1512,11 @@ const StockScreeningPage: React.FC = () => {
       });
       setActiveTaskId(task.taskId);
       setTaskProgress(0);
-      setTaskMessage(task.message || '选股任务已提交');
+      setTaskMessage(task.message || koOrZh('选股任务已提交', '종목 발굴 작업을 보냈어요'));
     } catch (err) {
       setCandidates([]);
       setLoading(false);
-      setError(toApiErrorMessage(err, '选股任务提交失败，请稍后重试。'));
+      setError(toApiErrorMessage(err, koOrZh('选股任务提交失败，请稍后重试。', '종목 발굴 작업을 보내지 못했어요. 잠시 후 다시 시도해 주세요.')));
     }
   };
 
@@ -1463,7 +1527,7 @@ const StockScreeningPage: React.FC = () => {
           <span className="grid h-7 w-7 place-items-center rounded-full border-2 border-cyan text-cyan shadow-[0_0_24px_hsl(var(--primary)/0.18)]">
             <PlusCircle className="h-4 w-4" />
           </span>
-          <h1 className="text-2xl font-bold tracking-normal text-foreground">选股</h1>
+          <h1 className="text-2xl font-bold tracking-normal text-foreground">{koOrZh('选股', '종목 발굴')}</h1>
         </div>
 
         <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-border/70 bg-card/80 px-4 py-2 text-sm shadow-soft-card">
@@ -1473,13 +1537,13 @@ const StockScreeningPage: React.FC = () => {
       </div>
 
       {statusState === 'loading' ? (
-        <InlineAlert variant="info" message="正在读取选股配置，请稍候。" />
+        <InlineAlert variant="info" message={koOrZh('正在读取选股配置，请稍候。', '종목 발굴 설정을 불러오는 중이에요. 잠시만 기다려 주세요.')} />
       ) : null}
 
       {statusState === 'error' ? (
         <InlineAlert
           variant="warning"
-          title="选股状态加载失败"
+          title={koOrZh('选股状态加载失败', '종목 발굴 상태를 불러오지 못했어요')}
           message={statusError}
           action={
             <Button size="sm" onClick={() => {
@@ -1487,7 +1551,7 @@ const StockScreeningPage: React.FC = () => {
               setStatusError('');
               setStatusAttempt((attempt) => attempt + 1);
             }}>
-              重试
+              {koOrZh('重试', '다시 시도')}
             </Button>
           }
         />
@@ -1496,11 +1560,11 @@ const StockScreeningPage: React.FC = () => {
       {statusState === 'ready' && !enabled ? (
         <InlineAlert
           variant="info"
-          title="选股未开启"
-          message="开启后即可运行选股策略。"
+          title={koOrZh('选股未开启', '종목 발굴 꺼짐')}
+          message={koOrZh('开启后即可运行选股策略。', '켜면 종목 발굴 전략을 실행할 수 있어요.')}
           action={
-            <Button size="sm" isLoading={enabling} loadingText="开启中..." onClick={() => void handleEnable()}>
-              开启选股
+            <Button size="sm" isLoading={enabling} loadingText={koOrZh('开启中...', '켜는 중...')} onClick={() => void handleEnable()}>
+              {koOrZh('开启选股', '종목 발굴 켜기')}
             </Button>
           }
         />
@@ -1509,12 +1573,12 @@ const StockScreeningPage: React.FC = () => {
       {statusState === 'ready' && enabled && !available ? (
         <InlineAlert
           variant="warning"
-          title="选股功能不可用"
-          message="请检查后端日志、策略文件和基础数据依赖后重启服务。"
+          title={koOrZh('选股功能不可用', '종목 발굴을 쓸 수 없어요')}
+          message={koOrZh('请检查后端日志、策略文件和基础数据依赖后重启服务。', '백엔드 로그, 전략 파일, 기본 데이터 설정을 확인한 뒤 서비스를 다시 시작해 주세요.')}
         />
       ) : null}
 
-      {error ? <InlineAlert variant="danger" title="调用失败" message={error} /> : null}
+      {error ? <InlineAlert variant="danger" title={koOrZh('调用失败', '요청 실패')} message={error} /> : null}
 
       <section className="rounded-2xl border border-border/80 bg-card/95 p-4 shadow-soft-card">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1522,7 +1586,7 @@ const StockScreeningPage: React.FC = () => {
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-orange-500/10 text-orange-500 shadow-[0_10px_30px_rgba(249,115,22,0.16)]">
               <Flame className="h-5 w-5" />
             </span>
-            <h2 className="text-lg font-bold tracking-normal text-foreground">热点题材</h2>
+            <h2 className="text-lg font-bold tracking-normal text-foreground">{koOrZh('热点题材', '인기 테마')}</h2>
           </div>
           <div className="flex flex-col items-start gap-2 lg:items-end">
             <div className="flex flex-wrap items-center gap-2">
@@ -1533,7 +1597,7 @@ const StockScreeningPage: React.FC = () => {
                 onClick={toggleHotspotsExpanded}
               >
                 <Bookmark className="h-4 w-4" />
-                {hotspotsExpanded ? '收起热点题材' : `展开热点题材${hotspots.length ? `（${hotspots.length}）` : ''}`}
+                {hotspotsExpanded ? koOrZh('收起热点题材', '인기 테마 접기') : koOrZh(`展开热点题材${hotspots.length ? `（${hotspots.length}）` : ''}`, `인기 테마 펼치기${hotspots.length ? ` (${hotspots.length})` : ''}`)}
                 <ChevronDown className={`h-4 w-4 transition-transform ${hotspotsExpanded ? 'rotate-180' : ''}`} />
               </Button>
               {hotspotsExpanded ? (
@@ -1541,17 +1605,17 @@ const StockScreeningPage: React.FC = () => {
                 size="sm"
                 variant="secondary"
                 isLoading={loadingHotspots}
-                loadingText="刷新中..."
+                loadingText={koOrZh('刷新中...', '새로고침 중...')}
                 disabled={!isScreeningEnabled || loadingHotspots}
                 onClick={() => void loadHotspots(true)}
               >
                 <RefreshCw className="h-4 w-4" />
-                刷新热点题材
+                {koOrZh('刷新热点题材', '인기 테마 새로고침')}
               </Button>
               ) : null}
             </div>
             {hotspotsUpdatedAt ? (
-              <p className="text-xs text-secondary-text">更新于 {formatHotspotUpdatedAt(hotspotsUpdatedAt)}</p>
+              <p className="text-xs text-secondary-text">{koOrZh('更新于 ', '업데이트: ')}{formatHotspotUpdatedAt(hotspotsUpdatedAt)}</p>
             ) : null}
           </div>
         </div>
@@ -1564,7 +1628,7 @@ const StockScreeningPage: React.FC = () => {
 
         {!hotspotsExpanded ? null : hotspots.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-surface/70 px-4 py-6 text-sm text-secondary-text">
-            暂无热点数据，点击“刷新热点题材”获取。
+            {koOrZh('暂无热点数据，点击“刷新热点题材”获取。', '인기 테마 데이터가 없어요. ‘인기 테마 새로고침’을 눌러 가져오세요.')}
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -1608,9 +1672,9 @@ const StockScreeningPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="mt-4 grid max-w-[72%] gap-1 text-[11px] text-secondary-text">
-                  <span>涨跌幅 <strong className="font-semibold text-foreground">{formatHotspotMetric(item.changePct)}%</strong></span>
-                  <span>趋势 <strong className="font-semibold text-foreground">{formatHotspotMetric(item.trendScore)}</strong> · 持续 <strong className="font-semibold text-foreground">{formatHotspotMetric(item.persistenceScore)}</strong></span>
-                  <span>{getHotspotSampleText(item)} · 龙头 {getHotspotLeadersText(item)}</span>
+                  <span>{koOrZh('涨跌幅', '등락률')} <strong className="font-semibold text-foreground">{formatHotspotMetric(item.changePct)}%</strong></span>
+                  <span>{koOrZh('趋势', '추세')} <strong className="font-semibold text-foreground">{formatHotspotMetric(item.trendScore)}</strong> · {koOrZh('持续', '지속')} <strong className="font-semibold text-foreground">{formatHotspotMetric(item.persistenceScore)}</strong></span>
+                  <span>{getHotspotSampleText(item)} · {koOrZh('龙头', '대장주')} {getHotspotLeadersText(item)}</span>
                 </div>
                 <div className="absolute bottom-3 right-3 opacity-95 transition-transform group-hover:scale-105">
                   <MiniSparkline score={item.heatScore} selected={selected} />
@@ -1632,11 +1696,11 @@ const StockScreeningPage: React.FC = () => {
                   {hotspotDetail
                     ? getHotspotSummaryText(hotspotDetail, selectedHotspot)
                     : loadingHotspotDetail
-                      ? '正在读取发酵路线与概念股...'
-                      : '点击题材查看发酵路线与概念股。'}
+                      ? koOrZh('正在读取发酵路线与概念股...', '테마 흐름과 관련 종목을 불러오는 중...')
+                      : koOrZh('点击题材查看发酵路线与概念股。', '테마를 누르면 흐름과 관련 종목을 볼 수 있어요.')}
                 </p>
                 {hotspotDetail?.canonicalTopic && hotspotDetail.canonicalTopic !== selectedHotspotTopic ? (
-                  <p className="mt-1 text-[11px] text-secondary-text">标准题材：{hotspotDetail.canonicalTopic}</p>
+                  <p className="mt-1 text-[11px] text-secondary-text">{koOrZh('标准题材：', '표준 테마: ')}{hotspotDetail.canonicalTopic}</p>
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1644,21 +1708,21 @@ const StockScreeningPage: React.FC = () => {
                   size="sm"
                   variant="secondary"
                   isLoading={searchingHotspotNews}
-                  loadingText="搜索中..."
+                  loadingText={koOrZh('搜索中...', '검색 중...')}
                   disabled={loadingHotspotDetail || searchingHotspotNews}
                   onClick={() => void loadHotspotDetail(selectedHotspotTopic, { includeSearch: true })}
                 >
                   <Search className="h-3.5 w-3.5" />
-                  搜索最新消息
+                  {koOrZh('搜索最新消息', '최신 뉴스 검색')}
                 </Button>
                 {loadingHotspotDetail ? (
                   <span className="w-fit rounded-full bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan">
-                    正在补充详情
+                    {koOrZh('正在补充详情', '세부 정보 채우는 중')}
                   </span>
                 ) : null}
                 {hotspotDetail?.qualityStatus ? (
                   <span className="w-fit rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
-                    质量 {getHotspotQualityLabel(hotspotDetail.qualityStatus)}
+                    {koOrZh('质量', '데이터 상태')} {getHotspotQualityLabel(hotspotDetail.qualityStatus)}
                   </span>
                 ) : null}
                 {hotspotDetail?.fallbackUsed || hotspotDetail?.stale ? (
@@ -1668,7 +1732,7 @@ const StockScreeningPage: React.FC = () => {
                 ) : null}
                 {hotspotDetail?.stockCount != null ? (
                   <span className="w-fit rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-500">
-                    概念股 {hotspotDetail.stockCount}
+                    {koOrZh('概念股', '관련 종목')} {hotspotDetail.stockCount}
                   </span>
                 ) : null}
               </div>
@@ -1682,10 +1746,10 @@ const StockScreeningPage: React.FC = () => {
 
             {hotspotDetail && hasHotspotDetailDegradation(hotspotDetail) ? (
               <details className="mb-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                <summary className="cursor-pointer font-semibold">详情数据已降级，展开查看原因</summary>
+                <summary className="cursor-pointer font-semibold">{koOrZh('详情数据已降级，展开查看原因', '세부 데이터 일부가 빠졌어요. 펼쳐서 이유를 확인하세요')}</summary>
                 <div className="mt-2 space-y-1 leading-5">
                   {(hotspotDetail.missingFields || []).length > 0 ? (
-                    <p>暂缺：{getHotspotMissingFieldLabels(hotspotDetail.missingFields).join('、')}</p>
+                    <p>{koOrZh('暂缺：', '빠진 항목: ')}{getHotspotMissingFieldLabels(hotspotDetail.missingFields).join(koOrZh('、', ', '))}</p>
                   ) : null}
                   {getHotspotDiagnosticMessages(hotspotDetail.sourceErrors).map((message, index) => (
                     <p key={`${message}-${index}`}>{message}</p>
@@ -1699,7 +1763,7 @@ const StockScreeningPage: React.FC = () => {
                 <div>
                   <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-secondary-text">
                     <Clock3 className="h-3.5 w-3.5 text-orange-500" />
-                    发酵时间线
+                    {koOrZh('发酵时间线', '흐름 타임라인')}
                   </p>
                   <div className="relative space-y-0 pl-4 before:absolute before:bottom-3 before:left-[5px] before:top-2 before:w-px before:bg-border">
                     {getHotspotRouteItems(hotspotDetail).map((item, index) => (
@@ -1716,7 +1780,7 @@ const StockScreeningPage: React.FC = () => {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              查看消息
+                              {koOrZh('查看消息', '뉴스 보기')}
                             </a>
                           ) : null}
                         </div>
@@ -1725,7 +1789,7 @@ const StockScreeningPage: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="mb-2 text-xs font-semibold text-secondary-text">概念股</p>
+                  <p className="mb-2 text-xs font-semibold text-secondary-text">{koOrZh('概念股', '관련 종목')}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {(hotspotDetail.stocks || []).slice(0, 10).map((stock) => (
                       <div key={`${stock.code || stock.name}`} className="rounded-lg border border-border/70 bg-card/80 p-3">
@@ -1741,18 +1805,18 @@ const StockScreeningPage: React.FC = () => {
                             {stock.code ? (
                               <button
                                 type="button"
-                                aria-label={`分析 ${stock.name || stock.code}`}
+                                aria-label={koOrZh(`分析 ${stock.name || stock.code}`, `${stock.name || stock.code} 분석`)}
                                 className="inline-flex h-7 items-center gap-1 rounded-full border border-cyan/30 bg-cyan/10 px-2 text-[11px] font-semibold text-cyan transition-colors hover:border-cyan hover:bg-cyan/15 hover:text-foreground"
                                 onClick={() => handleAnalyzeHotspotStock(stock)}
                               >
                                 <Play className="h-3 w-3" />
-                                分析
+                                {koOrZh('分析', '분석')}
                               </button>
                             ) : null}
                           </div>
                         </div>
                         <p className="mt-2 text-[11px] text-secondary-text">
-                          涨跌幅 {formatStockChangeText(stock.changePct)} · 热度 {formatNumber(stock.hotStockScore, 0)}
+                          {koOrZh('涨跌幅', '등락률')} {formatStockChangeText(stock.changePct)} · {koOrZh('热度', '관심도')} {formatNumber(stock.hotStockScore, 0)}
                         </p>
                       </div>
                     ))}
@@ -1768,7 +1832,7 @@ const StockScreeningPage: React.FC = () => {
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <SlidersHorizontal className="h-4 w-4 text-cyan" />
-            运行选股
+            {koOrZh('运行选股', '종목 발굴 실행')}
           </div>
           <span className="rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan">
             {selectedStrategyTag}
@@ -1777,7 +1841,7 @@ const StockScreeningPage: React.FC = () => {
 
         <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr_180px_auto] lg:items-end">
           <label className="space-y-2 text-xs font-medium text-secondary-text">
-            市场
+            {koOrZh('市场', '시장')}
             <select
               className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground outline-none transition-colors focus:border-cyan"
               value={market}
@@ -1786,14 +1850,14 @@ const StockScreeningPage: React.FC = () => {
             >
               {MARKETS.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.label}
+                  {getMarketLabel(item)}
                 </option>
               ))}
             </select>
           </label>
 
           <div className="space-y-2 text-xs font-medium text-secondary-text">
-            <label htmlFor="screening-strategy">策略</label>
+            <label htmlFor="screening-strategy">{koOrZh('策略', '전략')}</label>
             <Select
               id="screening-strategy"
               value={selectedStrategy ? strategy : CUSTOM_STRATEGY_OPTION_VALUE}
@@ -1804,7 +1868,7 @@ const StockScreeningPage: React.FC = () => {
                   value: item.id,
                   label: item.name || item.title || item.id,
                 })),
-                { value: CUSTOM_STRATEGY_OPTION_VALUE, label: '自定义策略…' },
+                { value: CUSTOM_STRATEGY_OPTION_VALUE, label: koOrZh('自定义策略…', '직접 입력…') },
               ]}
               onChange={(value) =>
                 handleStrategyChange(
@@ -1816,20 +1880,20 @@ const StockScreeningPage: React.FC = () => {
 
           {!selectedStrategy && !loadingStrategies ? (
             <label className="space-y-2 text-xs font-medium text-secondary-text lg:col-start-2">
-              自定义策略 ID
+              {koOrZh('自定义策略 ID', '전략 ID 직접 입력')}
               <input
-                aria-label="自定义策略 ID"
+                aria-label={koOrZh('自定义策略 ID', '전략 ID 직접 입력')}
                 className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground outline-none transition-colors focus:border-cyan"
                 value={strategy}
                 disabled={loading}
-                placeholder="输入策略 ID"
+                placeholder={koOrZh('输入策略 ID', '전략 ID 입력')}
                 onChange={(event) => handleStrategyChange(event.target.value)}
               />
             </label>
           ) : null}
 
           <label className="space-y-2 text-xs font-medium text-secondary-text">
-            返回数量
+            {koOrZh('返回数量', '결과 개수')}
             <input
               className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground outline-none transition-colors focus:border-cyan"
               type="number"
@@ -1844,19 +1908,19 @@ const StockScreeningPage: React.FC = () => {
           <Button
             className="h-11 min-w-40"
             isLoading={loading}
-            loadingText="筛选中..."
+            loadingText={koOrZh('筛选中...', '찾는 중...')}
             disabled={!isScreeningEnabled || loading || !strategy.trim()}
             onClick={() => void handleSubmit()}
           >
             <Play className="h-4 w-4" />
-            运行选股
+            {koOrZh('运行选股', '종목 발굴 실행')}
           </Button>
         </div>
 
         <div className="mt-3 rounded-xl border border-border/75 bg-surface/55 px-3 py-2 text-xs leading-5 text-secondary-text">
           {strategyLoadError
             ? strategyLoadError
-            : selectedStrategy?.description || '策略会先执行硬过滤和因子评分，再进行风险与组合约束。'}
+            : selectedStrategy?.description || koOrZh('策略会先执行硬过滤和因子评分，再进行风险与组合约束。', '전략은 먼저 기본 조건으로 거르고 점수를 매긴 뒤, 위험과 구성 조건을 적용해요.')}
         </div>
       </section>
 
@@ -1868,39 +1932,42 @@ const StockScreeningPage: React.FC = () => {
                 {loading ? <CircleAlert className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-foreground">{loading ? '选股运行中' : '选股完成'}</h2>
+                <h2 className="text-sm font-semibold text-foreground">{loading ? koOrZh('选股运行中', '종목 발굴 중') : koOrZh('选股完成', '종목 발굴 완료')}</h2>
                 <p className="mt-1 text-xs text-secondary-text">
                   {loading
-                    ? `${taskMessage || '正在执行选股'} · ${taskProgress}%`
-                    : `${displayedStrategy} · ${MARKETS.find((item) => item.id === market)?.label}`}
+                    ? `${taskMessage || koOrZh('正在执行选股', '종목 발굴 진행 중')} · ${taskProgress}%`
+                    : `${displayedStrategy} · ${(() => {
+                      const matched = MARKETS.find((item) => item.id === market);
+                      return matched ? getMarketLabel(matched) : undefined;
+                    })()}`}
                 </p>
               </div>
             </div>
           </div>
 
           <details className="mt-3 border-t border-border/70 pt-3 text-xs text-secondary-text">
-            <summary className="w-fit cursor-pointer font-medium text-secondary-text">运行详情</summary>
+            <summary className="w-fit cursor-pointer font-medium text-secondary-text">{koOrZh('运行详情', '실행 정보')}</summary>
             <div className="mt-2 grid gap-1">
-              <span>任务：{activeTaskId ? activeTaskId.slice(0, 12) : '-'}</span>
+              <span>{koOrZh('任务：', '작업: ')}{activeTaskId ? activeTaskId.slice(0, 12) : '-'}</span>
               <span>Run ID：{screenMeta?.runId || '-'}</span>
               <span>
-                快照 {screenMeta?.snapshotCount ?? '-'} · 过滤后 {screenMeta?.afterFilterCount ?? '-'} · 候选 {screenMeta?.candidateCount ?? candidates.length}
+                {koOrZh('快照', '스냅샷')} {screenMeta?.snapshotCount ?? '-'} · {koOrZh('过滤后', '필터 후')} {screenMeta?.afterFilterCount ?? '-'} · {koOrZh('候选', '후보')} {screenMeta?.candidateCount ?? candidates.length}
               </span>
               <span>
-                排序：{screenMeta?.llmRanked ? '智能重排' : screenMeta ? '确定性因子' : '-'}
+                {koOrZh('排序：', '정렬: ')}{screenMeta?.llmRanked ? koOrZh('智能重排', 'AI 재정렬') : screenMeta ? koOrZh('确定性因子', '점수 요인') : '-'}
                 {screenMeta?.llmModelUsed ? ` · ${screenMeta.llmModelUsed}` : ''}
-                {screenMeta?.llmCoverage != null ? ` · 覆盖 ${formatPercent(screenMeta.llmCoverage)}` : ''}
+                {screenMeta?.llmCoverage != null ? koOrZh(` · 覆盖 ${formatPercent(screenMeta.llmCoverage)}`, ` · 적용 범위 ${formatPercent(screenMeta.llmCoverage)}`) : ''}
               </span>
               {screenMeta?.resultVariantPoolSize ? (
                 <span>
-                  候选差异：近分池 {screenMeta.resultVariantPoolSize} ·{' '}
+                  {koOrZh('候选差异：近分池', '후보 변화: 비슷한 점수 후보')} {screenMeta.resultVariantPoolSize} ·{' '}
                   {screenMeta.resultVariantApplied
-                    ? `本次替换 ${screenMeta.resultVariantRotatedSlots ?? 0} 位`
-                    : '本次保持基准'}
+                    ? koOrZh(`本次替换 ${screenMeta.resultVariantRotatedSlots ?? 0} 位`, `이번에 ${screenMeta.resultVariantRotatedSlots ?? 0}개 교체`)
+                    : koOrZh('本次保持基准', '이번엔 기준 그대로')}
                 </span>
               ) : null}
               <span>
-                深度补充：{screenMeta?.dsaEnrichment?.enrichedCount ?? '-'} / {screenMeta?.dsaEnrichment?.requestedCount ?? '-'}
+                {koOrZh('深度补充：', '심층 보강: ')}{screenMeta?.dsaEnrichment?.enrichedCount ?? '-'} / {screenMeta?.dsaEnrichment?.requestedCount ?? '-'}
               </span>
             </div>
           </details>
@@ -1910,7 +1977,7 @@ const StockScreeningPage: React.FC = () => {
       {screenMeta && alertMessages.length > 0 ? (
         <InlineAlert
           variant={llmFailed ? 'warning' : 'info'}
-          title={llmFailed ? '当前使用因子排序' : '选股提示'}
+          title={llmFailed ? koOrZh('当前使用因子排序', '지금은 점수 요인 순위예요') : koOrZh('选股提示', '종목 발굴 안내')}
           message={<ScreenAlertMessage messages={alertMessages} />}
         />
       ) : null}
@@ -1918,16 +1985,16 @@ const StockScreeningPage: React.FC = () => {
       {screenMeta ? (
         <section className="rounded-2xl border border-border bg-card/95 p-4 shadow-soft-card">
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-base font-semibold text-foreground">选股结果</h2>
+            <h2 className="text-base font-semibold text-foreground">{koOrZh('选股结果', '종목 발굴 결과')}</h2>
           <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-2 text-xs text-secondary-text">
             <Search className="h-4 w-4 text-cyan" />
-            {candidates.length} 条候选
+            {koOrZh(`${candidates.length} 条候选`, `후보 ${candidates.length}개`)}
           </div>
           </div>
 
         {candidates.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-surface/70 px-5 py-10 text-center">
-            <p className="text-sm font-medium text-foreground">暂无符合条件的候选</p>
+            <p className="text-sm font-medium text-foreground">{koOrZh('暂无符合条件的候选', '조건에 맞는 후보가 없어요')}</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-border">
@@ -1935,15 +2002,15 @@ const StockScreeningPage: React.FC = () => {
               <thead className="bg-surface text-left text-xs text-secondary-text">
                 <tr>
                   <th className="w-14 px-4 py-3 font-semibold">#</th>
-                  <th className="px-4 py-3 font-semibold">代码</th>
-                  <th className="px-4 py-3 font-semibold">名称</th>
-                  <th className="px-4 py-3 font-semibold">行业</th>
-                  <th className="px-4 py-3 font-semibold">价格</th>
-                  <th className="px-4 py-3 font-semibold">涨跌幅</th>
-                  <th className="px-4 py-3 font-semibold">评分</th>
-                  <th className="px-4 py-3 font-semibold">排序依据</th>
-                  <th className="px-4 py-3 font-semibold">风险</th>
-                  <th className="px-4 py-3 font-semibold">详情</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('代码', '코드')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('名称', '종목명')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('行业', '업종')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('价格', '가격')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('涨跌幅', '등락률')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('评分', '점수')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('排序依据', '정렬 기준')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('风险', '위험')}</th>
+                  <th className="px-4 py-3 font-semibold">{koOrZh('详情', '상세')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1968,7 +2035,7 @@ const StockScreeningPage: React.FC = () => {
                         <td className="px-4 py-3 text-secondary-text">{formatNumber(item.price)}</td>
                         <td className="px-4 py-3 text-secondary-text">{formatNumber(item.changePct)}%</td>
                         <td className="px-4 py-3 font-bold text-cyan">{formatScore(item.score)}</td>
-                        <td className="px-4 py-3 text-secondary-text">{factorRanking ? '因子排序' : formatScore(item.llmScore)}</td>
+                        <td className="px-4 py-3 text-secondary-text">{factorRanking ? koOrZh('因子排序', '요인 순위') : formatScore(item.llmScore)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${getRiskClassName(item.riskLevel)}`}>
                             {getRiskLabel(item.riskLevel)}
@@ -1980,7 +2047,7 @@ const StockScreeningPage: React.FC = () => {
                             type="button"
                             onClick={() => setExpandedCode(expanded ? null : item.code)}
                           >
-                            {expanded ? '收起' : '展开查看'}
+                            {expanded ? koOrZh('收起', '접기') : koOrZh('展开查看', '펼쳐 보기')}
                           </button>
                         </td>
                       </tr>
@@ -1991,38 +2058,38 @@ const StockScreeningPage: React.FC = () => {
                               <div className="space-y-3">
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <div className="rounded-xl border border-cyan/25 bg-cyan/5 px-3 py-2.5">
-                                    <p className="text-xs font-semibold text-cyan">为什么入选</p>
-                                    <ExplanationItems items={selectionExplanations} emptyText="暂无可验证的入选解释" />
+                                    <p className="text-xs font-semibold text-cyan">{koOrZh('为什么入选', '선정 이유')}</p>
+                                    <ExplanationItems items={selectionExplanations} emptyText={koOrZh('暂无可验证的入选解释', '확인할 수 있는 선정 이유가 없어요')} />
                                     {selectionExplanations.length > 0 ? (
-                                      <p className="mt-2 text-xs text-secondary-text">综合质量：{selectionQuality}</p>
+                                      <p className="mt-2 text-xs text-secondary-text">{koOrZh('综合质量：', '종합 품질: ')}{selectionQuality}</p>
                                     ) : null}
                                   </div>
                                   <div className="rounded-xl border border-orange-400/25 bg-orange-500/5 px-3 py-2.5">
-                                    <p className="text-xs font-semibold text-orange-500">为什么现在</p>
-                                    <ExplanationItems items={item.whyNow} emptyText="暂无带来源的价格、消息或事件证据" />
+                                    <p className="text-xs font-semibold text-orange-500">{koOrZh('为什么现在', '지금인 이유')}</p>
+                                    <ExplanationItems items={item.whyNow} emptyText={koOrZh('暂无带来源的价格、消息或事件证据', '출처가 있는 가격·뉴스·이벤트 근거가 없어요')} />
                                     {item.whyNow?.length ? (
-                                      <p className="mt-2 text-xs text-secondary-text">综合质量：{item.explanationQuality?.whyNow || 'unknown'}</p>
+                                      <p className="mt-2 text-xs text-secondary-text">{koOrZh('综合质量：', '종합 품질: ')}{item.explanationQuality?.whyNow || 'unknown'}</p>
                                     ) : null}
                                   </div>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">摘要</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('摘要', '요약')}</p>
                                   <p className="mt-1 text-sm leading-6 text-foreground">{getCandidateReason(item)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">操作信号</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('操作信号', '매매 신호')}</p>
                                   <p className="mt-1 text-sm text-foreground">{getSignal(item)}</p>
                                   <button
                                     className="mt-2 rounded-lg border border-cyan/40 px-3 py-1.5 text-xs font-semibold text-cyan transition-colors hover:bg-cyan/10"
                                     type="button"
                                     onClick={() => handleAnalyzeCandidate(item)}
                                   >
-                                    进一步深度分析
+                                    {koOrZh('进一步深度分析', '심층 분석 더 보기')}
                                   </button>
                                 </div>
                                 {item.dsaAnalysisSummary ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">增强摘要</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('增强摘要', '보강 요약')}</p>
                                     <p className="mt-1 text-sm leading-6 text-foreground">
                                       {formatEnrichmentSummary(item.dsaAnalysisSummary)}
                                     </p>
@@ -2030,62 +2097,62 @@ const StockScreeningPage: React.FC = () => {
                                 ) : null}
                                 {llmInsightAvailable ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">智能判断</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('智能判断', 'AI 판단')}</p>
                                     <p className="mt-1 text-sm leading-6 text-foreground">{item.llmThesis || item.reason}</p>
                                     <p className="mt-1 text-xs text-secondary-text">
-                                      板块 {item.llmSector || '-'} · 主题 {item.llmTheme || '-'} · 置信度 {formatPercent(item.llmConfidence)}
+                                      {koOrZh('板块', '업종')} {item.llmSector || '-'} · {koOrZh('主题', '테마')} {item.llmTheme || '-'} · {koOrZh('置信度', '신뢰도')} {formatPercent(item.llmConfidence)}
                                     </p>
                                   </div>
                                 ) : null}
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">风险标签</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('风险标签', '위험 태그')}</p>
                                   <p className="mt-1 text-sm text-foreground">
                                     {[...(item.riskFlags || []), ...(item.llmRisks || [])].length
                                       ? [...(item.riskFlags || []), ...(item.llmRisks || [])].join('，')
-                                      : '无'}
+                                      : koOrZh('无', '없음')}
                                   </p>
                                 </div>
                                 {item.riskSummary ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">风险摘要</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('风险摘要', '위험 요약')}</p>
                                     <p className="mt-1 text-sm text-foreground">{item.riskSummary}</p>
                                   </div>
                                 ) : null}
                               </div>
                               <div className="space-y-3">
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">主要因子</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('主要因子', '주요 요인')}</p>
                                   <div className="mt-2 grid grid-cols-2 gap-2">
                                     {factors.length > 0 ? (
                                       factors.map(([key, value]) => (
                                         <div key={key} className="rounded-lg border border-border bg-card px-3 py-2">
-                                          <span className="block text-xs text-secondary-text">{FACTOR_LABELS[key] || key}</span>
+                                          <span className="block text-xs text-secondary-text">{(isKoUi() ? FACTOR_LABELS_KO : FACTOR_LABELS)[key] || key}</span>
                                           <span className="text-sm font-semibold text-foreground">{formatNumber(value)}</span>
                                         </div>
                                       ))
                                     ) : (
-                                      <span className="text-sm text-secondary-text">无因子明细</span>
+                                      <span className="text-sm text-secondary-text">{koOrZh('无因子明细', '요인 세부 정보 없음')}</span>
                                     )}
                                   </div>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">成交额</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('成交额', '거래대금')}</p>
                                   <p className="mt-1 text-sm text-foreground">{formatAmount(item.amount)}</p>
                                 </div>
                                 {item.llmWatchItems?.length ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">智能关注项</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('智能关注项', 'AI 체크 포인트')}</p>
                                     <p className="mt-1 text-sm text-foreground">{item.llmWatchItems.join('，')}</p>
                                   </div>
                                 ) : null}
                                 {item.llmCatalysts?.length ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">催化因素</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('催化因素', '상승 재료')}</p>
                                     <p className="mt-1 text-sm text-foreground">{item.llmCatalysts.join('，')}</p>
                                   </div>
                                 ) : null}
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">相关新闻</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('相关新闻', '관련 뉴스')}</p>
                                   {dsaNews.length > 0 ? (
                                     <ul className="mt-1 space-y-1 text-sm text-foreground">
                                       {dsaNews.slice(0, 3).map((newsItem, newsIndex) => (
@@ -2095,11 +2162,11 @@ const StockScreeningPage: React.FC = () => {
                                       ))}
                                     </ul>
                                   ) : (
-                                    <p className="mt-1 text-sm text-secondary-text">无</p>
+                                    <p className="mt-1 text-sm text-secondary-text">{koOrZh('无', '없음')}</p>
                                   )}
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-secondary-text">公告与事件</p>
+                                  <p className="text-xs font-semibold text-secondary-text">{koOrZh('公告与事件', '공시와 이벤트')}</p>
                                   {dsaEvents.length > 0 ? (
                                     <ul className="mt-1 space-y-1 text-sm text-foreground">
                                       {dsaEvents.slice(0, 3).map((eventItem, eventIndex) => (
@@ -2109,12 +2176,12 @@ const StockScreeningPage: React.FC = () => {
                                       ))}
                                     </ul>
                                   ) : (
-                                    <p className="mt-1 text-sm text-secondary-text">无</p>
+                                    <p className="mt-1 text-sm text-secondary-text">{koOrZh('无', '없음')}</p>
                                   )}
                                 </div>
                                 {dsaWarnings.length > 0 ? (
                                   <div>
-                                    <p className="text-xs font-semibold text-secondary-text">数据补充提示</p>
+                                    <p className="text-xs font-semibold text-secondary-text">{koOrZh('数据补充提示', '데이터 보강 안내')}</p>
                                     <p className="mt-1 text-sm text-secondary-text">{dsaWarnings.join('，')}</p>
                                   </div>
                                 ) : null}
@@ -2137,7 +2204,7 @@ const StockScreeningPage: React.FC = () => {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Clock3 className="h-4 w-4 text-cyan" />
-            历史记录
+            {koOrZh('历史记录', '기록')}
           </div>
           <button
             type="button"
@@ -2145,7 +2212,7 @@ const StockScreeningPage: React.FC = () => {
             onClick={() => void loadHistory()}
             disabled={historyLoading}
           >
-            {historyLoading ? '加载中...' : '刷新'}
+            {historyLoading ? koOrZh('加载中...', '불러오는 중...') : koOrZh('刷新', '새로고침')}
           </button>
         </div>
         {historyError ? (
@@ -2153,7 +2220,7 @@ const StockScreeningPage: React.FC = () => {
         ) : null}
         {historyRuns.length === 0 ? (
           <p className="py-3 text-center text-xs text-secondary-text">
-            {historyLoading ? '正在加载历史记录...' : '暂无历史选股记录'}
+            {historyLoading ? koOrZh('正在加载历史记录...', '기록을 불러오는 중...') : koOrZh('暂无历史选股记录', '아직 종목 발굴 기록이 없어요')}
           </p>
         ) : (
           <div className="divide-y divide-border/70">
@@ -2172,9 +2239,9 @@ const StockScreeningPage: React.FC = () => {
                     </span>
                   </span>
                   <span className="mt-0.5 block text-xs text-secondary-text">
-                    返回 {run.candidateCount ?? 0} 只
-                    {run.snapshotCount != null ? ` · 快照 ${run.snapshotCount}` : ''}
-                    {run.llmRanked ? ' · 智能重排' : ''}
+                    {koOrZh(`返回 ${run.candidateCount ?? 0} 只`, `후보 ${run.candidateCount ?? 0}개`)}
+                    {run.snapshotCount != null ? koOrZh(` · 快照 ${run.snapshotCount}`, ` · 스냅샷 ${run.snapshotCount}`) : ''}
+                    {run.llmRanked ? koOrZh(' · 智能重排', ' · AI 재정렬') : ''}
                   </span>
                 </span>
                 <span className="shrink-0 text-xs text-secondary-text">

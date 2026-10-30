@@ -13,6 +13,7 @@ import type {
 } from '../types/analysis';
 import type { RunFlowSnapshot } from '../types/runFlow';
 import { serializeMarketReviewRegions } from '../utils/marketReviewRegion';
+import { koOrZh } from '../utils/uiLanguage';
 
 // ============ API Interfaces ============
 
@@ -118,7 +119,7 @@ export const analysisApi = {
       const message = detail && typeof detail === 'object' && 'message' in detail
         ? String((detail as { message?: unknown }).message || '')
         : String(response.data?.message || '');
-      throw new Error(message || '大盘复盘正在执行中，请稍后再试');
+      throw new Error(message || koOrZh('大盘复盘正在执行中，请稍后再试', '시장 리뷰가 실행 중이에요. 잠시 후 다시 시도해 주세요'));
     }
 
     return toCamelCase<MarketReviewAccepted>(response.data);
@@ -196,7 +197,7 @@ export class DuplicateTaskError extends Error {
   existingTaskId: string;
 
   constructor(stockCode: string, existingTaskId: string, message?: string) {
-    super(message || `股票 ${stockCode} 正在分析中`);
+    super(message || koOrZh(`股票 ${stockCode} 正在分析中`, `${stockCode} 종목은 지금 분석 중이에요`));
     this.name = 'DuplicateTaskError';
     this.stockCode = stockCode;
     this.existingTaskId = existingTaskId;

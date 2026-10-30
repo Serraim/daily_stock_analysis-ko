@@ -65,6 +65,78 @@ export const LLM_PROVIDER_CAPABILITY_LABELS: Record<LLMProviderCapability, { lab
   },
 };
 
+/** 한국어 UI용 기능 태그 문구. 원본(중국어) 맵과 같은 키를 쓴다. */
+export const LLM_PROVIDER_CAPABILITY_LABELS_KO: Record<LLMProviderCapability, { label: string; hint: string }> = {
+  'openai-compatible': {
+    label: 'OpenAI 호환',
+    hint: 'OpenAI 호환 endpoint 기준으로 Base URL을 설정해요. /chat/completions는 따로 붙이지 않아요.',
+  },
+  aggregator: {
+    label: '통합 플랫폼',
+    hint: '보이는 모델, 라우팅, 가격은 계정 권한과 플랫폼 정책에 따라 바뀔 수 있어요.',
+  },
+  'official-api': {
+    label: '공식 API',
+    hint: '서비스 업체의 공식 프로토콜이나 공식 호환 주소를 써요.',
+  },
+  'model-discovery': {
+    label: '모델 가져오기 지원',
+    hint: '/models로 모델 목록을 가져와 볼 수 있어요. 실제 결과는 계정 권한과 API 키에 따라 달라요.',
+  },
+  vision: {
+    label: 'Vision 안내',
+    hint: '이 provider는 주로 Vision 용도로 쓰여요. 실제 모델 기능은 계정과 모델 목록에서 확인해 주세요.',
+  },
+  'local-runtime': {
+    label: '로컬 실행',
+    hint: '지금 실행 환경에서 해당 로컬 서비스에 접속할 수 있어야 해요.',
+  },
+};
+
+/** 한국어 UI용 서비스 업체 이름/설정 안내. channelId 기준이며, 없는 항목은 원본 문구를 쓴다. */
+export const LLM_PROVIDER_TEMPLATE_TEXT_KO: Record<string, { label?: string; configHint?: string }> = {
+  modelflare: {
+    label: 'Modelflare (통합 플랫폼)',
+    configHint:
+      'API 키의 라우팅 그룹이 고른 모델을 지원해야 해요. 모델 ID는 콘솔이나 ‘모델 가져오기’ 결과를 기준으로 해 주세요. modelflare 채널의 Base URL을 비워 두면 기본 /v1 주소를 쓰고, 필요하면 바꿀 수 있어요. /chat/completions는 따로 붙이지 않아요.',
+  },
+  aihubmix: { label: 'AIHubmix (통합 플랫폼)' },
+  anspire: {
+    configHint:
+      '같은 ANSPIRE_API_KEYS를 검색과 LLM 채널에 함께 쓸 수 있어요. 아래 모델과 게이트웨이는 설정 예시이고, 실제로 쓸 수 있는지는 계정 권한과 콘솔에서 확인해 주세요. 먼저 ‘연결 테스트’로 확인해 보는 걸 추천해요.',
+  },
+  deepseek: { label: 'DeepSeek 공식' },
+  dashscope: { label: 'Qwen (Dashscope)' },
+  zhipu: { label: 'Zhipu GLM' },
+  moonshot: { label: 'Moonshot (Kimi)' },
+  minimax: { label: 'MiniMax 공식' },
+  volcengine: {
+    label: 'Volcengine Ark (Doubao)',
+    configHint: '온라인 추론 endpoint / region과 Coding Plan 전용 주소를 섞어 쓰지 않도록 확인해 주세요.',
+  },
+  siliconflow: {
+    label: 'SiliconFlow',
+    configHint: '모델 목록과 보이는 모델은 계정 권한과 API 키에 따라 달라요.',
+  },
+  openrouter: { configHint: '모델 목록과 보이는 모델은 계정 권한과 API 키에 따라 달라요.' },
+  requesty: {
+    configHint: '모델 목록과 보이는 모델은 계정 권한과 API 키에 따라 달라요. EU 리전은 Base URL을 https://router.eu.requesty.ai/v1로 바꿔 주세요.',
+  },
+  gemini: { label: 'Gemini 공식' },
+  anthropic: { label: 'Anthropic 공식' },
+  openai: { label: 'OpenAI 공식' },
+  ollama: {
+    label: 'Ollama (로컬)',
+    configHint: '이 컴퓨터, Docker 또는 self-hosted runner에서 Ollama 서비스에 접속할 수 있어야 해요.',
+  },
+  custom: { label: '사용자 지정 채널' },
+};
+
+/** 한국어 UI용 공식 자료 링크 이름. 원본 label을 키로 쓴다. */
+export const LLM_PROVIDER_SOURCE_LABELS_KO: Record<string, string> = {
+  'Modelflare 专属注册': 'Modelflare 전용 가입',
+};
+
 export const LLM_PROVIDER_TEMPLATES: LLMProviderTemplate[] = [
   {
     channelId: 'modelflare',

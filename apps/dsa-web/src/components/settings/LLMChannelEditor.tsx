@@ -8,7 +8,10 @@ import { ApiErrorAlert, Badge, Button, InlineAlert, Input, Select, StatusDot, To
 import type { ChannelProtocol } from './llmProviderTemplates';
 import {
   LLM_PROVIDER_CAPABILITY_LABELS,
+  LLM_PROVIDER_CAPABILITY_LABELS_KO,
+  LLM_PROVIDER_SOURCE_LABELS_KO,
   LLM_PROVIDER_TEMPLATES,
+  LLM_PROVIDER_TEMPLATE_TEXT_KO,
   MODELFLARE_APP_REGISTRATION_URL,
   MODELFLARE_DEFAULT_MODEL,
   MODEL_PLACEHOLDERS_BY_PROTOCOL,
@@ -17,6 +20,7 @@ import {
   isKnownProviderTemplate,
 } from './llmProviderTemplates';
 import { SettingsHelpButton } from './SettingsHelpButton';
+import { getRuntimeInitialLanguage, koOrZh } from '../../utils/uiLanguage';
 
 const PROTOCOL_OPTIONS: Array<{ value: ChannelProtocol; label: string }> = [
   { value: 'openai', label: 'OpenAI Compatible' },
@@ -32,6 +36,14 @@ const API_SURFACE_OPTIONS: Array<{ value: LLMApiSurface; label: string }> = [
   { value: 'responses', label: 'Responses API' },
 ];
 
+const API_SURFACE_OPTIONS_KO: Array<{ value: LLMApiSurface; label: string }> = [
+  { value: 'chat_completions', label: 'Chat Completions (기본값)' },
+  { value: 'responses', label: 'Responses API' },
+];
+
+// 한국어 UI 여부는 렌더 시점에 판단한다(모듈 상수는 import 시 한 번만 평가되므로).
+const isKoUi = (): boolean => getRuntimeInitialLanguage() === 'ko';
+
 const CHANNEL_FIELD_SUFFIXES = ['PROTOCOL', 'API_SURFACE', 'BASE_URL', 'API_KEY', 'API_KEYS', 'MODELS', 'EXTRA_HEADERS', 'ENABLED'] as const;
 const CHANNEL_FIELD_KEY_PATTERN = /^LLM_([A-Z0-9_]+)_(PROTOCOL|API_SURFACE|BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS|ENABLED)$/;
 const FALSEY_VALUES = new Set(['0', 'false', 'no', 'off']);
@@ -45,10 +57,23 @@ const RUNTIME_CAPABILITY_OPTIONS: Array<{ value: LLMCapabilityCheck; label: stri
   { value: 'vision', label: 'Vision', hint: '检测当前模型是否接受 image_url 输入。' },
 ];
 
+const RUNTIME_CAPABILITY_HINTS_KO: Record<LLMCapabilityCheck, string> = {
+  json: 'response_format JSON 출력이 되는지 확인해요.',
+  tools: 'function/tool calling이 되는지 확인해요.',
+  stream: '스트리밍 출력이 정상 chunk를 돌려주는지 확인해요.',
+  vision: '지금 모델이 image_url 입력을 받는지 확인해요.',
+};
+
 const CAPABILITY_STATUS_LABELS: Record<LLMCapabilityCheckResult['status'], string> = {
   passed: '通过',
   failed: '失败',
   skipped: '跳过',
+};
+
+const CAPABILITY_STATUS_LABELS_KO: Record<LLMCapabilityCheckResult['status'], string> = {
+  passed: '통과',
+  failed: '실패',
+  skipped: '건너뜀',
 };
 
 const isHermesChannel = (channel: Pick<ChannelConfig, 'name'>): boolean => (
@@ -98,6 +123,7 @@ const hasRuntimeOnlyMaskedHermesSecret = (
 );
 
 const RUNTIME_ONLY_HERMES_SECRET_MESSAGE = '运行时注入的 Hermes Key 不会回传；如需在设置页测试，请重新输入 Key 或保存到 .env。';
+const RUNTIME_ONLY_HERMES_SECRET_MESSAGE_KO = '실행 중에 넣은 Hermes 키는 화면으로 다시 불러오지 않아요. 설정 페이지에서 테스트하려면 키를 다시 입력하거나 .env에 저장해 주세요.';
 
 interface ChannelConfig {
   id: string;
@@ -183,6 +209,15 @@ const LLM_CHANNEL_HELP_DOCS = [
   },
 ];
 
+const LLM_CHANNEL_HELP_DOCS_KO = [
+  { ...LLM_CHANNEL_HELP_DOCS[0], label: 'LLM 설정 가이드' },
+  { ...LLM_CHANNEL_HELP_DOCS[1], label: 'LLM 서비스 업체 설정 요약' },
+];
+
+function getLlmChannelHelpDocs() {
+  return isKoUi() ? LLM_CHANNEL_HELP_DOCS_KO : LLM_CHANNEL_HELP_DOCS;
+}
+
 function HelpLabel({
   htmlFor,
   label,
@@ -211,7 +246,7 @@ function HelpLabel({
         title={label}
         helpKey={helpKey}
         examples={examples}
-        docs={LLM_CHANNEL_HELP_DOCS}
+        docs={getLlmChannelHelpDocs()}
       />
     </div>
   );
@@ -418,10 +453,14 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
 }) => {
   const preset = getProviderTemplate(channel.name);
   const showProviderTemplateDetails = isKnownProviderTemplate(channel.name);
-  const displayName = preset?.label || channel.name;
+  const koUi = isKoUi();
+  const presetTextKo = koUi && preset ? LLM_PROVIDER_TEMPLATE_TEXT_KO[preset.channelId] : undefined;
+  const displayName = presetTextKo?.label || preset?.label || channel.name;
   const providerCapabilities = showProviderTemplateDetails ? (preset?.capabilities || []) : [];
   const providerSources = showProviderTemplateDetails ? (preset?.officialSources || []) : [];
-  const providerHint = showProviderTemplateDetails ? preset?.configHint : undefined;
+  const providerHint = showProviderTemplateDetails
+    ? (preset?.configHint && presetTextKo?.configHint) || preset?.configHint
+    : undefined;
   const selectedModels = splitModels(channel.models);
   const runtimeCapabilityOptions = isHermesChannel(channel)
     ? RUNTIME_CAPABILITY_OPTIONS.filter((option) => option.value === 'json')
@@ -450,11 +489,12 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
   const baseUrlInputId = `llm-channel-${channel.id}-base-url`;
   const apiKeyInputId = `llm-channel-${channel.id}-api-key`;
   const modelsInputId = `llm-channel-${channel.id}-models`;
-  const apiSurfaceOptions = API_SURFACE_OPTIONS.some((option) => option.value === channel.apiSurface)
-    ? API_SURFACE_OPTIONS
+  const surfaceOptions = koUi ? API_SURFACE_OPTIONS_KO : API_SURFACE_OPTIONS;
+  const apiSurfaceOptions = surfaceOptions.some((option) => option.value === channel.apiSurface)
+    ? surfaceOptions
     : [
-        { value: channel.apiSurface, label: `无效配置：${channel.apiSurface}` },
-        ...API_SURFACE_OPTIONS,
+        { value: channel.apiSurface, label: koOrZh(`无效配置：${channel.apiSurface}`, `잘못된 설정: ${channel.apiSurface}`) },
+        ...surfaceOptions,
       ];
 
   return (
@@ -490,41 +530,41 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             </Badge>
           </div>
           <p className="mt-0.5 truncate text-[11px] text-secondary-text">
-            {modelCount > 0 ? `${modelCount} 个模型已配置` : '未配置模型'}
+            {modelCount > 0 ? koOrZh(`${modelCount} 个模型已配置`, `모델 ${modelCount}개 설정됨`) : koOrZh('未配置模型', '설정된 모델 없음')}
           </p>
         </div>
 
         <span className="flex shrink-0 items-center gap-2">
           {testState?.status === 'success' ? (
-            <Tooltip content="连接正常">
+            <Tooltip content={koOrZh('连接正常', '연결 정상')}>
               <span className="inline-flex">
                 <StatusDot tone="success" />
               </span>
             </Tooltip>
           ) : null}
           {testState?.status === 'error' ? (
-            <Tooltip content="连接失败">
+            <Tooltip content={koOrZh('连接失败', '연결 실패')}>
               <span className="inline-flex">
                 <StatusDot tone="danger" />
               </span>
             </Tooltip>
           ) : null}
           {testState?.status === 'loading' ? (
-            <Tooltip content="测试中">
+            <Tooltip content={koOrZh('测试中', '테스트 중')}>
               <span className="inline-flex">
                 <StatusDot tone="warning" pulse />
               </span>
             </Tooltip>
           ) : null}
-          {!hasKey && channel.protocol !== 'ollama' ? <Badge variant="warning">未填 Key</Badge> : null}
+          {!hasKey && channel.protocol !== 'ollama' ? <Badge variant="warning">{koOrZh('未填 Key', 'API 키 없음')}</Badge> : null}
           {testState?.status !== 'idle' ? (
             <Badge variant={statusVariant}>
-              {testState?.status === 'success' ? '连接正常' : testState?.status === 'error' ? '连接失败' : '测试中'}
+              {testState?.status === 'success' ? koOrZh('连接正常', '연결 정상') : testState?.status === 'error' ? koOrZh('连接失败', '연결 실패') : koOrZh('测试中', '테스트 중')}
             </Badge>
           ) : null}
         </span>
 
-        <Tooltip content="删除渠道">
+        <Tooltip content={koOrZh('删除渠道', '채널 삭제')}>
           <span className="inline-flex">
             <Button
               type="button"
@@ -549,7 +589,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div>
               <HelpLabel
                 htmlFor={channelNameInputId}
-                label="渠道名称"
+                label={koOrZh('渠道名称', '채널 이름')}
                 fieldKey="LLM_CHANNEL_NAME"
                 helpKey="settings.llm_channel.channel_name"
                 examples={['LLM_CHANNELS=deepseek,aihubmix', 'LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro']}
@@ -565,7 +605,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div className="space-y-2">
               <HelpLabel
                 htmlFor={protocolInputId}
-                label="协议"
+                label={koOrZh('协议', '프로토콜')}
                 fieldKey="LLM_CHANNEL_PROTOCOL"
                 helpKey="settings.llm_channel.protocol"
                 examples={['LLM_DEEPSEEK_PROTOCOL=deepseek', 'LLM_OPENROUTER_PROTOCOL=openai']}
@@ -576,7 +616,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 onChange={(v) => onUpdate(index, 'protocol', normalizeProtocol(v))}
                 options={PROTOCOL_OPTIONS}
                 disabled={busy}
-                placeholder="选择协议"
+                placeholder={koOrZh('选择协议', '프로토콜 선택')}
               />
             </div>
             <div className="space-y-2">
@@ -593,7 +633,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 onChange={(value) => onUpdate(index, 'apiSurface', value)}
                 options={apiSurfaceOptions}
                 disabled={busy || (isHermesChannel(channel) && channel.apiSurface === 'chat_completions')}
-                placeholder="选择 API Surface"
+                placeholder={koOrZh('选择 API Surface', 'API Surface 선택')}
               />
             </div>
           </div>
@@ -613,7 +653,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             onChange={(e) => onUpdate(index, 'baseUrl', e.target.value)}
             placeholder={
               channel.protocol === 'gemini' || channel.protocol === 'anthropic'
-                ? '官方接口可留空'
+                ? koOrZh('官方接口可留空', '공식 API는 비워 둬도 돼요')
                 : preset?.baseUrl || 'https://api.example.com/v1'
             }
           />
@@ -622,9 +662,11 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
           {showProviderTemplateDetails ? (
             <div className="space-y-2 rounded-xl border border-[var(--settings-border)] bg-[var(--settings-surface-hover)] p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium text-muted-text">配置参考</span>
+                <span className="text-[11px] font-medium text-muted-text">{koOrZh('配置参考', '설정 참고')}</span>
                 {providerCapabilities.map((capability) => {
-                  const capabilityMeta = LLM_PROVIDER_CAPABILITY_LABELS[capability];
+                  const capabilityMeta = koUi
+                    ? LLM_PROVIDER_CAPABILITY_LABELS_KO[capability]
+                    : LLM_PROVIDER_CAPABILITY_LABELS[capability];
                   return (
                     <Tooltip key={capability} content={capabilityMeta.hint}>
                       <span className="inline-flex">
@@ -641,7 +683,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               ) : null}
               {providerSources.length > 0 ? (
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-5 text-secondary-text">
-                  <span>官方来源：</span>
+                  <span>{koOrZh('官方来源：', '공식 자료:')}</span>
                   {providerSources.map((source) => (
                     <a
                       key={source.url}
@@ -650,13 +692,13 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                       rel="noreferrer"
                       className="settings-accent-text underline-offset-2 hover:underline"
                     >
-                      {source.label}
+                      {(koUi && LLM_PROVIDER_SOURCE_LABELS_KO[source.label]) || source.label}
                     </a>
                   ))}
                 </p>
               ) : null}
               <p className="text-[11px] leading-5 text-muted-text">
-                能力标签仅用于配置参考，不代表运行时能力已验证通过。
+                {koOrZh('能力标签仅用于配置参考，不代表运行时能力已验证通过。', '기능 태그는 설정 참고용이에요. 실제로 동작하는지 확인된 건 아니에요.')}
               </p>
             </div>
           ) : null}
@@ -679,7 +721,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             value={channel.apiKey}
             disabled={busy}
             onChange={(e) => onUpdate(index, 'apiKey', e.target.value)}
-            placeholder={channel.protocol === 'ollama' ? '本地 Ollama 可留空' : '支持多个 Key 逗号分隔'}
+            placeholder={channel.protocol === 'ollama' ? koOrZh('本地 Ollama 可留空', '로컬 Ollama는 비워 둬도 돼요') : koOrZh('支持多个 Key 逗号分隔', '키가 여러 개면 쉼표로 구분해 주세요')}
           />
           </div>
 
@@ -693,7 +735,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 disabled={busy}
                 onClick={() => onDiscoverModels(channel)}
               >
-                {discoveryState?.status === 'loading' ? '获取中...' : '获取模型'}
+                {discoveryState?.status === 'loading' ? koOrZh('获取中...', '가져오는 중...') : koOrZh('获取模型', '모델 가져오기')}
               </Button>
               <span className={`text-xs ${
                 discoveryState?.status === 'success'
@@ -703,7 +745,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                     : 'text-muted-text'
               }`}
               >
-                {discoveryState?.text || '支持 `/models` 的 OpenAI Compatible 渠道可自动拉取模型。'}
+                {discoveryState?.text || koOrZh('支持 `/models` 的 OpenAI Compatible 渠道可自动拉取模型。', '`/models`를 지원하는 OpenAI Compatible 채널은 모델 목록을 자동으로 가져올 수 있어요.')}
               </span>
             </div>
             {discoveryState?.hint ? (
@@ -715,7 +757,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             {discoveredModels.length > 0 ? (
               <div>
                 <HelpLabel
-                  label="可选模型（可多选）"
+                  label={koOrZh('可选模型（可多选）', '선택할 수 있는 모델 (여러 개 선택 가능)')}
                   fieldKey="LLM_CHANNEL_DISCOVERED_MODELS"
                   helpKey="settings.llm_channel.models"
                   examples={['LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro']}
@@ -746,7 +788,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div>
               <HelpLabel
                 htmlFor={modelsInputId}
-                label={discoveredModels.length > 0 ? '手动模型（逗号分隔）' : '模型（逗号分隔）'}
+                label={discoveredModels.length > 0 ? koOrZh('手动模型（逗号分隔）', '직접 입력한 모델 (쉼표로 구분)') : koOrZh('模型（逗号分隔）', '모델 (쉼표로 구분)')}
                 fieldKey="LLM_CHANNEL_MODELS"
                 helpKey="settings.llm_channel.models"
                 examples={['LLM_DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro', 'LLM_OLLAMA_MODELS=qwen3:8b,llama3.1:8b']}
@@ -759,15 +801,15 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               placeholder={preset?.placeholderModels || MODEL_PLACEHOLDERS_BY_PROTOCOL[channel.protocol]}
               hint={
                 discoveredModels.length > 0
-                  ? '如有自定义模型名未出现在列表中，可继续手动补充，保存格式仍为逗号分隔。'
-                  : '若渠道不支持自动发现或请求失败，可直接手动填写模型列表。'
+                  ? koOrZh('如有自定义模型名未出现在列表中，可继续手动补充，保存格式仍为逗号分隔。', '목록에 없는 모델 이름은 직접 추가할 수 있어요. 저장할 때도 쉼표로 구분해요.')
+                  : koOrZh('若渠道不支持自动发现或请求失败，可直接手动填写模型列表。', '채널이 자동 조회를 지원하지 않거나 요청이 실패하면 모델 목록을 직접 입력해 주세요.')
               }
             />
             </div>
 
             {manualOnlyModels.length > 0 ? (
               <p className="text-[11px] text-secondary-text">
-                额外手动模型：{manualOnlyModels.join('，')}
+                {koOrZh('额外手动模型：', '직접 추가한 모델: ')}{manualOnlyModels.join(koOrZh('，', ', '))}
               </p>
             ) : null}
           </div>
@@ -781,7 +823,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
               disabled={busy}
               onClick={() => onTest(channel, index)}
             >
-              {testState?.status === 'loading' ? '测试中...' : '测试连接'}
+              {testState?.status === 'loading' ? koOrZh('测试中...', '테스트 중...') : koOrZh('测试连接', '연결 테스트')}
             </Button>
             {testState?.text ? (
               <div className="space-y-1">
@@ -797,7 +839,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 </span>
                 {selectedModels[0] ? (
                   <p className="text-[11px] text-secondary-text">
-                    基础连接测试默认使用模型列表首项：{selectedModels[0]}
+                    {koOrZh('基础连接测试默认使用模型列表首项：', '기본 연결 테스트는 모델 목록의 첫 번째 모델을 써요: ')}{selectedModels[0]}
                   </p>
                 ) : null}
                 {testState.hint ? (
@@ -813,17 +855,17 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[11px] font-medium text-muted-text">运行时能力检测（可选）</p>
+                  <p className="text-[11px] font-medium text-muted-text">{koOrZh('运行时能力检测（可选）', '기능 점검 (선택)')}</p>
                   <SettingsHelpButton
                     fieldKey="LLM_CHANNEL_CAPABILITY_CHECKS"
-                    title="运行时能力检测"
+                    title={koOrZh('运行时能力检测', '기능 점검')}
                     helpKey="settings.llm_channel.capability_checks"
                     examples={['JSON / Tools / Stream / Vision']}
-                    docs={LLM_CHANNEL_HELP_DOCS}
+                    docs={getLlmChannelHelpDocs()}
                   />
                 </div>
                 <p className="mt-0.5 text-[11px] text-secondary-text">
-                  仅在手动触发时发起真实 LLM 请求；多选可能需要 20-40 秒。
+                  {koOrZh('仅在手动触发时发起真实 LLM 请求；多选可能需要 20-40 秒。', '직접 누를 때만 실제 LLM 요청을 보내요. 여러 개를 고르면 20~40초 걸릴 수 있어요.')}
                 </p>
               </div>
               <Button
@@ -834,13 +876,13 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                 disabled={busy || capabilityBusy || selectedCapabilities.length === 0}
                 onClick={() => onCheckCapabilities(channel)}
               >
-                {capabilityBusy ? '检测中...' : '检测能力'}
+                {capabilityBusy ? koOrZh('检测中...', '점검 중...') : koOrZh('检测能力', '기능 점검')}
               </Button>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {runtimeCapabilityOptions.map((option) => (
-                <Tooltip key={option.value} content={option.hint}>
+                <Tooltip key={option.value} content={koUi ? RUNTIME_CAPABILITY_HINTS_KO[option.value] : option.hint}>
                   <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--settings-border)] bg-[var(--settings-surface)] px-2 py-1 text-[11px] text-secondary-text">
                     <input
                       type="checkbox"
@@ -882,7 +924,7 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
                     <Tooltip key={option.value} content={result.message}>
                       <span className="inline-flex">
                         <Badge variant={getCapabilityResultVariant(result.status)}>
-                          {option.label} {CAPABILITY_STATUS_LABELS[result.status]}
+                          {option.label} {(koUi ? CAPABILITY_STATUS_LABELS_KO : CAPABILITY_STATUS_LABELS)[result.status]}
                         </Badge>
                       </span>
                     </Tooltip>
@@ -1154,7 +1196,7 @@ function buildRouteProvenanceMap(
 function buildModelOptions(models: string[], selectedModel: string, autoLabel: string): Array<{ value: string; label: string }> {
   const options: Array<{ value: string; label: string }> = [{ value: '', label: autoLabel }];
   if (selectedModel && !models.includes(selectedModel)) {
-    options.push({ value: selectedModel, label: `${selectedModel}（当前配置）` });
+    options.push({ value: selectedModel, label: koOrZh(`${selectedModel}（当前配置）`, `${selectedModel} (현재 설정)`) });
   }
   for (const model of models) {
     options.push({ value: model, label: model });
@@ -1173,6 +1215,17 @@ const LLM_STAGE_LABELS: Record<string, string> = {
   capability_vision: 'Vision 能力',
 };
 
+const LLM_STAGE_LABELS_KO: Record<string, string> = {
+  model_discovery: '모델 조회',
+  chat_completion: '채팅 호출',
+  responses: 'Responses 호출',
+  response_parse: '응답 해석',
+  capability_json: 'JSON 기능',
+  capability_tools: 'Tools 기능',
+  capability_stream: 'Stream 기능',
+  capability_vision: 'Vision 기능',
+};
+
 const LLM_ERROR_LABELS: Record<string, string> = {
   auth: '鉴权失败',
   timeout: '请求超时',
@@ -1188,6 +1241,21 @@ const LLM_ERROR_LABELS: Record<string, string> = {
   skipped: '已跳过',
 };
 
+const LLM_ERROR_LABELS_KO: Record<string, string> = {
+  auth: '인증 실패',
+  timeout: '요청 시간 초과',
+  quota: '한도 초과 또는 속도 제한',
+  model_not_found: '모델 사용 불가',
+  request_blocked: '요청 차단됨',
+  empty_response: '빈 응답',
+  format_error: '형식 오류',
+  network_error: '네트워크 오류',
+  invalid_config: '잘못된 설정',
+  unsupported_protocol: '지원하지 않는 프로토콜',
+  capability_unsupported: '지원하지 않는 기능',
+  skipped: '건너뜀',
+};
+
 const LLM_TROUBLESHOOTING_HINTS: Record<string, string> = {
   auth: '请检查 API Key 是否正确、是否有多余空格，以及当前渠道是否需要额外组织/项目权限。',
   timeout: '可重试；若持续超时，请检查 Base URL、网络代理、服务商可用区或本地防火墙。',
@@ -1197,6 +1265,17 @@ const LLM_TROUBLESHOOTING_HINTS: Record<string, string> = {
   network_error: '请检查 Base URL、代理、TLS/证书、中转网关或本地网络策略，并可稍后重试。',
   invalid_config: '先补齐协议、Base URL、API Key 和模型配置，再执行一键测试。',
   unsupported_protocol: '当前仅对 OpenAI Compatible / DeepSeek 渠道提供自动模型发现，请改为手动维护模型列表。',
+};
+
+const LLM_TROUBLESHOOTING_HINTS_KO: Record<string, string> = {
+  auth: 'API 키가 맞는지, 앞뒤에 공백이 없는지, 이 채널에 조직/프로젝트 권한이 더 필요한지 확인해 주세요.',
+  timeout: '다시 시도해 보세요. 계속 시간이 초과되면 Base URL, 네트워크 프록시, 서비스 업체 리전, 로컬 방화벽을 확인해 주세요.',
+  quota: '잔액, 요금제 한도, RPM/TPM 제한, 동시 요청 설정을 확인하고, 필요하면 잠시 뒤 다시 시도해 주세요.',
+  model_not_found: '모델 이름이 채널 프로토콜과 맞는지 확인하고, 먼저 ‘모델 가져오기’로 이 채널에서 실제로 쓸 수 있는 모델 목록을 확인해 주세요.',
+  empty_response: '채널에 연결은 됐지만 답변 내용이 없어요. 호환되는 다른 모델로 바꾸거나 추가 응답 모드를 끈 뒤 다시 테스트해 주세요.',
+  network_error: 'Base URL, 프록시, TLS/인증서, 중계 게이트웨이, 로컬 네트워크 정책을 확인하고 잠시 뒤 다시 시도해 주세요.',
+  invalid_config: '프로토콜, Base URL, API 키, 모델 설정을 먼저 채운 뒤 테스트해 주세요.',
+  unsupported_protocol: '모델 자동 조회는 OpenAI Compatible / DeepSeek 채널만 지원해요. 모델 목록을 직접 입력해 주세요.',
 };
 
 const LLM_REASON_HINTS: Record<string, string> = {
@@ -1214,12 +1293,27 @@ const LLM_REASON_HINTS: Record<string, string> = {
   capability_unsupported: '当前模型或兼容层不支持该能力；这不影响基础文本连接，可换模型或关闭该能力依赖。',
 };
 
+const LLM_REASON_HINTS_KO: Record<string, string> = {
+  missing_api_key: 'API 키가 비어 있거나, 쉼표로 나눈 뒤 쓸 수 있는 키가 없어요. 올바른 키를 하나 이상 입력하고 다시 테스트해 주세요.',
+  api_key_rejected: '서비스 업체가 이 API 키를 거부했어요. 키, 조직/프로젝트 권한, 리전, 계정 상태를 확인해 주세요.',
+  rate_limit: '서비스 업체의 RPM/TPM 또는 동시 요청 제한에 걸렸어요. 요청 빈도를 줄이거나 잠시 뒤 다시 시도해 주세요.',
+  insufficient_balance: '서비스 업체에서 잔액, 결제 또는 한도가 부족하다고 알려 왔어요. 계정 잔액과 요금제 상태를 확인해 주세요.',
+  quota_exceeded: '서비스 업체의 사용 한도를 모두 썼어요. 계정 요금제, 남은 사용량, 프로젝트 한도를 확인해 주세요.',
+  provider_blocked: '서비스 업체나 중계 게이트웨이가 요청을 막았어요. 계정 보안 정책, 지역 제한, 모델 권한, 중계 업체 게이트웨이 정책, 콘텐츠 안전 정책, 요청 출처 제한을 확인해 주세요.',
+  dns_error: '도메인 주소를 찾지 못했어요. Base URL 도메인, 네트워크 프록시, DNS 설정을 확인해 주세요.',
+  tls_error: 'TLS/인증서 연결에 실패했어요. HTTPS 인증서, 중계 게이트웨이, 회사 프록시 정책을 확인해 주세요.',
+  connection_refused: '대상 서버가 연결을 거부했어요. Base URL 포트, 서비스 실행 여부, 방화벽 설정을 확인해 주세요.',
+  model_access_denied: '이 계정으로는 이 모델을 쓸 수 없어요. 모델이 활성화됐는지, 계정에서 보이는지, 비활성화되지 않았는지 확인해 주세요.',
+  provider_prefix_mismatch: '모델의 provider 접두어가 이 채널과 맞지 않아요. 모델 이름이 이 채널의 OpenAI-compatible route를 써야 하는지 확인해 주세요.',
+  capability_unsupported: '이 모델이나 호환 계층은 이 기능을 지원하지 않아요. 기본 텍스트 연결에는 영향이 없으니 모델을 바꾸거나 이 기능을 쓰지 않도록 해 주세요.',
+};
+
 function getLlmStageLabel(stage?: string | null): string {
-  return LLM_STAGE_LABELS[stage || ''] || '连接测试';
+  return koOrZh(LLM_STAGE_LABELS[stage || ''] || '连接测试', LLM_STAGE_LABELS_KO[stage || ''] || '연결 테스트');
 }
 
 function getLlmErrorCodeLabel(code?: string | null): string {
-  return LLM_ERROR_LABELS[code || ''] || '测试失败';
+  return koOrZh(LLM_ERROR_LABELS[code || ''] || '测试失败', LLM_ERROR_LABELS_KO[code || ''] || '테스트 실패');
 }
 
 function getLlmTroubleshootingHint(
@@ -1230,17 +1324,18 @@ function getLlmTroubleshootingHint(
 ): string | undefined {
   const reason = typeof details?.reason === 'string' ? details.reason : '';
   if (reason && LLM_REASON_HINTS[reason]) {
-    return LLM_REASON_HINTS[reason];
+    return isKoUi() ? LLM_REASON_HINTS_KO[reason] || LLM_REASON_HINTS[reason] : LLM_REASON_HINTS[reason];
   }
   if (code === 'format_error') {
     return context === 'discovery' || stage === 'model_discovery'
-      ? '该渠道返回的 /models 响应格式不兼容，请改为手动填写模型列表。'
-      : '返回结构与预期不一致，请确认该渠道兼容 Chat Completions 接口。';
+      ? koOrZh('该渠道返回的 /models 响应格式不兼容，请改为手动填写模型列表。', '이 채널의 /models 응답 형식이 맞지 않아요. 모델 목록을 직접 입력해 주세요.')
+      : koOrZh('返回结构与预期不一致，请确认该渠道兼容 Chat Completions 接口。', '응답 형식이 예상과 달라요. 이 채널이 Chat Completions API를 지원하는지 확인해 주세요.');
   }
   if (code === 'empty_response' && (context === 'discovery' || stage === 'model_discovery')) {
-    return '该渠道的 /models 接口未返回可用模型 ID；请检查 Base URL 是否指向兼容的模型列表接口，或改为手动填写模型列表。';
+    return koOrZh('该渠道的 /models 接口未返回可用模型 ID；请检查 Base URL 是否指向兼容的模型列表接口，或改为手动填写模型列表。', '이 채널의 /models API가 쓸 수 있는 모델 ID를 돌려주지 않았어요. Base URL이 호환되는 모델 목록 API를 가리키는지 확인하거나 모델 목록을 직접 입력해 주세요.');
   }
-  return LLM_TROUBLESHOOTING_HINTS[code || ''];
+  const hint = LLM_TROUBLESHOOTING_HINTS[code || ''];
+  return hint && isKoUi() ? LLM_TROUBLESHOOTING_HINTS_KO[code || ''] || hint : hint;
 }
 
 function buildLlmTestHint(result: {
@@ -1252,13 +1347,13 @@ function buildLlmTestHint(result: {
   const reason = typeof result.details?.reason === 'string' ? result.details.reason : '';
   const detailsModel = typeof result.details?.model === 'string' ? result.details.model : '';
   const testedModel = result.resolvedModel || detailsModel;
-  const modelHint = testedModel ? `本次测试模型：${testedModel}。` : '';
-  const scopeInfo = '基础连接测试默认只测试模型列表中的第一个模型。';
+  const modelHint = testedModel ? koOrZh(`本次测试模型：${testedModel}。`, `이번에 테스트한 모델: ${testedModel}.`) : '';
+  const scopeInfo = koOrZh('基础连接测试默认只测试模型列表中的第一个模型。', '기본 연결 테스트는 모델 목록의 첫 번째 모델만 확인해요.');
   const shouldSuggestModelListChange = reason === 'model_access_denied'
     || reason === 'model_not_found'
     || (result.errorCode === 'model_not_found' && !reason);
   const modelActionHint = shouldSuggestModelListChange
-    ? '若该模型不可用，请调整模型顺序或移除不可用模型后重试。'
+    ? koOrZh('若该模型不可用，请调整模型顺序或移除不可用模型后重试。', '이 모델을 쓸 수 없다면 모델 순서를 바꾸거나 쓸 수 없는 모델을 지운 뒤 다시 시도해 주세요.')
     : '';
   const troubleshootingHint = getLlmTroubleshootingHint(result.errorCode, result.stage, 'test', result.details);
   return [modelHint, scopeInfo, modelActionHint, troubleshootingHint].filter(Boolean).join(' ') || undefined;
@@ -1271,11 +1366,11 @@ function buildLlmFailureText(result: {
   errorCode?: string | null;
 }): string {
   const prefix = `${getLlmStageLabel(result.stage)} · ${getLlmErrorCodeLabel(result.errorCode)}`;
-  const summary = result.message || '测试失败';
+  const summary = result.message || koOrZh('测试失败', '테스트 실패');
   if (result.error && result.error !== result.message) {
-    return `${prefix}：${summary}（原始摘要：${result.error}）`;
+    return koOrZh(`${prefix}：${summary}（原始摘要：${result.error}）`, `${prefix}: ${summary} (원본 요약: ${result.error})`);
   }
-  return `${prefix}：${summary}`;
+  return koOrZh(`${prefix}：${summary}`, `${prefix}: ${summary}`);
 }
 
 function getCapabilityResultVariant(status: LLMCapabilityCheckResult['status']): 'success' | 'danger' | 'warning' {
@@ -1289,7 +1384,7 @@ function summarizeCapabilityResults(results: Partial<Record<LLMCapabilityCheck, 
   const passed = values.filter((result) => result?.status === 'passed').length;
   const failed = values.filter((result) => result?.status === 'failed').length;
   const skipped = values.filter((result) => result?.status === 'skipped').length;
-  return `能力检测完成：${passed} 通过 / ${failed} 失败 / ${skipped} 跳过`;
+  return koOrZh(`能力检测完成：${passed} 通过 / ${failed} 失败 / ${skipped} 跳过`, `기능 점검 완료: 통과 ${passed} / 실패 ${failed} / 건너뜀 ${skipped}`);
 }
 
 function getFirstCapabilityHint(
@@ -2025,7 +2120,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   const handleSave = async () => {
     const hasEmptyName = channels.some((channel) => !channel.name.trim());
     if (hasEmptyName) {
-      setSaveMessage({ type: 'local-error', text: '渠道名称不能为空，且只能包含字母、数字或下划线。' });
+      setSaveMessage({ type: 'local-error', text: koOrZh('渠道名称不能为空，且只能包含字母、数字或下划线。', '채널 이름을 입력해 주세요. 영문, 숫자, 밑줄(_)만 쓸 수 있어요.') });
       return;
     }
 
@@ -2038,7 +2133,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         return origin?.hasHermes && origin.hasNonHermes;
       });
       if (mixedPrimary || mixedFallback) {
-        setSaveMessage({ type: 'local-error', text: 'Mixed Hermes/non-Hermes route 暂不支持作为主生成或备选模型，请选择纯 Hermes 或纯非 Hermes route。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('Mixed Hermes/non-Hermes route 暂不支持作为主生成或备选模型，请选择纯 Hermes 或纯非 Hermes route。', 'Hermes와 비 Hermes가 섞인 route는 기본 모델이나 보조 모델로 쓸 수 없어요. Hermes만 쓰는 route나 Hermes가 없는 route를 골라 주세요.') });
         return;
       }
 
@@ -2049,7 +2144,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         || runtimeConfig.fallbackModels.some((model) => hasCanonicalRouteAliasMismatch(model, availableModels))
       );
       if (nonCanonicalRouteAlias) {
-        setSaveMessage({ type: 'local-error', text: '当前运行时模型使用非规范 route alias，请从下拉框重新选择规范模型。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('当前运行时模型使用非规范 route alias，请从下拉框重新选择规范模型。', '지금 설정된 모델이 비표준 route 별칭을 쓰고 있어요. 목록에서 표준 모델을 다시 골라 주세요.') });
         return;
       }
     }
@@ -2065,14 +2160,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       const invalidPrimaryModel = runtimeConfigForSave.primaryModel
         && !isRuntimeModelAvailable(runtimeConfigForSave.primaryModel, availableModels, savedItemMap);
       if (invalidPrimaryModel) {
-        setSaveMessage({ type: 'local-error', text: '当前主模型不在已启用渠道的模型列表中，请重新选择。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('当前主模型不在已启用渠道的模型列表中，请重新选择。', '기본 모델이 사용 중인 채널의 모델 목록에 없어요. 다시 골라 주세요.') });
         return;
       }
 
       const invalidAgentPrimaryModel = runtimeConfigForSave.agentPrimaryModel
         && !isRuntimeModelAvailable(runtimeConfigForSave.agentPrimaryModel, agentSafeModels, savedItemMap);
       if (invalidAgentPrimaryModel) {
-        setSaveMessage({ type: 'local-error', text: '当前 Agent 主模型没有 Agent-safe 非 Hermes deployment，请重新选择。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('当前 Agent 主模型没有 Agent-safe 非 Hermes deployment，请重新选择。', 'Agent 기본 모델에 Agent에서 쓸 수 있는 비 Hermes deployment가 없어요. 다시 골라 주세요.') });
         return;
       }
 
@@ -2080,14 +2175,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         (model) => !isRuntimeModelAvailable(model, availableModels, savedItemMap),
       );
       if (invalidFallbackModel) {
-        setSaveMessage({ type: 'local-error', text: '存在无效的备选模型，请重新选择。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('存在无效的备选模型，请重新选择。', '잘못된 보조 모델이 있어요. 다시 골라 주세요.') });
         return;
       }
 
       const invalidVisionModel = runtimeConfigForSave.visionModel
         && !isRuntimeModelAvailable(runtimeConfigForSave.visionModel, visionSafeModels, savedItemMap);
       if (invalidVisionModel) {
-        setSaveMessage({ type: 'local-error', text: '当前 Vision 模型不能包含 Hermes deployment，请重新选择纯非 Hermes route。' });
+        setSaveMessage({ type: 'local-error', text: koOrZh('当前 Vision 模型不能包含 Hermes deployment，请重新选择纯非 Hermes route。', 'Vision 모델에는 Hermes deployment를 넣을 수 없어요. Hermes가 없는 route를 다시 골라 주세요.') });
         return;
       }
     }
@@ -2120,7 +2215,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         runtime: JSON.stringify(parseRuntimeConfigFromItems(updateItems)),
       };
       setSaveWarnings(responseWarnings);
-      setSaveMessage({ type: 'success', text: managesRuntimeConfig ? 'AI 配置已保存' : '渠道配置已保存' });
+      setSaveMessage({ type: 'success', text: managesRuntimeConfig ? koOrZh('AI 配置已保存', 'AI 설정을 저장했어요') : koOrZh('渠道配置已保存', '채널 설정을 저장했어요') });
     } catch (error: unknown) {
       setSaveWarnings([]);
       setSaveMessage({ type: 'error', error: getParsedApiError(error) });
@@ -2133,14 +2228,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
     if (hasRuntimeOnlyMaskedHermesSecret(channel, maskToken, hasPersistedHermesSecret(channel))) {
       setTestStates((previous) => ({
         ...previous,
-        [index]: { status: 'error', text: RUNTIME_ONLY_HERMES_SECRET_MESSAGE },
+        [index]: { status: 'error', text: koOrZh(RUNTIME_ONLY_HERMES_SECRET_MESSAGE, RUNTIME_ONLY_HERMES_SECRET_MESSAGE_KO) },
       }));
       return;
     }
 
     setTestStates((previous) => ({
       ...previous,
-      [index]: { status: 'loading', text: '测试中...' },
+      [index]: { status: 'loading', text: koOrZh('测试中...', '테스트 중...') },
     }));
 
     try {
@@ -2156,7 +2251,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       });
 
       const text = result.success
-        ? `连接成功${result.resolvedModel ? ` · ${result.resolvedModel}` : ''}${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`
+        ? koOrZh(`连接成功${result.resolvedModel ? ` · ${result.resolvedModel}` : ''}${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`, `연결 성공${result.resolvedModel ? ` · ${result.resolvedModel}` : ''}${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`)
         : buildLlmFailureText(result);
       const hint = result.success ? undefined : buildLlmTestHint(result);
 
@@ -2172,7 +2267,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       const parsed = getParsedApiError(error);
       setTestStates((previous) => ({
         ...previous,
-        [index]: { status: 'error', text: parsed.message || '测试失败' },
+        [index]: { status: 'error', text: parsed.message || koOrZh('测试失败', '테스트 실패') },
       }));
     }
   };
@@ -2183,7 +2278,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         ...previous,
         [channel.id]: {
           status: 'error',
-          text: RUNTIME_ONLY_HERMES_SECRET_MESSAGE,
+          text: koOrZh(RUNTIME_ONLY_HERMES_SECRET_MESSAGE, RUNTIME_ONLY_HERMES_SECRET_MESSAGE_KO),
           hint: undefined,
           models: previous[channel.id]?.models || [],
         },
@@ -2200,7 +2295,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       ...previous,
       [channel.id]: {
         status: 'loading',
-        text: '正在获取模型列表...',
+        text: koOrZh('正在获取模型列表...', '모델 목록을 가져오는 중...'),
         hint: undefined,
         models: previous[channel.id]?.models || [],
       },
@@ -2223,7 +2318,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         [channel.id]: {
           status: result.success ? 'success' : 'error',
           text: result.success
-            ? `已获取 ${result.models.length} 个模型${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`
+            ? koOrZh(`已获取 ${result.models.length} 个模型${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`, `모델 ${result.models.length}개를 가져왔어요${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`)
             : buildLlmFailureText(result),
           hint: result.success ? undefined : getLlmTroubleshootingHint(result.errorCode, result.stage, 'discovery', result.details),
           models: result.success ? result.models : (previous[channel.id]?.models || []),
@@ -2237,7 +2332,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         ...previous,
         [channel.id]: {
           status: 'error',
-          text: parsed.message || '获取模型失败',
+          text: parsed.message || koOrZh('获取模型失败', '모델을 가져오지 못했어요'),
           hint: undefined,
           models: previous[channel.id]?.models || [],
         },
@@ -2277,7 +2372,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         [channel.id]: {
           selected,
           status: 'error',
-          text: RUNTIME_ONLY_HERMES_SECRET_MESSAGE,
+          text: koOrZh(RUNTIME_ONLY_HERMES_SECRET_MESSAGE, RUNTIME_ONLY_HERMES_SECRET_MESSAGE_KO),
           hint: undefined,
           results: {},
         },
@@ -2295,7 +2390,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       [channel.id]: {
         selected,
         status: 'loading',
-        text: '正在检测运行时能力...',
+        text: koOrZh('正在检测运行时能力...', '기능을 점검하는 중...'),
         hint: undefined,
         results: {},
       },
@@ -2327,7 +2422,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           text: Object.keys(capabilityResults).length > 0
             ? summarizeCapabilityResults(capabilityResults)
             : result.success
-              ? '未返回能力检测结果'
+              ? koOrZh('未返回能力检测结果', '기능 점검 결과가 없어요')
               : buildLlmFailureText(result),
           hint: getFirstCapabilityHint(capabilityResults)
             || (!result.success ? buildLlmTestHint(result) : undefined),
@@ -2343,7 +2438,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         [channel.id]: {
           selected,
           status: 'error',
-          text: parsed.message || '能力检测失败',
+          text: parsed.message || koOrZh('能力检测失败', '기능 점검 실패'),
           hint: undefined,
           results: {},
         },
@@ -2388,14 +2483,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       >
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-foreground">AI 模型配置</h3>
-            <Badge variant="info" className="settings-accent-badge">渠道管理</Badge>
+            <h3 className="text-base font-semibold text-foreground">{koOrZh('AI 模型配置', 'AI 모델 설정')}</h3>
+            <Badge variant="info" className="settings-accent-badge">{koOrZh('渠道管理', '채널 관리')}</Badge>
           </div>
           <p className="text-xs text-muted-text">
-            添加服务商渠道后可自动获取模型列表并多选，也可继续手动填写。配置会自动同步到 .env 文件。
+            {koOrZh('添加服务商渠道后可自动获取模型列表并多选，也可继续手动填写。配置会自动同步到 .env 文件。', '서비스 업체 채널을 추가하면 모델 목록을 자동으로 가져와 여러 개 고를 수 있어요. 직접 입력해도 돼요. 설정은 .env 파일에 자동으로 저장돼요.')}
           </p>
         </div>
-        <span className="text-xs text-muted-text">{isCollapsed ? '▶ 展开' : '▼ 收起'}</span>
+        <span className="text-xs text-muted-text">{isCollapsed ? koOrZh('▶ 展开', '▶ 펼치기') : koOrZh('▼ 收起', '▼ 접기')}</span>
       </button>
 
       {!isCollapsed ? (
@@ -2403,14 +2498,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           <div className="rounded-[1.35rem] border border-[var(--settings-border)] bg-[var(--settings-surface)] p-4 shadow-soft-card">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium text-foreground">快速添加渠道</h4>
-                <p className="mt-1 text-xs text-secondary-text">先选择预设服务商，再一键创建配置草稿。</p>
+                <h4 className="text-sm font-medium text-foreground">{koOrZh('快速添加渠道', '채널 빠르게 추가')}</h4>
+                <p className="mt-1 text-xs text-secondary-text">{koOrZh('先选择预设服务商，再一键创建配置草稿。', '서비스 업체를 고르면 설정 초안을 바로 만들 수 있어요.')}</p>
               </div>
-              <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">{channels.length} 个渠道</Badge>
+              <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">{koOrZh(`${channels.length} 个渠道`, `채널 ${channels.length}개`)}</Badge>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="settings-primary" className="whitespace-nowrap" disabled={busy} onClick={addChannel}>
-                + 添加渠道
+                {koOrZh('+ 添加渠道', '+ 채널 추가')}
               </Button>
               <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
                 <Select
@@ -2418,10 +2513,10 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   onChange={setAddPreset}
                   options={LLM_PROVIDER_TEMPLATES.map((preset) => ({
                     value: preset.channelId,
-                    label: preset.label,
+                    label: (isKoUi() && LLM_PROVIDER_TEMPLATE_TEXT_KO[preset.channelId]?.label) || preset.label,
                   }))}
                   disabled={busy}
-                  placeholder="选择服务商"
+                  placeholder={koOrZh('选择服务商', '서비스 업체 선택')}
                   className="min-w-0 flex-1"
                 />
                 {addPreset === 'modelflare' ? (
@@ -2431,7 +2526,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                     rel="noopener noreferrer"
                     className="settings-button-secondary inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border px-3 text-sm font-medium transition-all duration-200 hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan/15"
                   >
-                    注册 Modelflare
+                    {koOrZh('注册 Modelflare', 'Modelflare 가입하기')}
                   </a>
                 ) : null}
               </div>
@@ -2440,16 +2535,16 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-text">渠道列表</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-text">{koOrZh('渠道列表', '채널 목록')}</span>
               {channels.length > 0 ? (
-                <span className="text-[10px] text-muted-text">{channels.filter((c) => c.enabled).length}/{channels.length} 已启用</span>
+                <span className="text-[10px] text-muted-text">{channels.filter((c) => c.enabled).length}/{channels.length}{koOrZh(' 已启用', ' 사용 중')}</span>
               ) : null}
             </div>
 
             {channels.length === 0 ? (
               <div className="settings-surface-overlay-muted rounded-[1.35rem] border border-dashed settings-border-strong px-4 py-10 text-center">
-                <p className="text-sm font-medium text-secondary-text">还没有渠道</p>
-                <p className="mt-1 text-xs text-muted-text">选择服务商预设后点击“添加渠道”即可开始配置。</p>
+                <p className="text-sm font-medium text-secondary-text">{koOrZh('还没有渠道', '아직 채널이 없어요')}</p>
+                <p className="mt-1 text-xs text-muted-text">{koOrZh('选择服务商预设后点击“添加渠道”即可开始配置。', '서비스 업체를 고르고 ‘채널 추가’를 누르면 설정을 시작할 수 있어요.')}</p>
               </div>
             ) : channels.map((channel, index) => (
               <ChannelRow
@@ -2479,8 +2574,8 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
             <div className="rounded-[1.35rem] border border-[var(--settings-border)] bg-[var(--settings-surface)] p-4 shadow-soft-card">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <span className="settings-accent-text text-xs font-medium uppercase tracking-wider">运行时参数</span>
-                  <p className="mt-1 text-[11px] text-muted-text">主模型、备选模型、Vision 与 Temperature 会直接写入运行时配置。</p>
+                  <span className="settings-accent-text text-xs font-medium uppercase tracking-wider">{koOrZh('运行时参数', '실행 설정')}</span>
+                  <p className="mt-1 text-[11px] text-muted-text">{koOrZh('主模型、备选模型、Vision 与 Temperature 会直接写入运行时配置。', '기본 모델, 보조 모델, Vision, Temperature는 실행 설정에 바로 반영돼요.')}</p>
                 </div>
                 <Badge variant="default" className="border-[var(--settings-border)] bg-[var(--settings-surface-hover)] text-muted-text">Runtime</Badge>
               </div>
@@ -2506,20 +2601,20 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   <span className="w-8 text-right text-sm text-secondary-text">{runtimeConfig.temperature}</span>
                 </div>
                 <p className="mt-1 text-[11px] text-secondary-text">
-                  控制模型输出随机性，0 为确定性输出，2 为最大随机性，推荐 0.7。
+                  {koOrZh('控制模型输出随机性，0 为确定性输出，2 为最大随机性，推荐 0.7。', '모델 답변이 얼마나 다양하게 나올지 정해요. 0이면 늘 같은 답, 2면 가장 다양한 답이에요. 0.7을 추천해요.')}
                 </p>
               </div>
 
               {availableModels.length === 0 ? (
                 <div className="rounded-xl border border-dashed settings-border-strong settings-surface-overlay-soft px-3 py-2 text-xs text-muted-text">
-                  先添加至少一个已启用渠道并填写模型，下面的主模型 / 备选模型 / Vision 选项才会出现。
+                  {koOrZh('先添加至少一个已启用渠道并填写模型，下面的主模型 / 备选模型 / Vision 选项才会出现。', '사용할 채널을 하나 이상 추가하고 모델을 입력하면 아래에 기본 모델 / 보조 모델 / Vision 선택이 나타나요.')}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div>
                     <HelpLabel
                       htmlFor="runtime-primary-model"
-                      label="主模型"
+                      label={koOrZh('主模型', '기본 모델')}
                       fieldKey="LITELLM_MODEL"
                       helpKey="settings.llm_channel.primary_model"
                       examples={['LITELLM_MODEL=deepseek/deepseek-v4-flash']}
@@ -2529,7 +2624,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                       id="runtime-primary-model"
                       value={runtimeConfig.primaryModel}
                       onChange={setPrimaryModel}
-                      options={buildModelOptions(availableModels, runtimeConfig.primaryModel, '自动（使用第一个可用模型）')}
+                      options={buildModelOptions(availableModels, runtimeConfig.primaryModel, koOrZh('自动（使用第一个可用模型）', '자동 (쓸 수 있는 첫 번째 모델)'))}
                       disabled={busy}
                       placeholder=""
                     />
@@ -2538,7 +2633,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                   <div>
                     <HelpLabel
                       htmlFor="runtime-agent-primary-model"
-                      label="Agent 主模型"
+                      label={koOrZh('Agent 主模型', 'Agent 기본 모델')}
                       fieldKey="AGENT_LITELLM_MODEL"
                       helpKey="settings.llm_channel.agent_primary_model"
                       examples={['AGENT_LITELLM_MODEL=deepseek/deepseek-v4-pro']}
@@ -2554,7 +2649,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                       options={buildModelOptions(
                         agentSafeModels,
                         agentSelectedModelForOptions,
-                        '自动（继承普通分析主模型）',
+                        koOrZh('自动（继承普通分析主模型）', '자동 (일반 분석의 기본 모델을 따라요)'),
                       )}
                       disabled={busy}
                       placeholder=""
@@ -2563,7 +2658,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
 
                   <div>
                     <HelpLabel
-                      label="备选模型"
+                      label={koOrZh('备选模型', '보조 모델')}
                       fieldKey="LITELLM_FALLBACK_MODELS"
                       helpKey="settings.llm_channel.fallback_models"
                       examples={['LITELLM_FALLBACK_MODELS=deepseek/deepseek-v4-pro,gemini/gemini-3-flash-preview']}
@@ -2584,14 +2679,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                       ))}
                     </div>
                     <p className="mt-1 text-[11px] text-secondary-text">
-                      备选模型只会在主模型失败时使用。主模型不会重复加入备选模型。
+                      {koOrZh('备选模型只会在主模型失败时使用。主模型不会重复加入备选模型。', '보조 모델은 기본 모델이 실패할 때만 써요. 기본 모델은 보조 모델에 중복으로 들어가지 않아요.')}
                     </p>
                   </div>
 
                   <div>
                     <HelpLabel
                       htmlFor="runtime-vision-model"
-                      label="Vision 模型"
+                      label={koOrZh('Vision 模型', 'Vision 모델')}
                       fieldKey="VISION_MODEL"
                       helpKey="settings.llm_channel.vision_model"
                       examples={['VISION_MODEL=gemini/gemini-3.1-pro-preview']}
@@ -2604,7 +2699,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
                       options={buildModelOptions(
                         visionSafeModels,
                         visionSelectedModelForOptions,
-                        '自动（跟随 Vision 默认逻辑）',
+                        koOrZh('自动（跟随 Vision 默认逻辑）', '자동 (Vision 기본 설정을 따라요)'),
                       )}
                       disabled={busy}
                       placeholder=""
@@ -2616,7 +2711,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           ) : (
             <InlineAlert
               variant="warning"
-              message="检测到已配置高级模型路由 YAML：此处仅管理渠道条目和基础连接信息。运行时主模型 / 备选模型 / Vision / Temperature 仍由下方通用字段决定；若 YAML 解析成功，则以其中的路由与可用模型声明为准，本配置不会覆盖 YAML 文件本身。"
+              message={koOrZh('检测到已配置高级模型路由 YAML：此处仅管理渠道条目和基础连接信息。运行时主模型 / 备选模型 / Vision / Temperature 仍由下方通用字段决定；若 YAML 解析成功，则以其中的路由与可用模型声明为准，本配置不会覆盖 YAML 文件本身。', '고급 모델 라우팅 YAML이 설정되어 있어요. 여기서는 채널 항목과 기본 연결 정보만 관리해요. 기본 모델 / 보조 모델 / Vision / Temperature는 아래 공통 항목에서 정해요. YAML을 제대로 읽으면 그 안의 route와 사용 가능한 모델 설정이 우선하고, 이 화면의 설정은 YAML 파일 자체를 덮어쓰지 않아요.')}
               className="rounded-[1.35rem] px-4 py-3 text-xs shadow-none"
             />
           )}
@@ -2629,9 +2724,9 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
               disabled={busy || !hasChanges}
               onClick={() => void handleSave()}
             >
-              {isSaving ? '保存中...' : managesRuntimeConfig ? '保存 AI 配置' : '保存渠道配置'}
+              {isSaving ? koOrZh('保存中...', '저장 중...') : managesRuntimeConfig ? koOrZh('保存 AI 配置', 'AI 설정 저장') : koOrZh('保存渠道配置', '채널 설정 저장')}
             </Button>
-            {!hasChanges ? <span className="text-xs text-muted-text">当前没有未保存的改动</span> : null}
+            {!hasChanges ? <span className="text-xs text-muted-text">{koOrZh('当前没有未保存的改动', '저장하지 않은 변경 사항이 없어요')}</span> : null}
           </div>
 
           {saveMessage?.type === 'success' ? (
@@ -2645,7 +2740,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
           {saveWarnings.length > 0 ? (
             <InlineAlert
               variant="warning"
-              title="保存后提示"
+              title={koOrZh('保存后提示', '저장 후 안내')}
               message={(
                 <div className="space-y-1">
                   {saveWarnings.map((warning) => (

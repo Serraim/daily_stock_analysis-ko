@@ -2,6 +2,7 @@ import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { InlineAlert } from '../common';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
+import { pickUiText } from '../../i18n/uiText';
 import { cn } from '../../utils/cn';
 
 interface SettingsPanelErrorBoundaryProps {
@@ -125,19 +126,26 @@ class SettingsPanelErrorBoundaryImpl extends Component<
 
 export const SettingsPanelErrorBoundary = (props: SettingsPanelErrorBoundaryProps) => {
   const { language } = useUiLanguage();
-  const labels: SettingsPanelErrorBoundaryLabels = language === 'en'
-    ? {
-        loadFailedSuffix: ' failed to load',
-        runtimeErrorMessage: 'This settings area hit a frontend runtime error. Other settings remain usable.',
-        defaultDiagnosticHint: 'Provide the release version, runtime environment, and trigger path to help diagnose the issue.',
-        errorSummaryPrefix: 'Error summary: ',
-      }
-    : {
-        loadFailedSuffix: '加载失败',
-        runtimeErrorMessage: '该设置区域发生前端运行时异常，页面其他设置仍可继续使用。',
-        defaultDiagnosticHint: '请补充 release 版本、运行环境和触发入口，便于定位问题。',
-        errorSummaryPrefix: '错误摘要：',
-      };
+  const labels: SettingsPanelErrorBoundaryLabels = pickUiText(language, {
+    en: {
+      loadFailedSuffix: ' failed to load',
+      runtimeErrorMessage: 'This settings area hit a frontend runtime error. Other settings remain usable.',
+      defaultDiagnosticHint: 'Provide the release version, runtime environment, and trigger path to help diagnose the issue.',
+      errorSummaryPrefix: 'Error summary: ',
+    },
+    zh: {
+      loadFailedSuffix: '加载失败',
+      runtimeErrorMessage: '该设置区域发生前端运行时异常，页面其他设置仍可继续使用。',
+      defaultDiagnosticHint: '请补充 release 版本、运行环境和触发入口，便于定位问题。',
+      errorSummaryPrefix: '错误摘要：',
+    },
+    ko: {
+      loadFailedSuffix: ' 불러오기 실패',
+      runtimeErrorMessage: '이 설정 영역에서 화면 오류가 발생했어요. 다른 설정은 계속 사용할 수 있어요.',
+      defaultDiagnosticHint: '문제 확인을 위해 버전, 실행 환경, 오류가 난 경로를 알려 주세요.',
+      errorSummaryPrefix: '오류 요약: ',
+    },
+  });
 
   return <SettingsPanelErrorBoundaryImpl {...props} labels={labels} />;
 };

@@ -28,6 +28,7 @@ import type {
   ValidateSystemConfigRequest,
   ValidateSystemConfigResponse,
 } from '../types/systemConfig';
+import { koOrZh } from '../utils/uiLanguage';
 
 export class SystemConfigValidationError extends Error {
   issues: SystemConfigValidationErrorResponse['issues'];
@@ -38,7 +39,7 @@ export class SystemConfigValidationError extends Error {
     this.name = 'SystemConfigValidationError';
     this.issues = issues;
     this.parsedError = parsedError ?? createParsedApiError({
-      title: '配置校验失败',
+      title: koOrZh('配置校验失败', '설정 확인 실패'),
       message,
       rawMessage: message,
       status: 400,
@@ -56,7 +57,7 @@ export class SystemConfigConflictError extends Error {
     this.name = 'SystemConfigConflictError';
     this.currentConfigVersion = currentConfigVersion;
     this.parsedError = parsedError ?? createParsedApiError({
-      title: '配置版本冲突',
+      title: koOrZh('配置版本冲突', '설정 버전이 서로 달라요'),
       message,
       rawMessage: message,
       status: 409,
@@ -120,8 +121,8 @@ function toSnakeNotificationTestPayload(payload: TestNotificationChannelRequest)
       value: item.value,
     })),
     mask_token: payload.maskToken ?? '******',
-    title: payload.title ?? 'DSA 通知测试',
-    content: payload.content ?? '这是一条来自 DSA Web 设置页的通知测试消息。',
+    title: payload.title ?? koOrZh('DSA 通知测试', 'DSA 알림 테스트'),
+    content: payload.content ?? koOrZh('这是一条来自 DSA Web 设置页的通知测试消息。', 'DSA 웹 설정 화면에서 보낸 알림 테스트 메시지예요.'),
     timeout_seconds: payload.timeoutSeconds ?? 20,
   };
 }
@@ -318,7 +319,7 @@ export const systemConfigApi = {
         if (status === 400) {
           const validationError = toCamelCase<SystemConfigValidationErrorResponse>(payloadData ?? {});
           throw new SystemConfigValidationError(
-            parsed.message || validationError.message || '配置校验失败',
+            parsed.message || validationError.message || koOrZh('配置校验失败', '설정 확인 실패'),
             validationError.issues || [],
             parsed,
           );
@@ -327,7 +328,7 @@ export const systemConfigApi = {
         if (status === 409) {
           const conflict = toCamelCase<SystemConfigConflictResponse>(payloadData ?? {});
           throw new SystemConfigConflictError(
-            parsed.message || conflict.message || '配置版本冲突',
+            parsed.message || conflict.message || koOrZh('配置版本冲突', '설정 버전이 서로 달라요'),
             conflict.currentConfigVersion,
             parsed,
           );

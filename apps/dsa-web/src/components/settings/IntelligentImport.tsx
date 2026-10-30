@@ -5,7 +5,7 @@ import { stocksApi, type ExtractItem } from '../../api/stocks';
 import { systemConfigApi, SystemConfigConflictError } from '../../api/systemConfig';
 import { Badge, Button, InlineAlert } from '../common';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
-import type { UiLanguage } from '../../i18n/uiText';
+import { pickUiText, type UiLanguage } from '../../i18n/uiText';
 import { parseStockListValue } from '../../utils/stockList';
 
 const IMG_EXT = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
@@ -25,12 +25,12 @@ type ItemWithChecked = ExtractItem & { id: string; checked: boolean };
 
 function getConfidenceMeta(confidence: 'high' | 'medium' | 'low', language: UiLanguage) {
   if (confidence === 'high') {
-    return { label: language === 'en' ? 'High' : '高', badge: 'success' as const };
+    return { label: pickUiText(language, { zh: '高', en: 'High', ko: '높음' }), badge: 'success' as const };
   }
   if (confidence === 'low') {
-    return { label: language === 'en' ? 'Low' : '低', badge: 'warning' as const };
+    return { label: pickUiText(language, { zh: '低', en: 'Low', ko: '낮음' }), badge: 'warning' as const };
   }
-  return { label: language === 'en' ? 'Medium' : '中', badge: 'default' as const };
+  return { label: pickUiText(language, { zh: '中', en: 'Medium', ko: '보통' }), badge: 'default' as const };
 }
 
 function normalizeConfidence(confidence?: string | null): 'high' | 'medium' | 'low' {

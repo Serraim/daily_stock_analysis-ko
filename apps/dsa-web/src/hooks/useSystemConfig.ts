@@ -8,6 +8,7 @@ import type {
   SystemConfigUpdateItem,
 } from '../types/systemConfig';
 import { serializeStockListValue } from '../utils/stockList';
+import { koOrZh } from '../utils/uiLanguage';
 
 type ToastState = {
   type: 'success';
@@ -301,13 +302,13 @@ export function useSystemConfig() {
     const resolvedChangedItems = explicitItems.length > 0 ? explicitItems : getChangedItems();
 
     if (!explicitItems.length && !hasDirty) {
-      setToast({ type: 'success', message: '当前没有可保存的修改。' });
-      return { success: true, message: '当前没有可保存的修改' };
+      setToast({ type: 'success', message: koOrZh('当前没有可保存的修改。', '저장할 변경 사항이 없어요.') });
+      return { success: true, message: koOrZh('当前没有可保存的修改', '저장할 변경 사항이 없어요') };
     }
 
     if (!resolvedChangedItems.length) {
-      setToast({ type: 'success', message: '当前没有可保存的修改。' });
-      return { success: true, message: '当前没有可保存的修改' };
+      setToast({ type: 'success', message: koOrZh('当前没有可保存的修改。', '저장할 변경 사항이 없어요.') });
+      return { success: true, message: koOrZh('当前没有可保存的修改', '저장할 변경 사항이 없어요') };
     }
 
     setIsSaving(true);
@@ -320,15 +321,15 @@ export function useSystemConfig() {
 
       if (!validateResult.valid) {
         setSaveError(createParsedApiError({
-          title: '配置校验未通过',
-          message: '请先修正表单错误后再保存。',
-          rawMessage: '配置校验未通过，请先修正表单错误。',
+          title: koOrZh('配置校验未通过', '설정 확인을 통과하지 못했어요'),
+          message: koOrZh('请先修正表单错误后再保存。', '입력 오류를 고친 뒤 다시 저장해 주세요.'),
+          rawMessage: koOrZh('配置校验未通过，请先修正表单错误。', '설정 확인을 통과하지 못했어요. 입력 오류를 먼저 고쳐 주세요.'),
           category: 'http_error',
         }));
         setRetryAction('save');
         return {
           success: false,
-          message: '配置校验未通过',
+          message: koOrZh('配置校验未通过', '설정 확인을 통과하지 못했어요'),
           issues: validateResult.issues,
         };
       }
@@ -345,9 +346,9 @@ export function useSystemConfig() {
       applyServerPayload(refreshed.items, refreshed.configVersion, refreshed.maskToken);
 
       const warningText = updateResult.warnings?.length
-        ? `；警告：${updateResult.warnings.join('；')}`
+        ? koOrZh(`；警告：${updateResult.warnings.join('；')}`, `; 주의: ${updateResult.warnings.join('; ')}`)
         : '';
-      setToast({ type: 'success', message: `配置已更新${warningText}` });
+      setToast({ type: 'success', message: koOrZh(`配置已更新${warningText}`, `설정을 저장했어요${warningText}`) });
       return { success: true };
     } catch (error: unknown) {
       if (error instanceof SystemConfigValidationError) {
@@ -355,8 +356,8 @@ export function useSystemConfig() {
         setSaveError(error.parsedError);
       } else if (error instanceof SystemConfigConflictError) {
         setSaveError(createParsedApiError({
-          title: '配置版本冲突',
-          message: `${error.message}，请先重新加载配置。`,
+          title: koOrZh('配置版本冲突', '설정 버전이 서로 달라요'),
+          message: koOrZh(`${error.message}，请先重新加载配置。`, `${error.message}. 설정을 다시 불러온 뒤 시도해 주세요.`),
           rawMessage: error.parsedError.rawMessage,
           status: error.parsedError.status,
           category: error.parsedError.category,
@@ -367,7 +368,7 @@ export function useSystemConfig() {
 
       setToast({ type: 'error', error: getParsedApiError(error) });
       setRetryAction('save');
-      return { success: false, message: '保存失败' };
+      return { success: false, message: koOrZh('保存失败', '저장하지 못했어요') };
     } finally {
       setIsSaving(false);
     }

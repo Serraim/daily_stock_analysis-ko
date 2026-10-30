@@ -9,7 +9,7 @@ import { getParsedApiError } from '../api/error';
 import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert, StatusDot } from '../components/common';
 import { PortfolioSignalSummary } from '../components/decision-signals/DecisionSignalDisplay';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
-import { formatUiText } from '../i18n/uiText';
+import { formatUiText, type UiLanguage } from '../i18n/uiText';
 import { PORTFOLIO_TEXT } from '../locales/featureText';
 import type { FxRefreshFeedback } from '../utils/portfolioFormat';
 import {
@@ -53,6 +53,7 @@ import type {
 import { areStockCodesEquivalent, normalizeStockCode } from '../utils/stockCode';
 import { parseDecisionSignalDate } from '../utils/decisionSignalTime';
 import { buildDecisionActionLabelMap, getDecisionActionLabel } from '../utils/decisionAction';
+import { koOrZh } from '../utils/uiLanguage';
 
 const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
 const UNCLASSIFIED_SECTOR = 'UNCLASSIFIED';
@@ -63,6 +64,12 @@ const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
   { broker: 'citic', aliases: ['zhongxin'], displayName: '中信' },
   { broker: 'cmb', aliases: ['cmbchina', 'zhaoshang'], displayName: '招商' },
 ];
+// 한국어 화면에서 보여 줄 증권사 이름 (option value는 그대로 둔다)
+const BROKER_KO_NAMES: Record<string, string> = {
+  huatai: '화타이(Huatai)',
+  citic: '중신(CITIC)',
+  cmb: '자오상(CMS)',
+};
 
 type AccountOption = 'all' | number;
 type EventType = 'trade' | 'cash' | 'corporate';
@@ -82,20 +89,23 @@ type PortfolioSignalLookupResult = {
   error: string | null;
 };
 
-type PortfolioPageLanguage = 'zh' | 'en';
+type PortfolioPageLanguage = UiLanguage;
 
 const PORTFOLIO_LIMITATION_LABELS: Record<string, Record<PortfolioPageLanguage, string>> = {
   realtime_quote_best_effort: {
     zh: '实时行情为尽力获取',
     en: 'Realtime quotes are best-effort',
+    ko: '실시간 시세는 가능한 범위에서만 가져와요',
   },
   fx_and_cost_basis_partial: {
     zh: '汇率与成本基础为部分口径',
     en: 'FX and cost basis are partial',
+    ko: '환율과 매입 원가는 일부만 반영돼요',
   },
   sector_and_risk_metrics_limited: {
     zh: '行业与风险指标覆盖有限',
     en: 'Sector and risk metrics are limited',
+    ko: '업종·위험 지표는 일부만 제공돼요',
   },
 };
 
@@ -173,6 +183,33 @@ const PORTFOLIO_RISK_DASHBOARD_TEXT = {
     positions: 'Positions',
     snapshotUnavailable: 'Portfolio snapshot unavailable',
     snapshotUnavailableDescription: 'Holdings and valuation are unknown. Refresh to try again.',
+  },
+  ko: {
+    title: '위험·노출 현황',
+    riskFlags: '위험 신호',
+    marketExposure: '시장별 비중',
+    currencyExposure: '통화별 비중',
+    noExposure: '비중 데이터가 없어요',
+    exposureUnavailable: '비중을 확인할 수 없어요',
+    concentration: '종목 집중도',
+    sector: '업종 집중도',
+    drawdown: '낙폭',
+    stopLoss: '손절',
+    aiSignal: 'AI 신호',
+    priceQuality: '가격 상태',
+    active: '확인 필요',
+    stable: '정상',
+    unavailable: '확인 불가',
+    maxDrawdown: '최대 낙폭',
+    topPosition: 'Top1',
+    topSector: 'Top1',
+    triggered: '발동',
+    near: '근접',
+    missingPrice: '가격 없음',
+    stalePrice: '지난 가격',
+    positions: '보유 종목',
+    snapshotUnavailable: '보유 현황을 불러올 수 없어요',
+    snapshotUnavailableDescription: '보유 수량이나 평가금액을 확인할 수 없어요. 새로고침해서 다시 시도해 주세요.',
   },
 } as const;
 
@@ -760,7 +797,7 @@ const PortfolioPage: React.FC = () => {
       const brokerItems = response.brokers || [];
       if (brokerItems.length === 0) {
         setBrokers(FALLBACK_BROKERS);
-        setBrokerLoadWarning('券商列表接口返回为空，已回退为内置券商列表（华泰/中信/招商）。');
+        setBrokerLoadWarning(koOrZh('券商列表接口返回为空，已回退为内置券商列表（华泰/中信/招商）。', '증권사 목록을 받지 못해 기본 증권사 목록(화타이·중신·자오상)으로 대신 보여 드려요.'));
         if (!FALLBACK_BROKERS.some((item) => item.broker === selectedBroker)) {
           setSelectedBroker(FALLBACK_BROKERS[0].broker);
         }
@@ -773,7 +810,7 @@ const PortfolioPage: React.FC = () => {
       }
     } catch {
       setBrokers(FALLBACK_BROKERS);
-      setBrokerLoadWarning('券商列表接口不可用，已回退为内置券商列表（华泰/中信/招商）。');
+      setBrokerLoadWarning(koOrZh('券商列表接口不可用，已回退为内置券商列表（华泰/中信/招商）。', '증권사 목록을 불러올 수 없어 기본 증권사 목록(화타이·중신·자오상)으로 대신 보여 드려요.'));
       if (!FALLBACK_BROKERS.some((item) => item.broker === selectedBroker)) {
         setSelectedBroker(FALLBACK_BROKERS[0].broker);
       }
@@ -802,7 +839,7 @@ const PortfolioPage: React.FC = () => {
       } catch (riskErr) {
         setRisk(null);
         const parsed = getParsedApiError(riskErr);
-        setRiskWarning(parsed.message || '风险数据获取失败，已降级为仅展示快照数据。');
+        setRiskWarning(parsed.message || koOrZh('风险数据获取失败，已降级为仅展示快照数据。', '위험 데이터를 가져오지 못해 스냅샷 데이터만 보여 드려요.'));
       }
     } catch (err) {
       setSnapshot(null);
@@ -1054,7 +1091,7 @@ const PortfolioPage: React.FC = () => {
         analysisPhase: 'auto',
         force: false,
       });
-      setPositionAnalysisMessage(`已提交 ${row.symbol} 分析任务：${task.taskId}`);
+      setPositionAnalysisMessage(koOrZh(`已提交 ${row.symbol} 分析任务：${task.taskId}`, `${row.symbol} 분석을 요청했어요: ${task.taskId}`));
     } catch (err) {
       setError(getParsedApiError(err));
     } finally {
@@ -1092,7 +1129,7 @@ const PortfolioPage: React.FC = () => {
   const handleTradeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行录入或导入提交。', '먼저 오른쪽 위에서 계좌를 하나 골라야 입력하거나 가져올 수 있어요.'));
       return;
     }
     try {
@@ -1119,7 +1156,7 @@ const PortfolioPage: React.FC = () => {
   const handleCashSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行录入或导入提交。', '먼저 오른쪽 위에서 계좌를 하나 골라야 입력하거나 가져올 수 있어요.'));
       return;
     }
     try {
@@ -1142,7 +1179,7 @@ const PortfolioPage: React.FC = () => {
   const handleCorporateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行录入或导入提交。', '먼저 오른쪽 위에서 계좌를 하나 골라야 입력하거나 가져올 수 있어요.'));
       return;
     }
     try {
@@ -1180,7 +1217,7 @@ const PortfolioPage: React.FC = () => {
   const handleCommitCsv = async () => {
     if (!csvFile) return;
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行录入或导入提交。', '먼저 오른쪽 위에서 계좌를 하나 골라야 입력하거나 가져올 수 있어요.'));
       return;
     }
     try {
@@ -1200,7 +1237,7 @@ const PortfolioPage: React.FC = () => {
 
   const openDeleteDialog = (item: PendingDelete) => {
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行删除修正。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行删除修正。', '먼저 오른쪽 위에서 계좌를 하나 골라야 삭제할 수 있어요.'));
       return;
     }
     setPendingDelete(item);
@@ -1208,7 +1245,7 @@ const PortfolioPage: React.FC = () => {
 
   const openAccountDeleteDialog = () => {
     if (!writableAccount) {
-      setWriteWarning('请先选择具体账户，再删除持仓账户。');
+      setWriteWarning(koOrZh('请先选择具体账户，再删除持仓账户。', '삭제할 계좌를 먼저 골라 주세요.'));
       return;
     }
     setPendingAccountDelete({
@@ -1240,7 +1277,7 @@ const PortfolioPage: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!pendingDelete || deleteLoading) return;
     if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行删除修正。');
+      setWriteWarning(koOrZh('请先在右上角选择具体账户，再进行删除修正。', '먼저 오른쪽 위에서 계좌를 하나 골라야 삭제할 수 있어요.'));
       setPendingDelete(null);
       return;
     }
@@ -1272,7 +1309,7 @@ const PortfolioPage: React.FC = () => {
     e.preventDefault();
     const name = accountForm.name.trim();
     if (!name) {
-      setAccountCreateError('账户名称不能为空。');
+      setAccountCreateError(koOrZh('账户名称不能为空。', '계좌 이름을 입력해 주세요.'));
       setAccountCreateSuccess(null);
       return;
     }
@@ -1296,10 +1333,10 @@ const PortfolioPage: React.FC = () => {
         market: accountForm.market,
         baseCurrency: accountForm.baseCurrency,
       });
-      setAccountCreateSuccess('账户创建成功，已自动切换到该账户。');
+      setAccountCreateSuccess(koOrZh('账户创建成功，已自动切换到该账户。', '계좌를 만들고 해당 계좌로 바꿨어요.'));
     } catch (err) {
       const parsed = getParsedApiError(err);
-      setAccountCreateError(parsed.message || '创建账户失败，请稍后重试。');
+      setAccountCreateError(parsed.message || koOrZh('创建账户失败，请稍后重试。', '계좌를 만들지 못했어요. 잠시 후 다시 시도해 주세요.'));
       setAccountCreateSuccess(null);
     } finally {
       setAccountCreating(false);
@@ -1352,7 +1389,7 @@ const PortfolioPage: React.FC = () => {
         }
         setRisk(null);
         const parsed = getParsedApiError(riskErr);
-        setRiskWarning(parsed.message || '风险数据获取失败，已降级为仅展示快照数据。');
+        setRiskWarning(parsed.message || koOrZh('风险数据获取失败，已降级为仅展示快照数据。', '위험 데이터를 가져오지 못해 스냅샷 데이터만 보여 드려요.'));
       }
       return true;
     } catch (err) {
@@ -1424,7 +1461,7 @@ const PortfolioPage: React.FC = () => {
   const snapshotQualityMessage = snapshot?.dataQuality === 'partial' && snapshot.limitations?.length
     ? snapshot.limitations
       .map((limitation) => formatPortfolioLimitation(limitation, language))
-      .join(language === 'en' ? '; ' : '；')
+      .join(language === 'zh' ? '；' : '; ')
     : null;
 
   return (
@@ -1531,7 +1568,7 @@ const PortfolioPage: React.FC = () => {
       {(showCreateAccount || !hasAccounts) ? (
         <Card padding="md">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-foreground">新建账户</h2>
+            <h2 className="text-sm font-semibold text-foreground">{koOrZh('新建账户', '새 계좌 만들기')}</h2>
             {hasAccounts ? (
               <button
                 type="button"
@@ -1542,17 +1579,17 @@ const PortfolioPage: React.FC = () => {
                   setAccountCreateSuccess(null);
                 }}
               >
-                收起
+                {koOrZh('收起', '접기')}
               </button>
             ) : (
-              <span className="text-xs text-secondary">创建后自动切换到该账户</span>
+              <span className="text-xs text-secondary">{koOrZh('创建后自动切换到该账户', '만들면 바로 이 계좌로 바뀌어요')}</span>
             )}
           </div>
           {accountCreateError ? (
             <InlineAlert
               variant="danger"
               className="mt-2 rounded-lg px-2 py-1 text-xs shadow-none"
-              title="创建账户失败"
+              title={koOrZh('创建账户失败', '계좌 만들기 실패')}
               message={accountCreateError}
             />
           ) : null}
@@ -1560,26 +1597,26 @@ const PortfolioPage: React.FC = () => {
             <InlineAlert
               variant="success"
               className="mt-2 rounded-lg px-2 py-1 text-xs shadow-none"
-              title="创建账户成功"
+              title={koOrZh('创建账户成功', '계좌를 만들었어요')}
               message={accountCreateSuccess}
             />
           ) : null}
           <form className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2" onSubmit={handleCreateAccount}>
             <input
               className={`${PORTFOLIO_INPUT_CLASS} md:col-span-2`}
-              placeholder="账户名称（必填）"
+              placeholder={koOrZh('账户名称（必填）', '계좌 이름 (필수)')}
               value={accountForm.name}
               onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))}
             />
             <input
               className={PORTFOLIO_INPUT_CLASS}
-              placeholder="券商（可选，如 Demo/华泰）"
+              placeholder={koOrZh('券商（可选，如 Demo/华泰）', '증권사 (선택, 예: 키움증권)')}
               value={accountForm.broker}
               onChange={(e) => setAccountForm((prev) => ({ ...prev, broker: e.target.value }))}
             />
             <input
               className={PORTFOLIO_INPUT_CLASS}
-              placeholder="基准币（如 CNY/USD/HKD）"
+              placeholder={koOrZh('基准币（如 CNY/USD/HKD）', '기준 통화 (예: KRW/USD/HKD)')}
               value={accountForm.baseCurrency}
               onChange={(e) => setAccountForm((prev) => ({ ...prev, baseCurrency: e.target.value.toUpperCase() }))}
             />
@@ -1588,15 +1625,15 @@ const PortfolioPage: React.FC = () => {
               value={accountForm.market}
               onChange={(e) => setAccountForm((prev) => ({ ...prev, market: e.target.value as PortfolioAccountMarket }))}
             >
-              <option value="cn">市场：A 股（cn）</option>
-              <option value="hk">市场：港股（hk）</option>
-              <option value="us">市场：美股（us）</option>
-              <option value="jp">市场：日股（jp）</option>
-              <option value="kr">市场：韩股（kr）</option>
-              <option value="tw">市场：台股（tw）</option>
+              <option value="cn">{koOrZh('市场：A 股（cn）', '시장: 중국 A주 (cn)')}</option>
+              <option value="hk">{koOrZh('市场：港股（hk）', '시장: 홍콩 (hk)')}</option>
+              <option value="us">{koOrZh('市场：美股（us）', '시장: 미국 (us)')}</option>
+              <option value="jp">{koOrZh('市场：日股（jp）', '시장: 일본 (jp)')}</option>
+              <option value="kr">{koOrZh('市场：韩股（kr）', '시장: 한국 (kr)')}</option>
+              <option value="tw">{koOrZh('市场：台股（tw）', '시장: 대만 (tw)')}</option>
             </select>
             <button type="submit" className="btn-secondary text-sm" disabled={accountCreating}>
-              {accountCreating ? '创建中...' : '创建账户'}
+              {accountCreating ? koOrZh('创建中...', '만드는 중...') : koOrZh('创建账户', '계좌 만들기')}
             </button>
           </form>
         </Card>
@@ -1901,87 +1938,87 @@ const PortfolioPage: React.FC = () => {
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">手工录入：交易</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{koOrZh('手工录入：交易', '직접 입력: 거래')}</h3>
           <form className="space-y-2" onSubmit={handleTradeSubmit}>
-            <input className={PORTFOLIO_INPUT_CLASS} placeholder="股票代码（例如 600519）" value={tradeForm.symbol}
+            <input className={PORTFOLIO_INPUT_CLASS} placeholder={koOrZh('股票代码（例如 600519）', '종목 코드 (예: 005930.KS)')} value={tradeForm.symbol}
               onChange={(e) => setTradeForm((prev) => ({ ...prev, symbol: e.target.value }))} required />
             <div className="grid grid-cols-2 gap-2">
               <input className={PORTFOLIO_INPUT_CLASS} type="date" value={tradeForm.tradeDate}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, tradeDate: e.target.value }))} required />
               <select className={PORTFOLIO_SELECT_CLASS} value={tradeForm.side}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, side: e.target.value as PortfolioSide }))}>
-                <option value="buy">买入</option>
-                <option value="sell">卖出</option>
+                <option value="buy">{koOrZh('买入', '매수')}</option>
+                <option value="sell">{koOrZh('卖出', '매도')}</option>
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder="数量（必填）" value={tradeForm.quantity}
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder={koOrZh('数量（必填）', '수량 (필수)')} value={tradeForm.quantity}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, quantity: e.target.value }))} required />
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder="成交价（必填）" value={tradeForm.price}
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder={koOrZh('成交价（必填）', '체결가 (필수)')} value={tradeForm.price}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, price: e.target.value }))} required />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder="手续费（可选）" value={tradeForm.fee}
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder={koOrZh('手续费（可选）', '수수료 (선택)')} value={tradeForm.fee}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, fee: e.target.value }))} />
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder="税费（可选）" value={tradeForm.tax}
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder={koOrZh('税费（可选）', '세금 (선택)')} value={tradeForm.tax}
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, tax: e.target.value }))} />
             </div>
-            <p className="text-xs text-secondary">手续费和税费可留空，系统将按 0 处理。</p>
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交交易</button>
+            <p className="text-xs text-secondary">{koOrZh('手续费和税费可留空，系统将按 0 处理。', '수수료와 세금은 비워 두면 0으로 계산해요.')}</p>
+            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>{koOrZh('提交交易', '거래 저장')}</button>
           </form>
         </Card>
 
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">手工录入：资金流水</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{koOrZh('手工录入：资金流水', '직접 입력: 입출금 내역')}</h3>
           <form className="space-y-2" onSubmit={handleCashSubmit}>
             <div className="grid grid-cols-2 gap-2">
               <input className={PORTFOLIO_INPUT_CLASS} type="date" value={cashForm.eventDate}
                 onChange={(e) => setCashForm((prev) => ({ ...prev, eventDate: e.target.value }))} required />
               <select className={PORTFOLIO_SELECT_CLASS} value={cashForm.direction}
                 onChange={(e) => setCashForm((prev) => ({ ...prev, direction: e.target.value as PortfolioCashDirection }))}>
-                <option value="in">流入</option>
-                <option value="out">流出</option>
+                <option value="in">{koOrZh('流入', '입금')}</option>
+                <option value="out">{koOrZh('流出', '출금')}</option>
               </select>
             </div>
-            <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder="金额"
+            <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.0001" placeholder={koOrZh('金额', '금액')}
               value={cashForm.amount} onChange={(e) => setCashForm((prev) => ({ ...prev, amount: e.target.value }))} required />
-            <input className={PORTFOLIO_INPUT_CLASS} placeholder={`币种（可选，默认 ${writableAccount?.baseCurrency || '账户基准币'}）`} value={cashForm.currency}
+            <input className={PORTFOLIO_INPUT_CLASS} placeholder={koOrZh(`币种（可选，默认 ${writableAccount?.baseCurrency || '账户基准币'}）`, `통화 (선택, 기본값 ${writableAccount?.baseCurrency || '계좌 기준 통화'})`)} value={cashForm.currency}
               onChange={(e) => setCashForm((prev) => ({ ...prev, currency: e.target.value }))} />
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交资金流水</button>
+            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>{koOrZh('提交资金流水', '입출금 내역 저장')}</button>
           </form>
         </Card>
 
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">手工录入：公司行为</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{koOrZh('手工录入：公司行为', '직접 입력: 기업 이벤트(배당·분할)')}</h3>
           <form className="space-y-2" onSubmit={handleCorporateSubmit}>
-            <input className={PORTFOLIO_INPUT_CLASS} placeholder="股票代码" value={corpForm.symbol}
+            <input className={PORTFOLIO_INPUT_CLASS} placeholder={koOrZh('股票代码', '종목 코드')} value={corpForm.symbol}
               onChange={(e) => setCorpForm((prev) => ({ ...prev, symbol: e.target.value }))} required />
             <div className="grid grid-cols-2 gap-2">
               <input className={PORTFOLIO_INPUT_CLASS} type="date" value={corpForm.effectiveDate}
                 onChange={(e) => setCorpForm((prev) => ({ ...prev, effectiveDate: e.target.value }))} required />
               <select className={PORTFOLIO_SELECT_CLASS} value={corpForm.actionType}
                 onChange={(e) => setCorpForm((prev) => ({ ...prev, actionType: e.target.value as PortfolioCorporateActionType }))}>
-                <option value="cash_dividend">现金分红</option>
-                <option value="split_adjustment">拆并股调整</option>
+                <option value="cash_dividend">{koOrZh('现金分红', '현금배당')}</option>
+                <option value="split_adjustment">{koOrZh('拆并股调整', '액면분할·병합 조정')}</option>
               </select>
             </div>
             {corpForm.actionType === 'cash_dividend' ? (
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.000001" placeholder="每股分红"
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.000001" placeholder={koOrZh('每股分红', '주당 배당금')}
                 value={corpForm.cashDividendPerShare}
                 onChange={(e) => setCorpForm((prev) => ({ ...prev, cashDividendPerShare: e.target.value, splitRatio: '' }))} required />
             ) : (
-              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.000001" placeholder="拆并股比例"
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0" step="0.000001" placeholder={koOrZh('拆并股比例', '분할·병합 비율')}
                 value={corpForm.splitRatio}
                 onChange={(e) => setCorpForm((prev) => ({ ...prev, splitRatio: e.target.value, cashDividendPerShare: '' }))} required />
             )}
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交企业行为</button>
+            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>{koOrZh('提交企业行为', '기업 이벤트 저장')}</button>
           </form>
         </Card>
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">券商 CSV 导入</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{koOrZh('券商 CSV 导入', '증권사 CSV 가져오기')}</h3>
           <div className="space-y-2">
             {brokerLoadWarning ? (
               <InlineAlert
@@ -1993,43 +2030,43 @@ const PortfolioPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <select className={PORTFOLIO_SELECT_CLASS} value={selectedBroker} onChange={(e) => setSelectedBroker(e.target.value)}>
                 {brokers.length > 0 ? (
-                  brokers.map((item) => <option key={item.broker} value={item.broker}>{formatBrokerLabel(item.broker, item.displayName)}</option>)
+                  brokers.map((item) => <option key={item.broker} value={item.broker}>{BROKER_KO_NAMES[item.broker] ? koOrZh(formatBrokerLabel(item.broker, item.displayName), `${item.broker} (${BROKER_KO_NAMES[item.broker]})`) : formatBrokerLabel(item.broker, item.displayName)}</option>)
                 ) : (
-                  <option value="huatai">huatai（华泰）</option>
+                  <option value="huatai">{koOrZh('huatai（华泰）', `huatai (${BROKER_KO_NAMES.huatai})`)}</option>
                 )}
               </select>
               <label className={PORTFOLIO_FILE_PICKER_CLASS}>
-                选择 CSV
+                {koOrZh('选择 CSV', 'CSV 선택')}
                 <input type="file" accept=".csv" className="hidden"
                   onChange={(e) => setCsvFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
               </label>
             </div>
             <div className="flex items-center gap-2 text-xs text-secondary">
               <input id="csv-dry-run" type="checkbox" checked={csvDryRun} onChange={(e) => setCsvDryRun(e.target.checked)} />
-              <label htmlFor="csv-dry-run">仅预演（不写入）</label>
+              <label htmlFor="csv-dry-run">{koOrZh('仅预演（不写入）', '미리 확인만 (실제 저장 안 함)')}</label>
             </div>
             <div className="flex gap-2">
               <button type="button" className="btn-secondary flex-1" disabled={!csvFile || csvParsing} onClick={() => void handleParseCsv()}>
-                {csvParsing ? '解析中...' : '解析文件'}
+                {csvParsing ? koOrZh('解析中...', '읽는 중...') : koOrZh('解析文件', '파일 읽기')}
               </button>
               <button type="button" className="btn-secondary flex-1"
                 disabled={!csvFile || !writableAccountId || csvCommitting} onClick={() => void handleCommitCsv()}>
-                {csvCommitting ? '提交中...' : '提交导入'}
+                {csvCommitting ? koOrZh('提交中...', '저장 중...') : koOrZh('提交导入', '가져오기 저장')}
               </button>
             </div>
             {csvParseResult ? (
               <InlineAlert
                 variant={getCsvParseVariant(csvParseResult)}
-                title="CSV 解析结果"
-                message={`有效 ${csvParseResult.recordCount} 条，跳过 ${csvParseResult.skippedCount} 条，错误 ${csvParseResult.errorCount} 条。`}
+                title={koOrZh('CSV 解析结果', 'CSV 읽기 결과')}
+                message={koOrZh(`有效 ${csvParseResult.recordCount} 条，跳过 ${csvParseResult.skippedCount} 条，错误 ${csvParseResult.errorCount} 条。`, `유효 ${csvParseResult.recordCount}건, 건너뜀 ${csvParseResult.skippedCount}건, 오류 ${csvParseResult.errorCount}건이에요.`)}
                 className="rounded-lg px-3 py-2 text-xs shadow-none"
               />
             ) : null}
             {csvCommitResult ? (
               <InlineAlert
                 variant={getCsvCommitVariant(csvCommitResult, csvDryRun)}
-                title={csvDryRun ? 'CSV 预演结果' : 'CSV 提交结果'}
-                message={`${csvDryRun ? '预演检查' : '实际写入'}：写入 ${csvCommitResult.insertedCount} 条，重复 ${csvCommitResult.duplicateCount} 条，失败 ${csvCommitResult.failedCount} 条。`}
+                title={csvDryRun ? koOrZh('CSV 预演结果', 'CSV 미리 확인 결과') : koOrZh('CSV 提交结果', 'CSV 저장 결과')}
+                message={koOrZh(`${csvDryRun ? '预演检查' : '实际写入'}：写入 ${csvCommitResult.insertedCount} 条，重复 ${csvCommitResult.duplicateCount} 条，失败 ${csvCommitResult.failedCount} 条。`, `${csvDryRun ? '미리 확인' : '실제 저장'}: 저장 ${csvCommitResult.insertedCount}건, 중복 ${csvCommitResult.duplicateCount}건, 실패 ${csvCommitResult.failedCount}건이에요.`)}
                 className="rounded-lg px-3 py-2 text-xs shadow-none"
               />
             ) : null}
@@ -2037,16 +2074,16 @@ const PortfolioPage: React.FC = () => {
         </Card>
 
         <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">事件记录</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{koOrZh('事件记录', '기록 내역')}</h3>
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <select className={PORTFOLIO_SELECT_CLASS} value={eventType} onChange={(e) => setEventType(e.target.value as EventType)}>
-                <option value="trade">交易流水</option>
-                <option value="cash">资金流水</option>
-                <option value="corporate">公司行为</option>
+                <option value="trade">{koOrZh('交易流水', '거래 내역')}</option>
+                <option value="cash">{koOrZh('资金流水', '입출금 내역')}</option>
+                <option value="corporate">{koOrZh('公司行为', '기업 이벤트(배당·분할)')}</option>
               </select>
               <button type="button" className="btn-secondary text-sm" onClick={() => void loadEvents()} disabled={eventLoading}>
-                {eventLoading ? '加载中...' : '刷新流水'}
+                {eventLoading ? koOrZh('加载中...', '불러오는 중...') : koOrZh('刷新流水', '내역 새로고침')}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -2054,40 +2091,40 @@ const PortfolioPage: React.FC = () => {
               <input className={PORTFOLIO_INPUT_CLASS} type="date" value={eventDateTo} onChange={(e) => setEventDateTo(e.target.value)} />
             </div>
             {(eventType === 'trade' || eventType === 'corporate') ? (
-              <input className={PORTFOLIO_INPUT_CLASS} placeholder="按股票代码筛选" value={eventSymbol}
+              <input className={PORTFOLIO_INPUT_CLASS} placeholder={koOrZh('按股票代码筛选', '종목 코드로 찾기')} value={eventSymbol}
                 onChange={(e) => setEventSymbol(e.target.value)} />
             ) : null}
             {eventType === 'trade' ? (
               <select className={PORTFOLIO_SELECT_CLASS} value={eventSide} onChange={(e) => setEventSide(e.target.value as '' | PortfolioSide)}>
-                <option value="">全部买卖方向</option>
-                <option value="buy">买入</option>
-                <option value="sell">卖出</option>
+                <option value="">{koOrZh('全部买卖方向', '매수·매도 전체')}</option>
+                <option value="buy">{koOrZh('买入', '매수')}</option>
+                <option value="sell">{koOrZh('卖出', '매도')}</option>
               </select>
             ) : null}
             {eventType === 'cash' ? (
               <select className={PORTFOLIO_SELECT_CLASS} value={eventDirection}
                 onChange={(e) => setEventDirection(e.target.value as '' | PortfolioCashDirection)}>
-                <option value="">全部资金方向</option>
-                <option value="in">流入</option>
-                <option value="out">流出</option>
+                <option value="">{koOrZh('全部资金方向', '입금·출금 전체')}</option>
+                <option value="in">{koOrZh('流入', '입금')}</option>
+                <option value="out">{koOrZh('流出', '출금')}</option>
               </select>
             ) : null}
             {eventType === 'corporate' ? (
               <select className={PORTFOLIO_SELECT_CLASS} value={eventActionType}
                 onChange={(e) => setEventActionType(e.target.value as '' | PortfolioCorporateActionType)}>
-                <option value="">全部公司行为</option>
-                <option value="cash_dividend">现金分红</option>
-                <option value="split_adjustment">拆并股调整</option>
+                <option value="">{koOrZh('全部公司行为', '기업 이벤트 전체')}</option>
+                <option value="cash_dividend">{koOrZh('现金分红', '현금배당')}</option>
+                <option value="split_adjustment">{koOrZh('拆并股调整', '액면분할·병합 조정')}</option>
               </select>
             ) : null}
             <div className="text-[11px] text-secondary">
-              {writeBlocked ? '删除修正仅在单账户视图可用。请先选择具体账户后再删除错误流水。' : '如有错误流水，可直接删除后重新录入。'}
+              {writeBlocked ? koOrZh('删除修正仅在单账户视图可用。请先选择具体账户后再删除错误流水。', '삭제는 계좌 하나를 골랐을 때만 할 수 있어요. 먼저 계좌를 고른 뒤 잘못된 내역을 지워 주세요.') : koOrZh('如有错误流水，可直接删除后重新录入。', '잘못 입력한 내역은 지우고 다시 입력하면 돼요.')}
             </div>
             <div className="max-h-64 overflow-auto rounded-lg border border-white/10 p-2">
               {eventType === 'trade' && tradeEvents.map((item) => (
                 <div key={`t-${item.id}`} className="flex items-start justify-between gap-3 border-b border-white/5 py-2 text-xs text-secondary">
                   <div className="min-w-0">
-                    {item.tradeDate} {formatSideLabel(item.side)} {item.symbol} 数量={item.quantity} 价格={item.price}
+                    {item.tradeDate} {formatSideLabel(item.side)} {item.symbol} {koOrZh('数量', '수량')}={item.quantity} {koOrZh('价格', '가격')}={item.price}
                   </div>
                   {!writeBlocked ? (
                     <button
@@ -2096,10 +2133,10 @@ const PortfolioPage: React.FC = () => {
                       onClick={() => openDeleteDialog({
                         eventType: 'trade',
                         id: item.id,
-                        message: `确认删除 ${item.tradeDate} 的${formatSideLabel(item.side)}流水 ${item.symbol}（数量 ${item.quantity}，价格 ${item.price}）吗？`,
+                        message: koOrZh(`确认删除 ${item.tradeDate} 的${formatSideLabel(item.side)}流水 ${item.symbol}（数量 ${item.quantity}，价格 ${item.price}）吗？`, `${item.tradeDate} ${formatSideLabel(item.side)} 내역을 삭제할까요? (${item.symbol}, 수량 ${item.quantity}, 가격 ${item.price})`),
                       })}
                     >
-                      删除
+                      {koOrZh('删除', '삭제')}
                     </button>
                   ) : null}
                 </div>
@@ -2116,10 +2153,10 @@ const PortfolioPage: React.FC = () => {
                       onClick={() => openDeleteDialog({
                         eventType: 'cash',
                         id: item.id,
-                        message: `确认删除 ${item.eventDate} 的资金流水（${formatCashDirectionLabel(item.direction)} ${item.amount} ${item.currency}）吗？`,
+                        message: koOrZh(`确认删除 ${item.eventDate} 的资金流水（${formatCashDirectionLabel(item.direction)} ${item.amount} ${item.currency}）吗？`, `${item.eventDate} 입출금 내역을 삭제할까요? (${formatCashDirectionLabel(item.direction)} ${item.amount} ${item.currency})`),
                       })}
                     >
-                      删除
+                      {koOrZh('删除', '삭제')}
                     </button>
                   ) : null}
                 </div>
@@ -2136,10 +2173,10 @@ const PortfolioPage: React.FC = () => {
                       onClick={() => openDeleteDialog({
                         eventType: 'corporate',
                         id: item.id,
-                        message: `确认删除 ${item.effectiveDate} 的公司行为 ${formatCorporateActionLabel(item.actionType)}（${item.symbol}）吗？`,
+                        message: koOrZh(`确认删除 ${item.effectiveDate} 的公司行为 ${formatCorporateActionLabel(item.actionType)}（${item.symbol}）吗？`, `${item.effectiveDate} 기업 이벤트를 삭제할까요? (${formatCorporateActionLabel(item.actionType)}, ${item.symbol})`),
                       })}
                     >
-                      删除
+                      {koOrZh('删除', '삭제')}
                     </button>
                   ) : null}
                 </div>
@@ -2149,22 +2186,22 @@ const PortfolioPage: React.FC = () => {
                   || (eventType === 'cash' && cashEvents.length === 0)
                   || (eventType === 'corporate' && corporateEvents.length === 0)) ? (
                     <EmptyState
-                      title="暂无流水"
-                      description="调整筛选条件或先录入一笔交易、资金流水或公司行为。"
+                      title={koOrZh('暂无流水', '내역이 없어요')}
+                      description={koOrZh('调整筛选条件或先录入一笔交易、资金流水或公司行为。', '검색 조건을 바꾸거나 거래·입출금·기업 이벤트를 먼저 입력해 주세요.')}
                       className="border-none bg-transparent px-3 py-6 shadow-none"
                     />
                   ) : null}
             </div>
             <div className="flex items-center justify-between text-xs text-secondary">
-              <span>第 {eventPage} / {totalEventPages} 页</span>
+              <span>{koOrZh(`第 ${eventPage} / ${totalEventPages} 页`, `${eventPage} / ${totalEventPages} 페이지`)}</span>
               <div className="flex gap-2">
                 <button type="button" className="btn-secondary text-xs px-3 py-1" disabled={eventPage <= 1}
                   onClick={() => setEventPage((prev) => Math.max(1, prev - 1))}>
-                  上一页
+                  {koOrZh('上一页', '이전')}
                 </button>
                 <button type="button" className="btn-secondary text-xs px-3 py-1" disabled={eventPage >= totalEventPages}
                   onClick={() => setEventPage((prev) => Math.min(totalEventPages, prev + 1))}>
-                  下一页
+                  {koOrZh('下一页', '다음')}
                 </button>
               </div>
             </div>
@@ -2173,10 +2210,10 @@ const PortfolioPage: React.FC = () => {
       </section>
       <ConfirmDialog
         isOpen={Boolean(pendingDelete)}
-        title="删除错误流水"
-        message={pendingDelete?.message || '确认删除这条流水吗？'}
-        confirmText={deleteLoading ? '删除中...' : '确认删除'}
-        cancelText="取消"
+        title={koOrZh('删除错误流水', '잘못된 내역 삭제')}
+        message={pendingDelete?.message || koOrZh('确认删除这条流水吗？', '이 내역을 삭제할까요?')}
+        confirmText={deleteLoading ? koOrZh('删除中...', '삭제 중...') : koOrZh('确认删除', '삭제')}
+        cancelText={koOrZh('取消', '취소')}
         isDanger
         onConfirm={() => void handleConfirmDelete()}
         onCancel={() => {

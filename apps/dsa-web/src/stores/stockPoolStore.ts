@@ -6,6 +6,7 @@ import { historyApi } from '../api/history';
 import type { AnalysisReport, HistoryItem, HistoryListResponse, ReportLanguage, StockBarItem, StockHistoryFilters, StockHistoryRange, TaskInfo } from '../types/analysis';
 import { getRecentStartDate, getTodayInShanghai } from '../utils/format';
 import { toAssetAwareCodeKey, type AssetAwareAssetType } from '../utils/stockCode';
+import { koOrZh } from '../utils/uiLanguage';
 import { isObviouslyInvalidStockQuery, looksLikeStockCode, validateStockCode } from '../utils/validation';
 
 const PAGE_SIZE = 20;
@@ -895,12 +896,12 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
     const skills = options?.skills;
 
     if (!stockCodeInput) {
-      set({ inputError: '请输入股票代码', duplicateError: null });
+      set({ inputError: koOrZh('请输入股票代码', '종목 코드를 입력해 주세요'), duplicateError: null });
       return;
     }
 
     if (selectionSource !== 'autocomplete' && isObviouslyInvalidStockQuery(stockCodeInput)) {
-      set({ inputError: '请输入有效的股票代码或股票名称', duplicateError: null });
+      set({ inputError: koOrZh('请输入有效的股票代码或股票名称', '올바른 종목 코드나 종목 이름을 입력해 주세요'), duplicateError: null });
       return;
     }
 
@@ -950,7 +951,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
       if (error instanceof DuplicateTaskError) {
         set({
-          duplicateError: `股票 ${error.stockCode} 正在分析中，请等待完成`,
+          duplicateError: koOrZh(`股票 ${error.stockCode} 正在分析中，请等待完成`, `${error.stockCode} 종목은 지금 분석 중이에요. 끝날 때까지 기다려 주세요`),
         });
         return;
       }
@@ -989,7 +990,7 @@ export const useStockPoolStore = create<StockPoolState>((set, get) => ({
 
   syncTaskFailed: (task) => {
     get().syncTaskUpdated(task);
-    set({ error: getParsedApiError(task.error || '分析失败') });
+    set({ error: getParsedApiError(task.error || koOrZh('分析失败', '분석 실패')) });
   },
 
   refreshActiveTasks: async () => {

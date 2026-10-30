@@ -1,84 +1,84 @@
-# 文档中心
+# 문서 센터
 
-这里是项目文档入口。README 负责项目概览和快速开始；更完整的配置、部署、功能说明和排障内容从这里进入。
+이 프로젝트 문서의 입구입니다. README는 프로젝트 개요와 빠른 시작을 다루고, 더 자세한 설정, 배포, 기능 설명, 문제 해결은 여기서 찾아가면 됩니다.
 
-## 按场景选择
+## 상황별로 고르기
 
-| 我想要 | 先看 | 继续看 |
+| 하고 싶은 일 | 먼저 볼 문서 | 이어서 볼 문서 |
 | --- | --- | --- |
-| 快速了解项目能做什么 | [README](../README.md) | [完整配置与部署指南](full-guide.md) |
-| 第一次把项目跑起来 | [小白客户端安装与配置](beginner-client-setup.md) | [完整配置与部署指南](full-guide.md) |
-| 配置大模型渠道 | [LLM 配置指南](LLM_CONFIG_GUIDE.md) | [LLM 服务商配置指南](llm-providers.md)（含 xAI Grok 直连） |
-| 配置推送通知 | [通知能力基线](notifications.md) | [完整配置与部署指南](full-guide.md) |
-| 部署到服务器或云平台 | [部署指南](DEPLOY.md) | [云端 WebUI 部署](deploy-webui-cloud.md)、[Zeabur 部署](docker/zeabur-deployment.md) |
-| 使用 Bot / IM 接入 | [Bot 命令与接入](bot-command.md) | [Bot 平台配置](bot/)、[Grok Bot 集成](grok-bot-integration.md) |
-| 排查运行问题 | [FAQ](FAQ.md) | [更新日志](CHANGELOG.md) |
-| 处理数据源失败或降级 | [数据源稳定性与故障处理图示](data-source-stability.md) | [FAQ](FAQ.md) |
-| 参与开发或提交 PR | [贡献指南](CONTRIBUTING.md) | [API 规格](architecture/api_spec.json) |
+| 이 프로젝트로 무엇을 할 수 있는지 빠르게 알아보기 | [README](../README.md) | [전체 설정 및 배포 가이드](full-guide.md) |
+| 처음으로 프로젝트 실행해 보기 | [초보자용 클라이언트 설치와 설정](beginner-client-setup.md) | [전체 설정 및 배포 가이드](full-guide.md) |
+| LLM 채널 설정하기 | [LLM 설정 가이드](LLM_CONFIG_GUIDE.md) | [LLM 서비스 제공자 설정 가이드](llm-providers.md)(xAI Grok 직접 연결 포함) |
+| 알림 발송 설정하기 | [알림 기능 기준 문서](notifications.md) | [전체 설정 및 배포 가이드](full-guide.md) |
+| 서버나 클라우드 플랫폼에 배포하기 | [배포 가이드](DEPLOY.md) | [클라우드 WebUI 배포](deploy-webui-cloud.md), [Zeabur 배포](docker/zeabur-deployment.md) |
+| Bot / 메신저 연동하기 | [Bot 명령과 연동](bot-command.md) | [Bot 플랫폼 설정](bot/), [Grok Bot 연동](grok-bot-integration.md) |
+| 실행 문제 해결하기 | [FAQ](FAQ.md) | [변경 이력](CHANGELOG.md) |
+| 데이터 소스 실패나 기능 저하 대응하기 | [데이터 소스 안정성과 장애 대응 도해](data-source-stability.md) | [FAQ](FAQ.md) |
+| 개발에 참여하거나 PR 보내기 | [기여 가이드](CONTRIBUTING.md) | [API 명세](architecture/api_spec.json) |
 
-## 快速开始
+## 빠른 시작
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [README](../README.md) | 项目定位、核心能力、快速开始、推送效果 |
-| [小白客户端安装与配置](beginner-client-setup.md) | 面向不会代码用户的客户端下载、Anspire Open / AIHubMix 模型配置、新闻源配置和常见问题 |
-| [完整配置与部署指南](full-guide.md) | 环境准备、运行方式、配置说明、部署路径和常见问题 |
-| [FAQ](FAQ.md) | 常见配置、模型、通知、部署和运行问题 |
-| [数据源稳定性与故障处理图示](data-source-stability.md) | Tushare、TickFlow、AkShare、Efinance、YFinance、Longbridge 等已接入源的使用场景、fallback 链路和推荐配置 |
-| [数据中心](data-center-diagnostics.md) | 只读 Provider 能力、数据集质量、精确市场支持与运行时优先级 |
-| [更新日志](CHANGELOG.md) | 版本变化、能力调整和迁移说明 |
+| [README](../README.md) | 프로젝트 소개, 핵심 기능, 빠른 시작, 알림 예시 |
+| [초보자용 클라이언트 설치와 설정](beginner-client-setup.md) | 코드를 모르는 사용자를 위한 클라이언트 다운로드, Anspire Open / AIHubMix 모델 설정, 뉴스 소스 설정, 자주 묻는 질문 |
+| [전체 설정 및 배포 가이드](full-guide.md) | 환경 준비, 실행 방법, 설정 설명, 배포 경로, 자주 묻는 질문 |
+| [FAQ](FAQ.md) | 설정, 모델, 알림, 배포, 실행에 관한 자주 묻는 질문 |
+| [데이터 소스 안정성과 장애 대응 도해](data-source-stability.md) | Tushare, TickFlow, AkShare, Efinance, YFinance, Longbridge 등 연결된 소스의 쓰임새, fallback 경로, 권장 설정 |
+| [데이터 센터](data-center-diagnostics.md) | 읽기 전용 Provider 기능, 데이터셋 품질, 정확한 시장 지원, 실행 시점 우선순위 |
+| [변경 이력](CHANGELOG.md) | 버전 변화, 기능 조정, 마이그레이션 안내 |
 
-## 配置
+## 설정
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [LLM 配置指南](LLM_CONFIG_GUIDE.md) | 大模型渠道、三层配置、Web 设置页和常见模型配置 |
-| [LLM 服务商配置指南](llm-providers.md) | Provider 预设、Actions 映射、错误分类和诊断建议 |
-| [LiteLLM YAML 示例](examples/litellm_config.example.yaml) | LiteLLM 多渠道配置示例 |
-| [Grok Bot Skill 示例](examples/grok_bot/README.md) | 给 Grok Bot 粘贴的最小 Skill，调用现有 REST |
-| [通知能力基线](notifications.md) | 企业微信、飞书、Telegram、Discord、Slack、邮件等通知渠道配置 |
-| [Tushare 股票列表指南](TUSHARE_STOCK_LIST_GUIDE.md) | Tushare 股票列表相关配置和使用说明 |
+| [LLM 설정 가이드](LLM_CONFIG_GUIDE.md) | LLM 채널, 3단계 설정, 웹 설정 페이지, 자주 쓰는 모델 설정 |
+| [LLM 서비스 제공자 설정 가이드](llm-providers.md) | Provider 프리셋, Actions 매핑, 오류 분류, 진단 방법 |
+| [LiteLLM YAML 예시](examples/litellm_config.example.yaml) | LiteLLM 다중 채널 설정 예시 |
+| [Grok Bot Skill 예시](examples/grok_bot/README.md) | Grok Bot에 붙여 넣는 최소 Skill. 기존 REST를 호출합니다 |
+| [알림 기능 기준 문서](notifications.md) | WeCom(기업용 위챗), Feishu(페이슈), Telegram, Discord, Slack, 메일 등 알림 채널 설정 |
+| [Tushare 종목 목록 가이드](TUSHARE_STOCK_LIST_GUIDE.md) | Tushare 종목 목록 관련 설정과 사용법 |
 
-## 使用专题
+## 기능별 안내
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [自选股变化状态与下一步](watchlist-next-action.md) | 首页自选股列表的变化、状态、下一步三段信号、映射规则和后续扩展边界 |
-| [Bot 命令与接入](bot-command.md) | Bot 命令、Webhook、平台接入和回调说明 |
-| [Bot 平台配置](bot/) | 飞书、钉钉、Discord 等 Bot 配置截图和补充说明 |
-| [实时告警中心](alerts.md) | EventMonitor 基线、Web 规则管理、通知结果、冷却状态和 Phase 边界 |
-| [个股研究聚合 API](stock-profile-api.md) | 单一 stock-profile 契约、分块质量状态、代码归一与后续 Web 边界 |
-| [DecisionSignal 决策信号专题](decision-signals.md) | AI 建议池字段语义、API、Web 展示、告警/通知/组合风险联动、后验评估、脱敏、迁移与回滚 |
-| [ETF 轮动](etf-rotation.md) | `--etf-rotation` 规则化双动量轮动：规则、配置、报告章节、参数平原解读与数据告警边界 |
-| [ResearchArtifact 结构化研究产物](research-artifact.md) | structured_report 字段、Thesis / Evidence / Invalidation / Next Action / Data Quality 契约和旧报告兼容边界 |
-| [组合风险与暴露看板](portfolio-risk-exposure-dashboard.md) | 持仓页风险旗标、市场暴露、币种暴露和价格质量聚合展示 |
-| [选股解释契约](screening-explanations.md) | Why Selected / Why Now 的后端确定性解释、来源、质量状态与缺失值边界 |
-| [资讯 / 情报源](intelligence-sources.md) | RSS/Atom 合规资讯源配置、测试、拉取、去重、存储、查询与安全边界 |
-| [分析上下文包契约、运行态消费与可见性](analysis-context-pack.md) | AnalysisContextPack 首版范围、字段质量状态、P1/P2 内部契约、P3 Prompt 摘要消费、P4 历史/API/Web 低敏可见性、P5 数据质量评分、P6 迁移回滚与源码锚点；完整指南补充 #1386 阶段感知分析、迁移与回滚入口 |
-| [图片识别 Prompt](image-extract-prompt.md) | 图片识别股票信息的 Prompt 与使用边界 |
-| [OpenClaw Skill 集成](openclaw-skill-integration.md) | OpenClaw / Skill 外部集成说明 |
-| [Grok Bot 集成](grok-bot-integration.md) | 2026-08-11 Grok Bot（AI teammate）与 DSA REST / DecisionSignal / Skill 的对接边界 |
+| [관심 종목 변화 상태와 다음 할 일](watchlist-next-action.md) | 홈 화면 관심 종목 목록의 변화·상태·다음 할 일 세 가지 신호, 대응 규칙, 이후 확장 범위 |
+| [Bot 명령과 연동](bot-command.md) | Bot 명령, Webhook, 플랫폼 연동, 콜백 설명 |
+| [Bot 플랫폼 설정](bot/) | Feishu, DingTalk(딩톡), Discord 등 Bot 설정 스크린샷과 보충 설명 |
+| [실시간 경고 센터](alerts.md) | EventMonitor 기준, 웹 규칙 관리, 알림 결과, 쿨다운 상태, Phase 범위 |
+| [개별 종목 리서치 통합 API](stock-profile-api.md) | 단일 stock-profile 계약, 블록별 품질 상태, 코드 정규화, 이후 웹 범위 |
+| [DecisionSignal 의사결정 신호](decision-signals.md) | AI 의견 풀의 필드 의미, API, 웹 표시, 경고/알림/포트폴리오 위험 연동, 사후 평가, 민감 정보 가림, 마이그레이션과 롤백 |
+| [ETF 로테이션](etf-rotation.md) | `--etf-rotation` 규칙 기반 듀얼 모멘텀 로테이션: 규칙, 설정, 리포트 구성, 매개변수 안정성 해석, 데이터 경고 범위 |
+| [ResearchArtifact 구조화 리서치 결과물](research-artifact.md) | structured_report 필드, Thesis / Evidence / Invalidation / Next Action / Data Quality 계약, 예전 리포트 호환 범위 |
+| [포트폴리오 위험과 노출 대시보드](portfolio-risk-exposure-dashboard.md) | 보유 종목 페이지의 위험 표시, 시장 노출, 통화 노출, 가격 품질 통합 표시 |
+| [종목 선별 설명 계약](screening-explanations.md) | Why Selected / Why Now에 대한 백엔드의 결정적 설명, 출처, 품질 상태, 결측값 범위 |
+| [뉴스 / 정보 소스](intelligence-sources.md) | RSS/Atom 정식 뉴스 소스 설정, 테스트, 수집, 중복 제거, 저장, 조회, 보안 범위 |
+| [분석 컨텍스트 패키지 계약, 실행 시 사용과 표시 범위](analysis-context-pack.md) | AnalysisContextPack 첫 버전 범위, 필드 품질 상태, P1/P2 내부 계약, P3 Prompt 요약 사용, P4 이력/API/웹의 저민감 정보 표시, P5 데이터 품질 점수, P6 마이그레이션·롤백과 소스 코드 기준점. 전체 가이드에서 #1386 단계 인식 분석, 마이그레이션, 롤백 안내를 보충합니다 |
+| [이미지 인식 Prompt](image-extract-prompt.md) | 이미지에서 종목 정보를 인식하는 Prompt와 사용 범위 |
+| [OpenClaw Skill 연동](openclaw-skill-integration.md) | OpenClaw / Skill 외부 연동 설명 |
+| [Grok Bot 연동](grok-bot-integration.md) | 2026-08-11 Grok Bot(AI teammate)과 DSA REST / DecisionSignal / Skill의 연동 범위 |
 
-## 部署与打包
+## 배포와 패키징
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [部署指南](DEPLOY.md) | 服务器部署、Docker、systemd、Supervisor 等部署方式 |
-| [云端 WebUI 部署](deploy-webui-cloud.md) | 云服务器访问 WebUI 的部署说明 |
-| [Zeabur 部署](docker/zeabur-deployment.md) | Zeabur 平台部署说明 |
-| [桌面端打包说明](desktop-package.md) | Electron 桌面端和 Web 构建产物打包说明 |
+| [배포 가이드](DEPLOY.md) | 서버 배포, Docker, systemd, Supervisor 등 배포 방법 |
+| [클라우드 WebUI 배포](deploy-webui-cloud.md) | 클라우드 서버에서 WebUI에 접속하기 위한 배포 설명 |
+| [Zeabur 배포](docker/zeabur-deployment.md) | Zeabur 플랫폼 배포 설명 |
+| [데스크톱 앱 패키징 안내](desktop-package.md) | Electron 데스크톱 앱과 웹 빌드 결과물 패키징 설명 |
 
-## 参考与开发
+## 참고와 개발
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [API 规格](architecture/api_spec.json) | FastAPI OpenAPI 规格产物 |
-| [贡献指南](CONTRIBUTING.md) | Issue、PR、测试、文档同步和协作要求 |
+| [API 명세](architecture/api_spec.json) | FastAPI OpenAPI 명세 결과물 |
+| [기여 가이드](CONTRIBUTING.md) | Issue, PR, 테스트, 문서 동기화, 협업 규칙 |
 
-## 多语言
+## 다른 언어
 
-| 文档 | 内容 |
+| 문서 | 내용 |
 | --- | --- |
-| [英文文档索引](INDEX_EN.md) | English documentation index |
-| [英文 README](README_EN.md) | English project overview and quick start |
-| [繁中 README](README_CHT.md) | 繁體中文項目概覽與快速開始 |
+| [영어 문서 색인](INDEX_EN.md) | English documentation index |
+| [영어 README](README_EN.md) | English project overview and quick start |
+| [번체 중국어 README](README_CHT.md) | 繁體中文項目概覽與快速開始 |

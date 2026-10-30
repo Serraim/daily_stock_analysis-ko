@@ -1,124 +1,128 @@
-# 云服务器 Web 界面访问指南
+# 클라우드 서버 웹 화면 접속 가이드
 
-如果你已经把项目部署到云服务器，但不知道在浏览器里输入什么地址才能打开 Web 管理界面，这篇教程就是为你准备的。
+프로젝트를 클라우드 서버에 배포했는데 브라우저에 어떤 주소를 넣어야 웹 관리 화면이 열리는지 모르겠다면, 이 문서를 보시면 됩니다.
 
-> 其实就两步：让服务监听外网，再在浏览器里输入地址。
-
----
-
-## 目录
-
-- [方式一：直接部署（pip + python）](#方式一直接部署pip--python)
-- [方式二：Docker Compose](#方式二docker-compose)
-- [如何在浏览器里打开界面](#如何在浏览器里打开界面)
-- [如何确认 Docker 重建已生效](#如何确认-docker-重建已生效)
-- [访问不了？先检查这几项](#访问不了先检查这几项)
-- [可选：Nginx 反向代理（绑定域名 / 80 端口）](#可选nginx-反向代理绑定域名--80-端口)
-- [安全建议](#安全建议)
+> 사실 두 단계면 됩니다. 서비스가 외부 접속을 받도록 하고, 브라우저에 주소를 입력하는 것입니다.
 
 ---
 
-## 方式一：直接部署（pip + python）
+## 목차
 
-### 第一步：修改 .env 中的监听地址
+- [방법 1: 직접 배포(pip + python)](#方式一直接部署pip--python)
+- [방법 2: Docker Compose](#方式二docker-compose)
+- [브라우저에서 화면 여는 법](#如何在浏览器里打开界面)
+- [Docker 재빌드가 적용되었는지 확인하는 법](#如何确认-docker-重建已生效)
+- [접속이 안 되나요? 먼저 이것부터 확인하세요](#访问不了先检查这几项)
+- [선택: Nginx 리버스 프록시(도메인 연결 / 80 포트)](#可选nginx-反向代理绑定域名--80-端口)
+- [보안 권장 사항](#安全建议)
 
-用编辑器打开 `.env`（在项目根目录，即包含 `main.py` 的目录），找到这一行：
+---
+
+<a id="方式一直接部署pip--python"></a>
+
+## 방법 1: 직접 배포(pip + python)
+
+### 1단계: .env의 수신 주소 바꾸기
+
+편집기로 `.env`(프로젝트 루트, 즉 `main.py`가 있는 디렉터리)를 열고 다음 줄을 찾습니다.
 
 ```env
 WEBUI_HOST=127.0.0.1
 ```
 
-把 `127.0.0.1` 改成 `0.0.0.0`：
+`127.0.0.1`을 `0.0.0.0`으로 바꿉니다.
 
 ```env
 WEBUI_HOST=0.0.0.0
 ```
 
-> `127.0.0.1` 表示只有本机能访问，`0.0.0.0` 表示允许任何来源访问。云服务器需要把 `.env` 中的 `WEBUI_HOST` 改成 `0.0.0.0`，或在启动命令里显式传入 `--host 0.0.0.0`，才能从外网打开界面。
+> `127.0.0.1`은 이 컴퓨터에서만 접속할 수 있다는 뜻이고, `0.0.0.0`은 어디서든 접속을 받는다는 뜻입니다. 클라우드 서버에서는 `.env`의 `WEBUI_HOST`를 `0.0.0.0`으로 바꾸거나 시작 명령에 `--host 0.0.0.0`을 명시해야 외부에서 화면을 열 수 있습니다.
 
-### 第二步：启动服务
+### 2단계: 서비스 시작
 
-在项目根目录执行：
+프로젝트 루트에서 실행합니다.
 
 ```bash
-# 只启动 Web 界面（不自动执行分析）
+# 웹 화면만 시작(분석은 자동으로 실행하지 않음)
 python main.py --webui-only
 
-# 或者：启动 Web 界面（启动时执行一次分析；需每日定时分析请加 --schedule 或设 SCHEDULE_ENABLED=true）
+# 또는: 웹 화면 시작(시작할 때 분석을 한 번 실행. 매일 예약 분석이 필요하면 --schedule을 붙이거나 SCHEDULE_ENABLED=true로 설정)
 python main.py --webui
 ```
 
-启动成功后，终端会输出类似：
+시작에 성공하면 터미널에 다음과 비슷한 내용이 나옵니다(`FastAPI 服务已启动`은 "FastAPI 서비스가 시작됨"이라는 뜻입니다).
 
 ```
 FastAPI 服务已启动: http://0.0.0.0:8000
 ```
 
-如果你想让服务在退出终端后继续运行，可以用 `nohup`：
+터미널을 닫은 뒤에도 서비스가 계속 돌게 하려면 `nohup`을 쓸 수 있습니다.
 
 ```bash
 nohup python main.py --webui-only > /dev/null 2>&1 &
 ```
 
-> 日志文件会由程序自动写入 `logs/` 目录，用 `tail -f logs/stock_analysis_*.log` 查看。
+> 로그 파일은 프로그램이 자동으로 `logs/` 디렉터리에 씁니다. `tail -f logs/stock_analysis_*.log`로 볼 수 있습니다.
 
-### 修改端口（可选）
+### 포트 바꾸기(선택)
 
-默认端口是 8000。如果想改用其他端口，在 `.env` 里设置：
+기본 포트는 8000입니다. 다른 포트를 쓰려면 `.env`에 설정합니다.
 
 ```env
 WEBUI_PORT=8888
 ```
 
-然后重启服务。
+그런 다음 서비스를 다시 시작합니다.
 
 ---
 
-## 方式二：Docker Compose
+<a id="方式二docker-compose"></a>
 
-### 第一步：确认已有 .env 配置
+## 방법 2: Docker Compose
 
-项目的 `docker/docker-compose.yml` 在容器内部已经自动设置了 `WEBUI_HOST=0.0.0.0`，你不需要在 `.env` 里再改监听地址，Docker 会自动处理。
+### 1단계: .env 설정이 있는지 확인
 
-Docker Compose 中的 `env_file: ../.env` 只会把 `.env` 作为**启动环境变量**注入容器，不会在容器内创建 `/app/.env`，也不会让 WebUI 保存配置时回写宿主机 `.env`。新版 WebUI 会在活跃 `.env` 文件缺少某些键时展示启动注入的同名环境变量作为兜底，因此页面上能看到 Docker 启动时注入的配置；但“导出 `.env`”仍只导出当前活跃配置文件内容。
+프로젝트의 `docker/docker-compose.yml`은 컨테이너 안에서 이미 `WEBUI_HOST=0.0.0.0`을 자동으로 설정합니다. `.env`에서 수신 주소를 따로 바꿀 필요 없이 Docker가 처리합니다.
 
-如果希望 WebUI 中保存的配置在容器删除、重建或升级后继续保留，请把活跃配置文件放到已挂载的数据卷中，例如在 Compose 的 `environment` 中增加：
+Docker Compose의 `env_file: ../.env`는 `.env`를 **시작 시 환경 변수**로 컨테이너에 넣을 뿐, 컨테이너 안에 `/app/.env`를 만들지 않으며, WebUI가 설정을 저장할 때 호스트의 `.env`에 다시 쓰지도 않습니다. 새 버전 WebUI는 사용 중인 `.env` 파일에 일부 키가 없으면 시작 시 주입된 같은 이름의 환경 변수를 대신 보여 주므로, Docker 시작 때 주입한 설정이 페이지에 보입니다. 하지만 "`.env` 내보내기"는 여전히 현재 사용 중인 설정 파일의 내용만 내보냅니다.
+
+WebUI에서 저장한 설정을 컨테이너를 지우거나 다시 만들거나 업그레이드한 뒤에도 유지하려면, 사용할 설정 파일을 마운트된 데이터 볼륨에 두세요. 예를 들어 Compose의 `environment`에 다음을 추가합니다.
 
 ```yaml
 - ENV_FILE=/app/data/runtime.env
 ```
 
-同时保留 `../data:/app/data` 挂载。注意：如果启动时的 `../.env`、`docker run -e` 或 Compose `environment:` 里还保留同名旧值，容器重启后这些启动环境变量仍可能覆盖运行时文件中的保存值；要让 WebUI 保存值接管，请同步更新或移除启动环境中的同名配置。
+`../data:/app/data` 마운트도 그대로 둡니다. 주의: 시작할 때의 `../.env`, `docker run -e`, Compose `environment:`에 같은 이름의 예전 값이 남아 있으면, 컨테이너를 다시 시작한 뒤 이 시작 환경 변수가 실행 파일에 저장된 값을 덮어쓸 수 있습니다. WebUI에서 저장한 값을 쓰려면 시작 환경의 같은 이름 설정을 함께 고치거나 지우세요.
 
-### 第二步：启动服务
+### 2단계: 서비스 시작
 
-在项目根目录执行：
+프로젝트 루트에서 실행합니다.
 
 ```bash
-# 同时启动定时分析 + Web 界面（推荐）
+# 예약 분석 + 웹 화면을 함께 시작(권장)
 docker-compose -f ./docker/docker-compose.yml up -d
 
-# 或者只启动 Web 界面服务
+# 또는 웹 화면 서비스만 시작
 docker-compose -f ./docker/docker-compose.yml up -d server
 ```
 
-启动后查看状态：
+시작한 뒤 상태를 확인합니다.
 
 ```bash
 docker-compose -f ./docker/docker-compose.yml ps
 ```
 
-看到 `server` 服务状态为 `running` 就说明 Web 界面已经在运行了。
+`server` 서비스 상태가 `running`이면 웹 화면이 실행 중이라는 뜻입니다.
 
-### 修改端口（可选）
+### 포트 바꾸기(선택)
 
-默认端口是 8000。如果想改用其他端口，在 `.env` 里设置：
+기본 포트는 8000입니다. 다른 포트를 쓰려면 `.env`에 설정합니다.
 
 ```env
 API_PORT=8888
 ```
 
-然后重新启动容器：
+그런 다음 컨테이너를 다시 시작합니다.
 
 ```bash
 docker-compose -f ./docker/docker-compose.yml down
@@ -127,67 +131,71 @@ docker-compose -f ./docker/docker-compose.yml up -d
 
 ---
 
-## 如何在浏览器里打开界面
+<a id="如何在浏览器里打开界面"></a>
 
-服务启动后，在浏览器地址栏输入：
+## 브라우저에서 화면 여는 법
+
+서비스가 시작되면 브라우저 주소창에 다음을 입력합니다.
 
 ```
-http://你的服务器公网IP:8000
+http://서버의_공인_IP:8000
 ```
 
-例如，如果你的服务器 IP 是 `1.2.3.4`，就输入：
+예를 들어 서버 IP가 `1.2.3.4`라면 다음을 입력합니다.
 
 ```
 http://1.2.3.4:8000
 ```
 
-如果你的域名已经解析到这台服务器，也可以直接用域名访问：
+도메인이 이 서버를 가리키도록 설정되어 있다면 도메인으로 바로 접속해도 됩니다.
 
 ```
 http://your-domain.com:8000
 ```
 
-> **在哪里查公网 IP？** 登录你的云服务器控制台（阿里云/腾讯云/AWS 等），在实例列表里可以看到「公网 IP」或「弹性 IP」。
+> **공인 IP는 어디서 확인하나요?** 클라우드 서버 콘솔(Alibaba Cloud/Tencent Cloud/AWS 등)에 로그인하면 인스턴스 목록에서 「공인 IP」나 「탄력적 IP」를 볼 수 있습니다.
 
 ---
 
-## 如何确认 Docker 重建已生效
+<a id="如何确认-docker-重建已生效"></a>
 
-先区分两件事：
+## Docker 재빌드가 적용되었는지 확인하는 법
 
-1. **Docker 镜像发布版本**：看你部署时使用的镜像 tag，例如 `ghcr.io/zhulinsen/daily_stock_analysis:v3.12.0`。仓库的 Docker 发布由 `.github/workflows/docker-publish.yml` 按 `v*.*.*` Git tag 触发，所以 Docker 版本应以镜像 tag / GitHub Releases 为准。
-2. **当前页面加载的前端构建**：看 WebUI “系统设置”页里的版本信息卡片，用来确认浏览器拿到的静态资源是否已经更新。
+먼저 두 가지를 구분하세요.
 
-也就是说，**“系统设置”里的版本信息更适合判断前端是否重建成功，不等同于 Docker 镜像发布版本**。
+1. **Docker 이미지 배포 버전**: 배포할 때 쓴 이미지 tag를 봅니다. 예: `ghcr.io/zhulinsen/daily_stock_analysis:v3.12.0`. 저장소의 Docker 배포는 `.github/workflows/docker-publish.yml`이 `v*.*.*` Git tag에 따라 실행하므로, Docker 버전은 이미지 tag / GitHub Releases를 기준으로 합니다.
+2. **현재 페이지가 불러온 프런트엔드 빌드**: WebUI "시스템 설정" 페이지의 버전 정보 카드를 보고, 브라우저가 받은 정적 리소스가 새것인지 확인합니다.
 
-WebUI 现在会在“系统设置”页展示只读的“版本信息”卡片，包含：
+즉 **"시스템 설정"의 버전 정보는 프런트엔드 재빌드 성공 여부를 판단하는 데 알맞으며, Docker 이미지 배포 버전과 같지 않습니다**.
 
-- `WebUI 版本`
-- `代码版本`
-- `构建时间`
+WebUI는 이제 "시스템 설정" 페이지에 읽기 전용 "버전 정보" 카드를 보여 주며, 다음을 포함합니다.
 
-正式 Docker / Desktop 发布会把 release tag 注入为 `WebUI 版本`，并把对应 commit
-显示为 `代码版本`。直接从 Git clone 构建时，WebUI 会使用 `git describe` 和当前
-commit；如果构建环境既没有发布信息也没有 Git 元数据，版本会明确显示为
-`development`，不会再用构建时间冒充发布版本。
+- `WebUI 版本`(WebUI 버전)
+- `代码版本`(코드 버전)
+- `构建时间`(빌드 시각)
 
-当你重新执行 `docker-compose -f ./docker/docker-compose.yml up -d --build`，或者单独重新执行前端 `npm run build` 后，可以刷新浏览器并进入“系统设置”，确认“代码版本”和“构建时间”是否已经变化；两者能共同确认浏览器当前加载的静态资源来自哪次代码和构建。
+정식 Docker / Desktop 배포는 release tag를 `WebUI 版本`으로 넣고, 해당 commit을
+`代码版本`으로 보여 줍니다. Git clone으로 직접 빌드하면 WebUI는 `git describe`와 현재
+commit을 씁니다. 빌드 환경에 배포 정보도 Git 메타데이터도 없으면 버전은 분명하게
+`development`로 표시되며, 빌드 시각을 배포 버전처럼 보여 주지 않습니다.
 
-如果你想确认“我现在到底部署的是哪个正式版本”，优先用下面这些方式：
+`docker-compose -f ./docker/docker-compose.yml up -d --build`를 다시 실행했거나 프런트엔드 `npm run build`만 다시 실행했다면, 브라우저를 새로 고친 뒤 "시스템 설정"에 들어가 "코드 버전"과 "빌드 시각"이 바뀌었는지 확인하세요. 두 값을 함께 보면 브라우저가 지금 불러온 정적 리소스가 어떤 코드와 빌드에서 왔는지 확인할 수 있습니다.
+
+"지금 배포한 것이 정확히 어느 정식 버전인지" 확인하려면 다음 방법을 우선 쓰세요.
 
 ```yaml
-# 方式 1：看 docker-compose / 部署脚本里的 image tag
+# 방법 1: docker-compose / 배포 스크립트의 image tag 보기
 image: ghcr.io/zhulinsen/daily_stock_analysis:v3.12.0
 ```
 
 ```bash
-# 方式 2：回看你的拉取命令
+# 방법 2: 실행했던 pull 명령 다시 보기
 docker pull ghcr.io/zhulinsen/daily_stock_analysis:v3.12.0
 ```
 
-如果你一直使用 `latest`，建议改成显式版本 tag；否则很难仅凭容器内页面信息判断自己是否已经重复更新到同一版本。
+계속 `latest`를 써 왔다면 명시적인 버전 tag로 바꾸는 것을 권장합니다. 그렇지 않으면 컨테이너 안 페이지 정보만으로는 같은 버전으로 다시 업데이트했는지 판단하기 어렵습니다.
 
-在确认本地前端打包链路时，建议执行以下命令作为最小验证闭环：
+로컬 프런트엔드 패키징 과정을 확인할 때는 다음 명령을 최소 검증으로 실행하는 것을 권장합니다.
 
 ```bash
 cd apps/dsa-web
@@ -196,63 +204,65 @@ npm run lint
 npm run build
 ```
 
-其中 `build` 成功后，`static` 下生成的 `index.html`/JS/CSS 资源会包含本次版本、
-commit、构建时间，并生成 `build-info.json`。启动时会比较该文件中的源码摘要，
-因此即使 `rsync -a` 保留了旧时间戳，也能识别源码与静态产物不一致并重新构建。
-刷新后在“版本信息”卡片中应能见到变化。
+`build`가 성공하면 `static` 아래에 만들어진 `index.html`/JS/CSS 리소스에 이번 버전,
+commit, 빌드 시각이 들어가고 `build-info.json`도 만들어집니다. 시작할 때 이 파일의 소스 요약을 비교하므로,
+`rsync -a`가 예전 타임스탬프를 유지하더라도 소스와 정적 결과물이 다르다는 것을 알아채고 다시 빌드합니다.
+새로 고친 뒤 "버전 정보" 카드에서 바뀐 값을 볼 수 있어야 합니다.
 
 ---
 
-## 访问不了？先检查这几项
+<a id="访问不了先检查这几项"></a>
 
-### 1. 安全组 / 防火墙没有放行端口
+## 접속이 안 되나요? 먼저 이것부터 확인하세요
 
-这是最常见的原因。云服务器默认只开放 22（SSH）端口，需要手动放行 8000（或你改的端口）。
+### 1. 보안 그룹 / 방화벽에서 포트를 열지 않음
 
-**操作方法**（以阿里云为例）：
-1. 登录阿里云控制台 → 云服务器 ECS → 找到你的实例
-2. 点击「安全组」→「配置规则」→「添加安全组规则」
-3. 方向选「入方向」，端口范围填 `8000/8000`，授权对象填 `0.0.0.0/0`，点击「确定」
+가장 흔한 원인입니다. 클라우드 서버는 기본으로 22(SSH) 포트만 열려 있으므로, 8000(또는 바꾼 포트)을 직접 열어야 합니다.
 
-腾讯云、AWS 等云厂商操作类似，找到「安全组」或「防火墙规则」，新增一条允许 TCP 8000 端口的入站规则即可。
+**방법**(Alibaba Cloud 예시):
+1. Alibaba Cloud 콘솔에 로그인 → 클라우드 서버 ECS → 해당 인스턴스 찾기
+2. 「보안 그룹」→「규칙 설정」→「보안 그룹 규칙 추가」 클릭
+3. 방향은 「인바운드」, 포트 범위는 `8000/8000`, 허용 대상은 `0.0.0.0/0`으로 넣고 「확인」 클릭
 
-### 2. 服务器系统防火墙拦截了
+Tencent Cloud, AWS 등 다른 클라우드도 비슷합니다. 「보안 그룹」이나 「방화벽 규칙」을 찾아 TCP 8000 포트를 허용하는 인바운드 규칙을 하나 추가하면 됩니다.
 
-如果你的系统开启了 `ufw` 或 `firewalld`，也需要放行端口：
+### 2. 서버 운영 체제의 방화벽이 막고 있음
+
+시스템에서 `ufw`나 `firewalld`를 쓰고 있다면 여기서도 포트를 열어야 합니다.
 
 ```bash
-# Ubuntu / Debian（ufw）
+# Ubuntu / Debian(ufw)
 sudo ufw allow 8000
 
-# CentOS / RHEL（firewalld）
+# CentOS / RHEL(firewalld)
 sudo firewall-cmd --permanent --add-port=8000/tcp
 sudo firewall-cmd --reload
 ```
 
-### 3. 直接部署时 .env 里的 WEBUI_HOST 没改
+### 3. 직접 배포에서 .env의 WEBUI_HOST를 바꾸지 않음
 
-这是第二常见原因。`.env` 里默认是 `WEBUI_HOST=127.0.0.1`，这样服务只监听本机，外网根本连不上。
+두 번째로 흔한 원인입니다. `.env`의 기본값은 `WEBUI_HOST=127.0.0.1`이라서 서비스가 이 컴퓨터에서만 접속을 받고, 외부에서는 아예 연결할 수 없습니다.
 
-改法：打开 `.env`，把 `WEBUI_HOST=127.0.0.1` 改成 `WEBUI_HOST=0.0.0.0`，然后重启服务；也可以在启动命令里显式添加 `--host 0.0.0.0`。
+고치는 법: `.env`를 열어 `WEBUI_HOST=127.0.0.1`을 `WEBUI_HOST=0.0.0.0`으로 바꾸고 서비스를 다시 시작합니다. 시작 명령에 `--host 0.0.0.0`을 명시해도 됩니다.
 
-> Docker 方式不需要改这个，可以跳过。
+> Docker 방식은 이 설정을 바꿀 필요가 없으니 건너뛰어도 됩니다.
 
-### 4. 端口号对不上
+### 4. 포트 번호가 맞지 않음
 
-检查访问地址里的端口是否和 `.env` / 启动命令里设置的端口一致。
+접속 주소의 포트가 `.env` / 시작 명령에서 설정한 포트와 같은지 확인하세요.
 
-- 直接部署：默认 8000，可通过 `WEBUI_PORT=xxxx` 修改
-- Docker：默认 8000，可通过 `API_PORT=xxxx` 修改
+- 직접 배포: 기본 8000, `WEBUI_PORT=xxxx`로 바꿀 수 있음
+- Docker: 기본 8000, `API_PORT=xxxx`로 바꿀 수 있음
 
-### 5. 页面能打开，但 UI 元素异常变大 / 布局错乱
+### 5. 페이지는 열리는데 UI 요소가 비정상적으로 크거나 레이아웃이 깨짐
 
-**症状**：浏览器能访问到 8000 端口，页面有内容，但文字、按钮、卡片尺寸异常大，没有正常布局与配色。
+**증상**: 브라우저로 8000 포트에 접속되고 내용도 보이지만, 글자, 버튼, 카드가 비정상적으로 크고 정상적인 레이아웃과 색상이 없습니다.
 
-**根因**：`static/index.html` 存在但 CSS/JS 资源缺失（`static/assets/` 为空或不存在），浏览器加载了 HTML 框架但无法拿到样式与脚本，退化为裸 HTML 渲染。
+**근본 원인**: `static/index.html`은 있지만 CSS/JS 리소스가 없습니다(`static/assets/`가 비어 있거나 없음). 브라우저가 HTML 뼈대만 불러오고 스타일과 스크립트를 받지 못해 꾸밈없는 HTML로 표시된 것입니다.
 
-可先用浏览器开发者工具（F12 → Network 标签页）检查是否有 `/assets/index-*.js`、`/assets/index-*.css` 的 **404** 错误。若有，按以下方式修复：
+먼저 브라우저 개발자 도구(F12 → Network 탭)에서 `/assets/index-*.js`, `/assets/index-*.css`에 **404** 오류가 있는지 확인하세요. 있다면 다음처럼 고칩니다.
 
-**Docker 用户**：
+**Docker 사용자**:
 
 ```bash
 docker-compose -f ./docker/docker-compose.yml down
@@ -260,9 +270,9 @@ docker-compose -f ./docker/docker-compose.yml build --no-cache
 docker-compose -f ./docker/docker-compose.yml up -d
 ```
 
-重建完成后，用 `Ctrl+Shift+R` 强制刷新浏览器缓存，再访问页面。
+다시 빌드한 뒤 `Ctrl+Shift+R`로 브라우저 캐시를 무시하고 새로 고친 다음 페이지에 접속합니다.
 
-**直接部署用户**：先确保已安装 Node.js 18+（推荐 20+），然后手动构建前端：
+**직접 배포 사용자**: 먼저 Node.js 18 이상(20 이상 권장)을 설치한 뒤 프런트엔드를 직접 빌드합니다.
 
 ```bash
 cd apps/dsa-web
@@ -274,11 +284,13 @@ python main.py --webui-only
 
 ---
 
-## 可选：Nginx 反向代理（绑定域名 / 80 端口）
+<a id="可选nginx-反向代理绑定域名--80-端口"></a>
 
-如果你有域名，或者不想在地址里带 `:8000`，可以用 Nginx 做反向代理，把 80/443 端口流量转发给后端服务。
+## 선택: Nginx 리버스 프록시(도메인 연결 / 80 포트)
 
-### 安装 Nginx
+도메인이 있거나 주소에 `:8000`을 붙이고 싶지 않다면, Nginx를 리버스 프록시로 써서 80/443 포트로 들어온 트래픽을 백엔드 서비스로 넘길 수 있습니다.
+
+### Nginx 설치
 
 ```bash
 # Ubuntu / Debian
@@ -288,9 +300,9 @@ sudo apt update && sudo apt install -y nginx
 sudo yum install -y nginx
 ```
 
-### 配置文件示例
+### 설정 파일 예시
 
-新建文件 `/etc/nginx/conf.d/stock-analyzer.conf`，内容如下（把 `your-domain.com` 改成你的域名或 IP）：
+`/etc/nginx/conf.d/stock-analyzer.conf` 파일을 새로 만들고 다음 내용을 넣습니다(`your-domain.com`은 자신의 도메인이나 IP로 바꾸세요).
 
 ```nginx
 server {
@@ -304,7 +316,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # 支持 WebSocket（Agent 对话页面需要）
+        # WebSocket 지원(Agent 대화 페이지에 필요)
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -312,35 +324,37 @@ server {
 }
 ```
 
-### 启用配置并重启 Nginx
+### 설정을 적용하고 Nginx 다시 불러오기
 
 ```bash
-sudo nginx -t            # 检查配置有没有语法错误
+sudo nginx -t            # 설정에 문법 오류가 없는지 확인
 sudo systemctl reload nginx
 ```
 
-配置成功后，直接用 `http://your-domain.com` 访问即可，不需要带端口号。
+설정이 끝나면 포트 번호 없이 `http://your-domain.com`으로 바로 접속할 수 있습니다.
 
-> **使用 Nginx 后的注意事项**：
-> - 如果你开启了 Web 登录认证（`ADMIN_AUTH_ENABLED=true`），建议在 `.env` 中把 `TRUST_X_FORWARDED_FOR=true` 一并打开，否则系统可能无法正确识别真实 IP。该选项适用于**单层可信反向代理**（Nginx → App）部署；如果使用多级代理或 CDN（CDN → Nginx → App），登录限流的 key 可能退化为边缘代理 IP 而非真实客户端 IP，需根据实际拓扑评估。
-> - 如需 HTTPS，可以用 [Certbot](https://certbot.eff.org/) 自动申请免费的 Let's Encrypt 证书。
+> **Nginx를 쓴 뒤 주의할 점**:
+> - 웹 로그인 인증(`ADMIN_AUTH_ENABLED=true`)을 켰다면 `.env`에서 `TRUST_X_FORWARDED_FOR=true`도 함께 켜는 것을 권장합니다. 그렇지 않으면 시스템이 실제 IP를 제대로 알아내지 못할 수 있습니다. 이 옵션은 **신뢰할 수 있는 리버스 프록시가 한 단계뿐인**(Nginx → App) 배포에 맞습니다. 여러 단계의 프록시나 CDN(CDN → Nginx → App)을 쓴다면 로그인 요청 제한의 key가 실제 클라이언트 IP가 아니라 가장자리 프록시 IP가 될 수 있으므로, 실제 구성에 맞춰 검토해야 합니다.
+> - HTTPS가 필요하면 [Certbot](https://certbot.eff.org/)으로 무료 Let's Encrypt 인증서를 자동으로 받을 수 있습니다.
 
 ---
 
-## 安全建议
+<a id="安全建议"></a>
 
-把 Web 界面暴露到公网之前，强烈建议开启登录密码保护：
+## 보안 권장 사항
 
-在 `.env` 中设置：
+웹 화면을 인터넷에 공개하기 전에 로그인 비밀번호 보호를 꼭 켜는 것을 권장합니다.
+
+`.env`에 다음을 설정합니다.
 
 ```env
 ADMIN_AUTH_ENABLED=true
 ```
 
-重启服务后，第一次访问网页时会要求设置初始密码。设置完成后，每次打开设置页面都需要输入密码，可以防止 API Key 等敏感配置被他人看到。
+서비스를 다시 시작한 뒤 처음 웹 페이지에 접속하면 초기 비밀번호를 정하라고 나옵니다. 설정이 끝나면 설정 페이지를 열 때마다 비밀번호를 입력해야 하므로, API Key 같은 민감한 설정을 다른 사람이 보지 못하게 막을 수 있습니다.
 
-> 如果忘了密码，可以在服务器上执行：`python -m src.auth reset_password`
+> 비밀번호를 잊었다면 서버에서 다음을 실행하세요: `python -m src.auth reset_password`
 
 ---
 
-遇到其他问题？欢迎 [提交 Issue](https://github.com/ZhuLinsen/daily_stock_analysis/issues)。
+다른 문제가 있나요? [Issue를 제출](https://github.com/ZhuLinsen/daily_stock_analysis/issues)해 주세요.

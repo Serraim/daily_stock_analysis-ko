@@ -1,7 +1,7 @@
-# Grok Bot Skill 示例
+# Grok Bot Skill 예시
 
-给 2026-08-11 [Grok Bot](https://x.ai/bot) 用的最小 Skill 包。只调用 DSA 已有 REST，不引入新 API、环境变量或 MCP server。
+2026-08-11 [Grok Bot](https://x.ai/bot)용 최소 Skill 패키지입니다. DSA에 이미 있는 REST API만 호출하며, 새 API나 환경 변수, MCP 서버를 추가하지 않습니다.
 
-把 [`SKILL.md`](SKILL.md) 拷进 Bot 的 Skills 目录，设置 `DSA_BASE_URL`（例如 `http://127.0.0.1:8000`），并先让 DSA 以 `python main.py --serve-only` 或 Docker 长期运行。
+[`SKILL.md`](SKILL.md)를 Bot의 Skills 디렉터리에 복사하고 `DSA_BASE_URL`(예: `http://127.0.0.1:8000`)을 설정하세요. 그 전에 DSA를 `python main.py --serve-only` 또는 Docker로 계속 실행해 두어야 합니다.
 
-完整边界、DecisionSignal Routine、认证限制见 [Grok Bot 集成](../../grok-bot-integration.md)。openclaw 用户看 [openclaw Skill](../../openclaw-skill-integration.md)，契约相同。
+전체 범위, DecisionSignal Routine, 인증 제약은 [Grok Bot 연동](../../grok-bot-integration.md)을 참고하세요. openclaw 사용자는 [openclaw Skill](../../openclaw-skill-integration.md)을 보면 되며, 계약(인터페이스)은 같습니다.

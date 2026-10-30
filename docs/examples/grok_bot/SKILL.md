@@ -1,24 +1,24 @@
 ---
 name: daily-stock-analysis
-description: 调用 daily_stock_analysis API 做股票分析。当用户说「分析茅台」「analyze AAPL」「帮我看看 600519」或要大盘复盘时使用。优先用股票代码。
+description: daily_stock_analysis API를 호출해 주식을 분석합니다. 사용자가 「마오타이 분석해줘」「analyze AAPL」「600519 좀 봐줘」라고 하거나 시장 복기를 원할 때 사용합니다. 가능하면 종목 코드를 씁니다.
 ---
 
 # daily_stock_analysis
 
-本 Skill 供 Grok Bot（2026-08-11 AI teammate）使用。通过 HTTP 调用已部署的 DSA，不要把 Bot 配成 LiteLLM provider。
+이 Skill은 Grok Bot(2026-08-11 AI teammate)용입니다. 이미 배포된 DSA를 HTTP로 호출하며, Bot을 LiteLLM provider로 설정하지 마세요.
 
-需要环境变量 `DSA_BASE_URL`（DSA API 根地址，无尾斜杠）。
+환경 변수 `DSA_BASE_URL`(DSA API 루트 주소, 끝에 슬래시 없음)이 필요합니다.
 
-## 何时使用
+## 언제 쓰나요
 
-- 分析单只或多只股票
-- 查询某股最新 DecisionSignal（早报 / 盯盘 Routine）
-- 大盘复盘
+- 종목 하나 또는 여러 종목 분석
+- 특정 종목의 최신 DecisionSignal 조회(아침 브리핑 / 장중 모니터링 Routine)
+- 시장 복기
 
-## 工作流程
+## 작업 흐름
 
-1. 提取股票代码：A股 6 位（`600519`）、港股 `hk00700`、美股 `AAPL`、台股 `.TW` / `.TWO`。只有中文名时先提示用户给代码，或使用常见映射（茅台 → `600519`）。
-2. 需要完整分析时 POST `{DSA_BASE_URL}/api/v1/analysis/analyze`。**Routine 或预计超过 Bot HTTP 超时的分析，从一开始用异步**，不要先同步再改发异步：同步超时后服务端 `_handle_sync_analysis` 仍会继续跑且不进 `TaskQueue`，再发 `async_mode: true` 会绕过队列去重，重复计费和推送。
+1. 종목 코드 추출: A주(중국 본토 주식)는 6자리(`600519`), 홍콩 주식은 `hk00700`, 미국 주식은 `AAPL`, 대만 주식은 `.TW` / `.TWO`. 한국 주식은 `005930.KS`처럼 `.KS`(코스피) / `.KQ`(코스닥)를 붙입니다. 종목 이름만 있으면 먼저 사용자에게 코드를 알려 달라고 하거나, 잘 알려진 대응 관계를 씁니다(구이저우마오타이 → `600519`).
+2. 전체 분석이 필요하면 `{DSA_BASE_URL}/api/v1/analysis/analyze`에 POST합니다. **Routine이거나 Bot의 HTTP 타임아웃을 넘길 것 같은 분석은 처음부터 비동기로** 보내세요. 동기로 보냈다가 비동기로 다시 보내면 안 됩니다. 동기 요청이 타임아웃되어도 서버의 `_handle_sync_analysis`는 계속 실행되며 `TaskQueue`에 들어가지 않습니다. 이때 `async_mode: true`로 다시 보내면 큐의 중복 제거를 건너뛰어 요금과 알림이 중복됩니다.
 
 ```json
 {
@@ -29,31 +29,31 @@ description: 调用 daily_stock_analysis API 做股票分析。当用户说「�
 }
 ```
 
-返回 202 + `task_id` 后轮询 `GET {DSA_BASE_URL}/api/v1/analysis/status/{task_id}`，直到 `status: completed`。完成报告在 `result.report`，不要读响应根上的 `report`。
+202와 `task_id`가 돌아오면 `status: completed`가 될 때까지 `GET {DSA_BASE_URL}/api/v1/analysis/status/{task_id}`를 폴링합니다. 완성된 리포트는 `result.report`에 있으며, 응답 최상위의 `report`를 읽으면 안 됩니다.
 
-仅当 Bot HTTP 超时 ≥300 秒、且用户在等单次同步结果时，才用 `async_mode: false`。同步超时后不要改发异步重跑；先查询该股是否已有进行中任务（409 / status），或读最新 DecisionSignal。
+`async_mode: false`는 Bot HTTP 타임아웃이 300초 이상이고 사용자가 한 번의 동기 결과를 기다리는 경우에만 씁니다. 동기 요청이 타임아웃되면 비동기로 다시 실행하지 마세요. 먼저 그 종목에 진행 중인 작업이 있는지(409 / status) 확인하거나 최신 DecisionSignal을 읽습니다.
 
-3. 只需最新建议、不要重跑分析时：`GET {DSA_BASE_URL}/api/v1/decision-signals/latest/{stock_code}`。
-4. 大盘复盘：`POST {DSA_BASE_URL}/api/v1/analysis/market-review` 固定返回 202 + `task_id`，不是复盘正文。轮询同一条 status 接口，完成后读顶层 `market_review_report` 或 `market_review_payload`（不在 `result.report`）。
-5. 健康检查失败先 `GET {DSA_BASE_URL}/api/health`。
+3. 분석을 다시 돌리지 않고 최신 의견만 필요하면: `GET {DSA_BASE_URL}/api/v1/decision-signals/latest/{stock_code}`.
+4. 시장 복기: `POST {DSA_BASE_URL}/api/v1/analysis/market-review`는 항상 202와 `task_id`를 돌려주며, 복기 본문을 돌려주지 않습니다. 같은 status API를 폴링하고, 완료되면 최상위의 `market_review_report` 또는 `market_review_payload`를 읽습니다(`result.report`에는 없습니다).
+5. 상태 확인이 실패하면 먼저 `GET {DSA_BASE_URL}/api/health`를 호출합니다.
 
-## 如何呈现结果
+## 결과 보여 주기
 
-- 同步分析：`report.summary.operation_advice`、`trend_prediction`、`analysis_summary`
-- 异步分析：`result.report.summary.operation_advice`、`result.report.summary.trend_prediction`、`result.report.summary.analysis_summary`
-- 结构化动作：`action` / `action_label`（`buy|add|hold|reduce|sell|watch|avoid|alert`）；异步时在 `result.report.summary`
-- 计划：同步 `report.strategy.ideal_buy` / `stop_loss` / `take_profit`；异步 `result.report.strategy.*`
-- 大盘复盘：`market_review_report`（文本）或 `market_review_payload`（结构化）
-- 缺字段时回退 `operation_advice`；旧三态统计仍看 `decision_type`
-- DecisionSignal 只展示建议，不下单、不调仓
+- 동기 분석: `report.summary.operation_advice`, `trend_prediction`, `analysis_summary`
+- 비동기 분석: `result.report.summary.operation_advice`, `result.report.summary.trend_prediction`, `result.report.summary.analysis_summary`
+- 구조화된 행동: `action` / `action_label`(`buy|add|hold|reduce|sell|watch|avoid|alert`). 비동기일 때는 `result.report.summary`에 있습니다
+- 계획: 동기는 `report.strategy.ideal_buy` / `stop_loss` / `take_profit`, 비동기는 `result.report.strategy.*`
+- 시장 복기: `market_review_report`(텍스트) 또는 `market_review_payload`(구조화)
+- 필드가 없으면 `operation_advice`로 대신합니다. 예전 3단계 통계는 여전히 `decision_type`을 봅니다
+- DecisionSignal은 의견만 보여 주며, 주문을 넣거나 포지션을 바꾸지 않습니다
 
-## 错误
+## 오류
 
-| 状态 | 处理 |
+| 상태 | 처리 |
 | --- | --- |
-| 连接失败 | 检查 DSA 是否在跑、`DSA_BASE_URL` 是否正确 |
-| 400 | 检查 `stock_code` |
-| 409 | 该股正在分析，查已有 `existing_task_id` 的 status；不要另开一条分析 |
-| 500 | 看 DSA 日志；确认 `LITELLM_MODEL` 与对应 Key（含可选 `XAI_API_KEY`） |
+| 연결 실패 | DSA가 실행 중인지, `DSA_BASE_URL`이 맞는지 확인 |
+| 400 | `stock_code` 확인 |
+| 409 | 해당 종목을 이미 분석 중입니다. 기존 `existing_task_id`의 status를 조회하고, 분석을 새로 시작하지 마세요 |
+| 500 | DSA 로그 확인. `LITELLM_MODEL`과 그에 맞는 Key(선택 사항인 `XAI_API_KEY` 포함) 확인 |
 
-若 `ADMIN_AUTH_ENABLED=true`，当前 API 只认 Cookie，不认 Bearer。不要把 `XAI_API_KEY` 当作 DSA API 密钥。
+`ADMIN_AUTH_ENABLED=true`이면 현재 API는 Cookie만 인정하고 Bearer는 인정하지 않습니다. `XAI_API_KEY`를 DSA API 키로 쓰지 마세요.

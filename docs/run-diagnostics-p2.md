@@ -1,65 +1,65 @@
-# 运行诊断与数据可靠性 1.0（Phase 2）
+# 실행 진단과 데이터 신뢰성 1.0(Phase 2)
 
-本文档记录 #1391 Phase 2 的后端落地范围：基于 Phase 1 的 `trace_id` 与 provider run 记录，生成用户可读的运行诊断摘要，并提供可复制的脱敏排障文本。
+이 문서는 #1391 Phase 2에서 백엔드에 반영한 범위를 기록합니다. Phase 1의 `trace_id`와 provider 실행 기록을 바탕으로 사용자가 읽을 수 있는 실행 진단 요약을 만들고, 민감 정보를 가린 문제 해결용 텍스트를 복사할 수 있게 합니다.
 
-## 本轮范围
+## 이번 범위
 
-- 新增 `RunDiagnosticSummary` 聚合逻辑，输出总体状态：
-  - `normal` / 正常
-  - `degraded` / 部分降级
-  - `failed` / 失败
-  - `unknown` / 未知
-- 摘要覆盖以下关键链路：
-  - 实时行情
-  - 日线数据
-  - 新闻搜索
+- `RunDiagnosticSummary` 집계 로직을 추가해 전체 상태를 출력합니다.
+  - `normal` / 정상
+  - `degraded` / 일부 기능 저하
+  - `failed` / 실패
+  - `unknown` / 알 수 없음
+- 요약은 다음 핵심 단계를 다룹니다.
+  - 실시간 시세
+  - 일봉 데이터
+  - 뉴스 검색
   - LLM
-  - 通知
-  - 历史保存
-- `AnalysisService` 同步/异步任务结果追加可选 `diagnostic_summary`。
-- 新增历史报告诊断 API：
+  - 알림
+  - 이력 저장
+- `AnalysisService`의 동기/비동기 작업 결과에 선택 필드 `diagnostic_summary`를 추가합니다.
+- 과거 리포트 진단 API를 추가합니다.
 
 ```http
 GET /api/v1/history/{record_id}/diagnostics
 ```
 
-`record_id` 支持历史记录主键 ID 或 `query_id`，返回诊断摘要与 `copy_text`。
+`record_id`에는 이력 기록의 기본 키 ID나 `query_id`를 쓸 수 있으며, 진단 요약과 `copy_text`를 돌려줍니다.
 
-## 复制排障信息
+## 문제 해결 정보 복사
 
-`copy_text` 是面向 issue/排障的纯文本，包含：
+`copy_text`는 issue 작성이나 문제 해결용 일반 텍스트이며 다음을 포함합니다.
 
 - `trace_id`
 - `query_id`
 - `stock_code`
 - `trigger_source`
-- 总体 `data_status`
-- 实时行情、日线、新闻、LLM、通知、历史保存的简短状态
-- 首要原因
+- 전체 `data_status`
+- 실시간 시세, 일봉, 뉴스, LLM, 알림, 이력 저장의 간단한 상태
+- 가장 중요한 원인
 
-生成前会复用运行诊断脱敏规则，避免输出 token、API key、Authorization、Cookie、webhook URL、邮箱密码、代理凭据等敏感信息。
+생성하기 전에 실행 진단의 민감 정보 가림 규칙을 그대로 적용해 token, API key, Authorization, Cookie, webhook URL, 메일 비밀번호, 프록시 자격 증명 같은 민감 정보가 나오지 않게 합니다.
 
-## 兼容性边界
+## 호환성 범위
 
-- 本轮不新增配置项，不改变数据源优先级，不改变 fallback 策略。
-- 本轮不改变任何 LLM/provider/Base URL/配置迁移语义，仅新增历史快照中的诊断字段与查询接口。
-- API 只追加可选字段和新增只读接口；旧客户端可忽略。
-- 旧报告没有 `context_snapshot.diagnostics` 时返回 `unknown`，不报错。
-- 通知诊断在当前任务上下文中记录；历史报告如果保存时尚无通知证据，会在摘要中显示通知结果未知。
-- 诊断摘要生成失败不得影响报告读取或分析主流程。
+- 이번에는 설정 항목을 추가하지 않으며, 데이터 소스 우선순위와 fallback 전략도 바꾸지 않습니다.
+- 이번에는 LLM/provider/Base URL/설정 마이그레이션의 의미를 바꾸지 않으며, 이력 스냅샷의 진단 필드와 조회 API만 추가합니다.
+- API는 선택 필드와 새 읽기 전용 API만 추가하므로, 예전 클라이언트는 무시하면 됩니다.
+- 예전 리포트에 `context_snapshot.diagnostics`가 없으면 오류 없이 `unknown`을 돌려줍니다.
+- 알림 진단은 현재 작업 맥락에서 기록합니다. 과거 리포트를 저장할 때 알림 결과가 아직 없었다면 요약에 알림 결과가 알 수 없음으로 표시됩니다.
+- 진단 요약 생성이 실패해도 리포트 읽기나 분석의 주 흐름에 영향을 주면 안 됩니다.
 
-### 结构化检测告警澄清
+### 구조화 검사 경고에 대한 설명
 
-- 自动化检测命中的“模型/provider/base URL 兼容风险”来源是：`src/agent/factory.py` 新增了 `agent_max_steps` 与 `agent_orchestrator_timeout_s` 的 **数字安全兜底**（`_coerce_config_int`），因此扫描可能将其误识别为配置敏感路径；该命中属于测试与路由保护触发，不是运行时配置或兼容语义变更。
-- 当数值配置存在非法值时，系统会记录 `warning` 到 `src.agent.factory` 日志（示例：`[AgentFactory] Invalid value for agent_max_steps...`），并回退到默认值；日志用于定位“参数未生效”类问题，与模型/provider/base URL 兼容性独立。
-- 本轮确认无静默迁移/清空/改写：
-  - `src/core/pipeline.py` 与 `src/services/analysis_service.py` 仅新增诊断记录，不修改 `Config` 中任何 `litellm_model`、`agent_litellm_model`、`openai_base_url` 或 channel `LLM_*` 字段。
-  - `src/agent/factory.py` 的 `_coerce_config_int` 只在构建执行参数时计算 `max_steps` 与 `timeout_seconds`，并且不写回到 `config` 对象；`litellm_model`、`agent_litellm_model`、`openai_base_url` 原值在构造链路中完整透传。
-  - 本轮不触发 `Config` 的运行时清理、持久化回写或迁移流程，因此不存在写回导致运行时配置被重写的风险。
-- 回归验证：`tests/test_agent_pipeline.py::TestAgentConfig::test_build_agent_executor_does_not_mutate_llm_route_config` 与 `tests/test_agent_pipeline.py::TestAgentConfig::test_build_agent_executor_multi_arch_does_not_mutate_llm_route_config` 明确断言上述字段在 `build_agent_executor` 后保持原值。
-- 回退路径：如需恢复到旧行为，移除本轮相关提交；或将 `diag_*` 字段从 `context_snapshot`/`RunDiagnosticSummary` 的反序列化链路中移除。主链路与模型/provider 配置无需额外迁移或修复。
+- 자동 검사에서 잡힌 "모델/provider/base URL 호환성 위험"의 출처는 다음과 같습니다. `src/agent/factory.py`에 `agent_max_steps`와 `agent_orchestrator_timeout_s`에 대한 **숫자 안전 보정**(`_coerce_config_int`)이 추가되어, 스캔이 이를 설정에 민감한 경로로 잘못 판단했을 수 있습니다. 이 결과는 테스트와 라우팅 보호 때문에 걸린 것이며, 실행 시점의 설정이나 호환성 의미가 바뀐 것은 아닙니다.
+- 숫자 설정에 잘못된 값이 있으면 시스템은 `src.agent.factory` 로그에 `warning`을 남기고(예: `[AgentFactory] Invalid value for agent_max_steps...`) 기본값으로 돌아갑니다. 이 로그는 "설정이 적용되지 않는" 문제를 찾는 데 쓰이며, 모델/provider/base URL 호환성과는 별개입니다.
+- 이번 변경에서 몰래 마이그레이션하거나 지우거나 고쳐 쓰는 일이 없음을 확인했습니다.
+  - `src/core/pipeline.py`와 `src/services/analysis_service.py`는 진단 기록만 추가하며, `Config`의 `litellm_model`, `agent_litellm_model`, `openai_base_url`, 채널 `LLM_*` 필드를 바꾸지 않습니다.
+  - `src/agent/factory.py`의 `_coerce_config_int`는 실행 매개변수를 만들 때 `max_steps`와 `timeout_seconds`만 계산하며, `config` 객체에 다시 쓰지 않습니다. `litellm_model`, `agent_litellm_model`, `openai_base_url`의 원래 값은 생성 과정에서 그대로 전달됩니다.
+  - 이번 변경은 `Config`의 실행 중 정리, 영구 저장, 마이그레이션 흐름을 건드리지 않으므로, 다시 쓰기 때문에 실행 중 설정이 바뀔 위험이 없습니다.
+- 회귀 검증: `tests/test_agent_pipeline.py::TestAgentConfig::test_build_agent_executor_does_not_mutate_llm_route_config`와 `tests/test_agent_pipeline.py::TestAgentConfig::test_build_agent_executor_multi_arch_does_not_mutate_llm_route_config`가 `build_agent_executor` 실행 뒤에도 위 필드가 원래 값을 유지하는지 확인합니다.
+- 되돌리는 방법: 예전 동작으로 돌아가려면 이번 관련 커밋을 제거하거나, `context_snapshot`/`RunDiagnosticSummary`의 역직렬화 과정에서 `diag_*` 필드를 빼면 됩니다. 주 흐름과 모델/provider 설정은 따로 마이그레이션하거나 고칠 필요가 없습니다.
 
-## 验证建议
+## 검증 방법
 
 ```bash
 python -m pytest tests/test_run_diagnostics_p2.py tests/test_run_diagnostics_p1.py

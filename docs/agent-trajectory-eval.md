@@ -1,64 +1,64 @@
-# Agent Trajectory 评估(最小版,Refs #1956)
+# Agent Trajectory 평가(최소 버전, Refs #1956)
 
-## 定位
+## 목적
 
-`evals/agent_trajectory/` 提供一套**离线可运行的最小轨迹评估管线**:用真实 `tool_calls_log + AgentResult` 跑一个 golden 样例,输出结构化 JSON 报告与简短可读文本摘要。评估结果是 **reporter 而非 gate** —— 指标违规只反映在报告里,不会让进程失败,也不进入 CI 门禁。
+`evals/agent_trajectory/`는 **오프라인으로 실행할 수 있는 최소 궤적(trajectory) 평가 파이프라인**을 제공합니다. 실제 `tool_calls_log + AgentResult`로 golden 예제를 실행하고, 구조화된 JSON 리포트와 짧게 읽을 수 있는 텍스트 요약을 출력합니다. 평가 결과는 **gate가 아니라 reporter**입니다. 지표 위반은 리포트에만 나타나며, 프로세스를 실패시키지 않고 CI 관문에도 들어가지 않습니다.
 
-- 指标层(`metrics.py`)是纯函数:只消费轨迹日志与 golden 样例,不 import `src/`,不触网、不调 LLM,可离线单测。
-- 入口(`run_eval.py`)通过 `build_agent_executor()` 构建真实执行器,与 `src/core/pipeline.py` 使用同一个执行捕获钩子,消费真实产物。
-- 入口支持**单 agent 与多 Agent 运行**(`AGENT_ARCH=single|multi`,默认仍为 single):多 Agent 结果保留原有扁平 `tool_calls_log` 指标,并通过显式 `stage_trajectories` 快照增加阶段状态与局部/累计步数报告。没有阶段快照时,单 agent 命令与 JSON 结构保持不变。
-- 入口用真实工具注册表校验 golden:`expected_tools` 拼错或过期会被判为无效样例(退出码 1),而不是静默按低命中继续评分。
-- 本次冻结**最小指标契约**,股票 guard、Codex `arguments_summary` 等扩展语义明确留给后续 PR(见文末「不在范围」)。
+- 지표 계층(`metrics.py`)은 순수 함수입니다. 궤적 로그와 golden 예제만 사용하며, `src/`를 import하지 않고, 네트워크에 접속하거나 LLM을 호출하지 않아 오프라인 단위 테스트가 가능합니다.
+- 진입점(`run_eval.py`)은 `build_agent_executor()`로 실제 실행기를 만들고, `src/core/pipeline.py`와 같은 실행 캡처 훅을 써서 실제 결과물을 사용합니다.
+- 진입점은 **단일 agent와 다중 Agent 실행**(`AGENT_ARCH=single|multi`, 기본값은 여전히 single)을 지원합니다. 다중 Agent 결과는 기존의 평평한 `tool_calls_log` 지표를 유지하면서, 명시적인 `stage_trajectories` 스냅샷으로 단계 상태와 단계별/누적 단계 수 리포트를 더합니다. 단계 스냅샷이 없으면 단일 agent 명령과 JSON 구조는 그대로입니다.
+- 진입점은 실제 도구 레지스트리로 golden을 검증합니다. `expected_tools`에 오타가 있거나 오래된 이름이면, 조용히 낮은 적중률로 점수를 매기는 대신 잘못된 예제로 판정합니다(종료 코드 1).
+- 이번에는 **최소 지표 계약**을 고정합니다. 종목 guard, Codex `arguments_summary` 같은 확장 의미는 이후 PR로 명확히 넘깁니다(문서 끝 「범위 밖」 참고).
 
-## 快速开始
+## 빠른 시작
 
 ```bash
-# 跑单个样例(真实 LLM,依赖本地已配置的模型)
+# 예제 하나 실행(실제 LLM 사용, 로컬에 설정된 모델 필요)
 python evals/agent_trajectory/run_eval.py --sample 600519_technical
 
-# 跑全部样例,并输出结构化 JSON(按样例 id 键控)
+# 모든 예제를 실행하고 구조화된 JSON 출력(예제 id를 키로 사용)
 python evals/agent_trajectory/run_eval.py --all --json-out eval_report.json
 ```
 
-参数:
+매개변수:
 
-| 参数 | 说明 |
+| 매개변수 | 설명 |
 | --- | --- |
-| `--sample ID` / `--all` | 二选一必填:跑单个 golden 样例或全部 |
-| `--golden-path PATH` | 自定义 golden JSON 路径(默认模块旁 `golden_samples.json`) |
-| `--json-out PATH` | 写结构化 JSON 报告(`--all` 时为键控对象) |
+| `--sample ID` / `--all` | 둘 중 하나는 반드시 지정: golden 예제 하나 또는 전체 실행 |
+| `--golden-path PATH` | 사용자 지정 golden JSON 경로(기본값은 모듈 옆 `golden_samples.json`) |
+| `--json-out PATH` | 구조화된 JSON 리포트 기록(`--all`이면 키로 묶인 객체) |
 
-退出码:`0` 运行成功(含违规);`1` golden 加载(含 `expected_tools` 不在真实工具注册表)/ 样例选择 / 工具注册表加载失败 / 执行器构建 / 运行失败(含执行器返回 `success=false`,如 provider 未配置、LLM 错误、超时、max_steps 耗尽、dashboard 解析失败);`2` 用法错误。Multi-Agent 结果若在失败时带有阶段快照,入口会先输出并写入可检查的失败轨迹报告,再以退出码 `1` 表示运行失败;单 Agent 失败行为不变。
+종료 코드: `0`은 실행 성공(위반 포함). `1`은 golden 로드 실패(`expected_tools`가 실제 도구 레지스트리에 없는 경우 포함) / 예제 선택 실패 / 도구 레지스트리 로드 실패 / 실행기 생성 실패 / 실행 실패(실행기가 `success=false`를 돌려준 경우 포함. 예: provider 미설정, LLM 오류, 타임아웃, max_steps 소진, dashboard 파싱 실패). `2`는 사용법 오류입니다. 다중 Agent 결과가 실패하면서 단계 스냅샷을 가지고 있으면, 진입점은 먼저 확인 가능한 실패 궤적 리포트를 출력하고 기록한 뒤 종료 코드 `1`로 실행 실패를 알립니다. 단일 Agent 실패 동작은 바뀌지 않습니다.
 
-## 冻结的最小指标契约
+## 고정된 최소 지표 계약
 
-对每条 `tool_calls_log`(runner 契约:每项含 `step / tool / arguments / success / duration / result_length / cached`,可选 `timeout` / `guarded`),只统计:
+각 `tool_calls_log`(runner 계약: 항목마다 `step / tool / arguments / success / duration / result_length / cached`를 포함하고, 선택적으로 `timeout` / `guarded`)에 대해 다음만 집계합니다.
 
-| 指标 | 定义 |
+| 지표 | 정의 |
 | --- | --- |
-| `expected_hit_rate` / `missing_expected` | 期望工具按**工具名**命中(本版不做股票维度判定);`expected_total` 为去重后的期望数 |
-| `optional_tools_used` | 期望集合之外实际调用的工具;`allow_optional_tools=false` 时记为违规 |
-| `redundant_calls` | 同一 (tool, args-key) 对在首次出现之后的每一次出现(不论成败)。args-key = `json.dumps(arguments, sort_keys=True, default=str)`,与运行时缓存键同思路 |
-| `retries` | 紧跟**失败**之后重试同一 (tool, args-key) 对;`retries ⊆ redundant_calls`。成功会清除该对的失败态:`fail → success → success` 只计 1 次 retry(后一次 success 仅计冗余) |
-| `failed_calls` | `success=false` 的条目数 |
-| `cached_calls` | `cached=true` 的条目数(runner 语义:复用不可重试的失败结果) |
-| `distinct_steps` / `max_steps_touched` | 日志 step 与 `AgentResult.total_steps` 取较大者(最后纯回答轮不产生工具调用,日志会低估);`max_steps_touched` 为 `max(step) >= allowed_max_steps` 的启发式 |
+| `expected_hit_rate` / `missing_expected` | 기대한 도구를 **도구 이름** 기준으로 적중했는지(이번 버전은 종목 단위 판정을 하지 않음). `expected_total`은 중복을 뺀 기대 개수 |
+| `optional_tools_used` | 기대 목록 밖에서 실제로 호출한 도구. `allow_optional_tools=false`이면 위반으로 기록 |
+| `redundant_calls` | 같은 (tool, args-key) 쌍이 처음 나온 뒤 다시 나온 모든 경우(성공 여부와 무관). args-key = `json.dumps(arguments, sort_keys=True, default=str)`이며, 실행 시 캐시 키와 같은 방식 |
+| `retries` | **실패** 바로 뒤에 같은 (tool, args-key) 쌍을 다시 시도한 경우. `retries ⊆ redundant_calls`. 성공하면 그 쌍의 실패 상태가 지워지므로 `fail → success → success`는 retry 1번만 셉니다(뒤의 success는 중복으로만 셈) |
+| `failed_calls` | `success=false`인 항목 수 |
+| `cached_calls` | `cached=true`인 항목 수(runner 의미: 다시 시도할 수 없는 실패 결과를 재사용) |
+| `distinct_steps` / `max_steps_touched` | 로그의 step과 `AgentResult.total_steps` 중 큰 값(마지막 순수 답변 차례는 도구 호출이 없어 로그가 적게 셈). `max_steps_touched`는 `max(step) >= allowed_max_steps`인지 보는 추정 기준 |
 
-## Multi-Agent 阶段轨迹
+## 다중 Agent 단계 궤적
 
-当执行器结果携带非空 `stage_trajectories` 时,入口在上述工具指标之外输出 `stage_metrics`。每个阶段快照是稳定的 JSON-safe 白名单对象:
+실행기 결과에 비어 있지 않은 `stage_trajectories`가 있으면, 진입점은 위의 도구 지표 외에 `stage_metrics`도 출력합니다. 각 단계 스냅샷은 안정적인 JSON-safe 허용 목록 객체입니다.
 
-| 字段 | 说明 |
+| 필드 | 설명 |
 | --- | --- |
-| `stage_name` | 阶段或 specialist 名称 |
-| `status` | `completed` / `failed` / `skipped` 等阶段状态 |
-| `total_steps` | 该阶段自己的局部 agent-loop 步数,不是全局阶段计数 |
-| `tool_calls_log` | 该阶段的原始工具调用日志;空日志也会保留阶段 |
-| `failure_reason` | `stage_failure` / `timeout` / `budget_skip` 等降级原因 |
+| `stage_name` | 단계 또는 specialist 이름 |
+| `status` | `completed` / `failed` / `skipped` 등 단계 상태 |
+| `total_steps` | 그 단계 자체의 agent-loop 단계 수이며, 전체 단계 개수가 아님 |
+| `tool_calls_log` | 그 단계의 원본 도구 호출 로그. 로그가 비어 있어도 단계는 유지 |
+| `failure_reason` | `stage_failure` / `timeout` / `budget_skip` 등 기능 저하 원인 |
 
-评估层按快照列表顺序把局部步数累加为 `cumulative_steps`,因此不同阶段从 1 重新计步不会碰撞。该累计值也作为整条 Multi-Agent 轨迹的 agent-loop 步数传给顶层指标；`AgentResult.total_steps` 在 orchestrator 中保留原有阶段数语义,不用于轨迹 loop 预算评分。报告同时包含期望阶段命中率、缺失/额外阶段、完成/失败/跳过计数,以及每个阶段的状态、失败原因、局部/累计步数和工具调用/失败/重试指标。阶段 `tool_metrics` 仅统计该阶段日志中的调用数、工具名、冗余、缓存、失败和重试,不含期望工具命中率、缺失工具、期望外工具违规或 max-steps 违规。Golden 的 `expected_tools`、`allow_optional_tools`、`allowed_max_steps` 属于整条样例,只对汇总工具轨迹评估一次；当前不支持按阶段定义工具合规期望。关键阶段失败后,仍使用已返回的快照生成阶段报告;配置了 `expected_stages` 时,尚未执行的后续阶段会列入缺失阶段。specialist 并发执行后的快照由 scheduler 恢复为选中顺序,不依赖完成先后。
+평가 계층은 스냅샷 목록 순서대로 단계별 단계 수를 더해 `cumulative_steps`를 만들므로, 단계마다 1부터 다시 세어도 겹치지 않습니다. 이 누적값은 전체 다중 Agent 궤적의 agent-loop 단계 수로 최상위 지표에도 전달됩니다. `AgentResult.total_steps`는 orchestrator에서 기존의 단계 개수 의미를 유지하며, 궤적 loop 예산 채점에는 쓰지 않습니다. 리포트에는 기대 단계 적중률, 누락/추가 단계, 완료/실패/건너뜀 개수, 단계별 상태, 실패 원인, 단계별/누적 단계 수, 도구 호출/실패/재시도 지표가 함께 들어갑니다. 단계의 `tool_metrics`는 그 단계 로그 안의 호출 수, 도구 이름, 중복, 캐시, 실패, 재시도만 세며, 기대 도구 적중률, 누락 도구, 기대 밖 도구 위반, max-steps 위반은 포함하지 않습니다. Golden의 `expected_tools`, `allow_optional_tools`, `allowed_max_steps`는 예제 전체에 속하므로 합산된 도구 궤적에 대해 한 번만 평가합니다. 지금은 단계별 도구 규정 기대값을 정의할 수 없습니다. 핵심 단계가 실패해도 이미 돌아온 스냅샷으로 단계 리포트를 만듭니다. `expected_stages`를 설정했다면 아직 실행되지 않은 이후 단계는 누락 단계로 올라갑니다. specialist를 동시에 실행한 뒤의 스냅샷은 scheduler가 선택 순서로 되돌리며, 완료 순서에 의존하지 않습니다.
 
-golden 样例可选增加 `expected_stages` 字段:
+golden 예제에는 선택적으로 `expected_stages` 필드를 넣을 수 있습니다.
 
 ```json
 {
@@ -66,27 +66,27 @@ golden 样例可选增加 `expected_stages` 字段:
 }
 ```
 
-未配置时仍会报告实际阶段和状态,但阶段命中率显示为未配置;这不会改变现有单 agent 样例的 JSON 字段。
+설정하지 않아도 실제 단계와 상태는 보고하지만, 단계 적중률은 미설정으로 표시됩니다. 기존 단일 agent 예제의 JSON 필드는 바뀌지 않습니다.
 
-## Golden 样例 schema
+## Golden 예제 schema
 
-`golden_samples.json` 是一个数组,字段:
+`golden_samples.json`은 배열이며, 필드는 다음과 같습니다.
 
-| 字段 | 类型 | 说明 |
+| 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `id` | string | 唯一样例 id(必填) |
-| `task_description` | string | 交给执行器的任务文本(必填) |
-| `stock_code` | string | 原样传入 runner context(`{"stock_code": ...}`);空串 = 无 context;不参与打分 |
-| `expected_tools` | string[] | 期望工具名(必填,非空、无重复) |
-| `allowed_max_steps` | int | 步数预算启发式(默认 10,>= 1) |
-| `allow_optional_tools` | bool | 是否容忍期望外工具(默认 true) |
-| `expected_stages` | string[] | 多 Agent 阶段期望列表(可选、非空名称且不重复);用于统计命中与缺失阶段 |
+| `id` | string | 고유한 예제 id(필수) |
+| `task_description` | string | 실행기에 넘길 작업 텍스트(필수) |
+| `stock_code` | string | runner context(`{"stock_code": ...}`)에 그대로 전달. 빈 문자열 = context 없음. 채점에는 쓰지 않음 |
+| `expected_tools` | string[] | 기대 도구 이름(필수, 비어 있으면 안 되고 중복 없음) |
+| `allowed_max_steps` | int | 단계 수 예산 추정 기준(기본값 10, 1 이상) |
+| `allow_optional_tools` | bool | 기대 밖 도구를 허용할지(기본값 true) |
+| `expected_stages` | string[] | 다중 Agent 기대 단계 목록(선택, 이름은 비어 있지 않고 중복 없음). 적중 단계와 누락 단계 집계에 사용 |
 
-校验:加载路径(`load_golden_samples`)直接拒绝非法样例;直接构造路径(`compute_trajectory_metrics`)以 validator 完全相同的措辞逐条上报违规,两条路径的契约按构造保持一致。`known_tool_names` 可注入真实工具注册表做成员校验(metrics 层自身不 import `src/`);`run_eval.py` 入口会自动注入真实工具注册表。
+검증: 로드 경로(`load_golden_samples`)는 잘못된 예제를 바로 거부합니다. 직접 생성 경로(`compute_trajectory_metrics`)는 validator와 완전히 같은 문구로 위반을 하나씩 보고하므로, 두 경로의 계약은 구조적으로 일치합니다. `known_tool_names`로 실제 도구 레지스트리를 주입해 멤버 여부를 검사할 수 있으며(metrics 계층 자체는 `src/`를 import하지 않음), `run_eval.py` 진입점은 실제 도구 레지스트리를 자동으로 주입합니다.
 
-## JSON 报告 schema
+## JSON 리포트 schema
 
-单个样例:
+예제 하나:
 
 ```json
 {
@@ -98,12 +98,14 @@ golden 样例可选增加 `expected_stages` 字段:
 }
 ```
 
-`--all --json-out` 时外层为 `{sample_id: <上述对象>}` 键控对象。
+(위 예시의 `"… 共 11 个字段"`는 "필드가 모두 11개"라는 뜻의 자리 표시 문구입니다.)
 
-含阶段快照的多 Agent 报告会在上述对象中追加 `run_status` (`completed` / `failed`) 与 `stage_metrics` 字段;原有 `metrics` 字段继续表示扁平工具轨迹指标。运行失败但携带阶段快照时,JSON 报告仍会写出,进程退出码为 1。
+`--all --json-out`이면 바깥쪽은 `{sample_id: <위 객체>}` 형태의 키로 묶인 객체입니다.
 
-## 不在范围(后续 PR)
+단계 스냅샷이 있는 다중 Agent 리포트는 위 객체에 `run_status`(`completed` / `failed`)와 `stage_metrics` 필드를 더합니다. 기존 `metrics` 필드는 계속 평평한 도구 궤적 지표를 뜻합니다. 실행이 실패했어도 단계 스냅샷이 있으면 JSON 리포트는 여전히 기록되며, 프로세스 종료 코드는 1입니다.
 
-- 股票维度命中判定与 guard 拦截语义(`guarded` / 越界调用违规)
-- Codex App Server 的 `arguments_summary` 方言识别
-- 任何 `.env` / 运行时配置与 CI 门禁(本 PR 不改变现有分析流程、调度语义或 CI 阻断规则)
+## 범위 밖(이후 PR)
+
+- 종목 단위 적중 판정과 guard 차단 의미(`guarded` / 범위를 벗어난 호출 위반)
+- Codex App Server의 `arguments_summary` 표기 방식 인식
+- 모든 `.env` / 실행 시 설정과 CI 관문(이 PR은 기존 분석 흐름, 스케줄 의미, CI 차단 규칙을 바꾸지 않습니다)

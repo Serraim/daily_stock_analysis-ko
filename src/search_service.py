@@ -287,6 +287,19 @@ class SearchResponse:
         return "\n".join(lines)
 
 
+def _korean_stock_name(stock_code):
+    """005930.KS -> 삼성전자. 네이버 증권 공개 API로 한국어 이름을 받고, 실패하면 None."""
+    import json as _json
+    import urllib.request as _ur
+    code = str(stock_code).split('.')[0]
+    try:
+        req = _ur.Request(f"https://m.stock.naver.com/api/stock/{code}/basic", headers={"User-Agent": "Mozilla/5.0"})
+        with _ur.urlopen(req, timeout=5) as r:
+            return _json.load(r).get('stockName') or None
+    except Exception:
+        return None
+
+
 class BaseSearchProvider(ABC):
     """搜索引擎基类"""
     
@@ -4522,6 +4535,20 @@ class SearchService:
                 },
             ]
         
+        # 한국 종목(.KS/.KQ)은 한국어 회사 이름과 한국어 검색어로 찾는다
+        if str(stock_code).upper().endswith(('.KS', '.KQ')) and not is_index_etf:
+            stock_name = _korean_stock_name(stock_code) or stock_name
+            ko_queries = {
+                'latest_news': f"{stock_name} 최신 뉴스",
+                'market_analysis': f"{stock_name} 증권사 리포트 목표주가",
+                'risk_check': f"{stock_name} 악재 소송 리스크",
+                'announcements': f"{stock_name} 공시",
+                'earnings': f"{stock_name} 실적 전망 영업이익",
+                'industry': f"{stock_name} 업황 경쟁사 점유율",
+            }
+            for dim in search_dimensions:
+                if dim['name'] in ko_queries:
+                    dim['query'] = ko_queries[dim['name']]
         search_days = self._effective_news_window_days()
         target_per_dimension = 3
         provider_max_results = self._provider_request_size(target_per_dimension)

@@ -260,7 +260,7 @@ def format_public_market_status_line(
     else:
         value = phase_label
     separator = ": " if lang == "en" else "："
-    return f"{_MARKET_STATUS_PREFIX[lang]}{separator}{value}"
+    return f"{_MARKET_STATUS_PREFIX.get(lang, _MARKET_STATUS_PREFIX['en'])}{separator}{value}"
 
 
 def _as_mapping(value: Any) -> Optional[Mapping[str, Any]]:

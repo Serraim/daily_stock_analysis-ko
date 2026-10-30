@@ -22,6 +22,8 @@ from typing import Any, Iterable, Mapping, Optional
 
 import markdown2
 
+from src.report_language import localize_display_phrase
+
 
 PROJECT_URL = "https://github.com/ZhuLinsen/daily_stock_analysis"
 PROJECT_REPOSITORY = "ZhuLinsen/daily_stock_analysis"
@@ -94,8 +96,8 @@ _POSTER_TEXT = {
         "multi_subtitle": "시장별 지수, 주도주와 리스크 경계", "dashboard_subtitle": "다중 종목 의사결정 요약",
         "score": "점수", "confidence": "신뢰도", "trend": "추세", "core": "핵심 결론",
         "snapshot": "시세 스냅샷", "execution": "실행 계획", "technical": "기술 참고",
-        "next_watch": "다음 관찰", "positive_catalysts": "긍정 촉매", "risk_alerts": "리스크 경보",
-        "catalysts_risks": "촉매와 리스크", "no_position": "미보유", "holding": "보유 중",
+        "next_watch": "다음 관찰", "positive_catalysts": "호재", "risk_alerts": "리스크 경보",
+        "catalysts_risks": "호재와 리스크", "no_position": "미보유", "holding": "보유 중",
         "position": "포지션", "entry": "진입", "risk_control": "리스크 관리", "position_advice": "포지션 제안",
         "market_signal": "시장 신호", "today_conclusion": "오늘의 결론", "breadth": "시장 폭",
         "dimensions": "신호 분석", "leaders": "강세 섹터", "laggards": "약세 섹터",
@@ -1237,14 +1239,16 @@ def _stock_data_from_payload(
     catalysts = intelligence.get("positive_catalysts")
     risks = intelligence.get("risk_alerts")
     if isinstance(catalysts, list):
+        catalysts = [localize_display_phrase(item, poster.language) for item in catalysts]
         poster.catalysts = _merge_compact_list(poster.catalysts, catalysts)
     if isinstance(risks, list):
+        risks = [localize_display_phrase(item, poster.language) for item in risks]
         poster.risks = _merge_compact_list(poster.risks, risks)
 
     watch_conditions = phase.get("watch_conditions")
     payload_watch_items = [
         item for item in (
-            ("行动窗口", _compact_text(phase.get("action_window"), limit=24), "primary"),
+            ("行动窗口", _compact_text(localize_display_phrase(phase.get("action_window"), poster.language), limit=24), "primary"),
             ("下次检查", _compact_text(phase.get("next_check_time"), limit=28), "secondary"),
         ) if item[1]
     ]
@@ -2005,7 +2009,7 @@ def _xiaohongshu_card(branding: ShareImageBranding, language: str) -> str:
     handle = branding.xiaohongshu_handle.strip()
     account = handle or branding.xiaohongshu_url.strip()
     qr_data_uri = _asset_data_uri(branding.xiaohongshu_qr_path)
-    qr_alt = f"{label}二维码" if language == "zh" else f"{label} QR"
+    qr_alt = {"zh": f"{label}二维码", "ko": f"{label} QR 코드"}.get(language, f"{label} QR")
     image = (
         f'<div class="qr-frame"><img src="{qr_data_uri}" alt="{_escape(qr_alt)}"></div>'
         if qr_data_uri else ""

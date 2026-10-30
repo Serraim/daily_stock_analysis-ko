@@ -46,7 +46,13 @@ def format_decision_signal_excerpt(summary: Any, report_language: str = "zh") ->
 
     if not isinstance(summary, dict) or not summary:
         return ""
-    language = "en" if str(report_language or "").lower().startswith("en") else "zh"
+    lowered_language = str(report_language or "").lower()
+    if lowered_language.startswith("en"):
+        language = "en"
+    elif lowered_language.startswith(("ko", "kr")):
+        language = "ko"
+    else:
+        language = "zh"
     labels = {
         "zh": {
             "heading": "AI 决策信号",
@@ -66,6 +72,15 @@ def format_decision_signal_excerpt(summary: Any, report_language: str = "zh") ->
             "risk_summary": "Risk",
             "source_report_id": "Report",
         },
+        "ko": {
+            "heading": "AI 매매 신호",
+            "action": "행동",
+            "horizon": "기간",
+            "reason": "근거",
+            "watch_conditions": "관찰 조건",
+            "risk_summary": "리스크",
+            "source_report_id": "리포트",
+        },
     }[language]
 
     parts = []
@@ -84,7 +99,7 @@ def format_decision_signal_excerpt(summary: Any, report_language: str = "zh") ->
         lines.append(" | ".join(parts))
     for key in ("reason", "watch_conditions", "risk_summary"):
         max_length = None if key == "reason" else 120
-        text = _public_text(summary.get(key), max_length=max_length)
+        text = _public_text(summary.get(key), max_length=max_length, separator="; " if language == "ko" else "；")
         if text:
             lines.append(f"- {labels[key]}: {text}")
     return "\n".join(lines)
@@ -96,13 +111,13 @@ def _public_scalar(value: Any, *, max_length: int) -> str:
     return sanitize_decision_signal_text(value)[:max_length]
 
 
-def _public_text(value: Any, *, max_length: Optional[int]) -> str:
+def _public_text(value: Any, *, max_length: Optional[int], separator: str = "；") -> str:
     if value in (None, "", [], {}):
         return ""
     if isinstance(value, (list, tuple)):
-        text = "；".join(str(item).strip() for item in value if str(item or "").strip())
+        text = separator.join(str(item).strip() for item in value if str(item or "").strip())
     elif isinstance(value, dict):
-        text = "；".join(
+        text = separator.join(
             f"{key}: {item}"
             for key, item in value.items()
             if str(key or "").strip() and str(item or "").strip()

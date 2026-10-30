@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 搜索服务模块
+A주 관심종목 지능형 분석 시스템 - 검색 서비스 모듈
 ===================================
 
-职责：
-1. 提供统一的新闻搜索接口
-2. 支持 Bocha、Tavily、Brave、SerpAPI、SearXNG 多种搜索引擎
-3. 多 Key 负载均衡和故障转移
-4. 搜索结果缓存和格式化
+역할:
+1. 통합 뉴스 검색 인터페이스 제공
+2. Bocha, Tavily, Brave, SerpAPI, SearXNG 등 여러 검색 엔진 지원
+3. 여러 Key 간 부하 분산과 장애 전환(failover)
+4. 검색 결과 캐싱과 포맷팅
 """
 
+import functools
 import logging
 import multiprocessing
 import re
@@ -203,28 +204,28 @@ def _get_with_retry(
 
 def fetch_url_content(url: str, timeout: int = 5) -> str:
     """
-    获取 URL 网页正文内容 (使用 newspaper3k)
+    URL 웹 페이지 본문 가져오기 (newspaper3k 사용)
     """
     try:
-        # 配置 newspaper3k
+        # newspaper3k 설정
         config = Config()
         config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         config.request_timeout = timeout
-        config.fetch_images = False  # 不下载图片
-        config.memoize_articles = False # 不缓存
+        config.fetch_images = False  # 이미지는 내려받지 않음
+        config.memoize_articles = False # 캐시하지 않음
 
-        article = Article(url, config=config, language='zh') # 默认中文，但也支持其他
+        article = Article(url, config=config, language='zh') # 기본은 중국어지만 다른 언어도 지원
         article.download()
         article.parse()
 
-        # 获取正文
+        # 본문 가져오기
         text = article.text.strip()
 
-        # 简单的后处理，去除空行
+        # 간단한 후처리: 빈 줄 제거
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         text = '\n'.join(lines)
 
-        return text[:1500]  # 限制返回长度（比 bs4 稍微多一点，因为 newspaper 解析更干净）
+        return text[:1500]  # 반환 길이 제한 (newspaper 파싱 결과가 더 깔끔해서 bs4보다 조금 길게 잡음)
     except Exception as e:
         logger.debug(f"Fetch content failed for {url}: {e}")
 
@@ -233,19 +234,19 @@ def fetch_url_content(url: str, timeout: int = 5) -> str:
 
 @dataclass
 class SearchResult:
-    """搜索结果数据类"""
+    """검색 결과 데이터 클래스"""
     title: str
-    snippet: str  # 摘要
+    snippet: str  # 요약
     url: str
-    source: str  # 来源网站
+    source: str  # 출처 사이트
     published_date: Optional[str] = None
     relevance_score: Optional[int] = None
     relevance_category: Optional[str] = None
     relevance_reasons: Optional[List[str]] = None
-    retrieved_at: Optional[str] = None  # 首次实际检索完成时间（UTC）；缓存读取不刷新
+    retrieved_at: Optional[str] = None  # 실제 첫 검색 완료 시각(UTC). 캐시에서 읽을 때는 갱신하지 않음
     
     def to_text(self) -> str:
-        """转换为文本格式"""
+        """텍스트 형식으로 변환"""
         date_str = f" ({self.published_date})" if self.published_date else ""
         relevance_parts: List[str] = []
         if self.relevance_category:
@@ -260,13 +261,13 @@ class SearchResult:
 
 @dataclass 
 class SearchResponse:
-    """搜索响应"""
+    """검색 응답"""
     query: str
     results: List[SearchResult]
-    provider: str  # 使用的搜索引擎
+    provider: str  # 사용한 검색 엔진
     success: bool = True
     error_message: Optional[str] = None
-    search_time: float = 0.0  # 搜索耗时（秒）
+    search_time: float = 0.0  # 검색 소요 시간(초)
     
     def mark_retrieved(self) -> None:
         """Record actual acquisition once; preserve timestamps on cached/copied results."""
@@ -276,7 +277,7 @@ class SearchResponse:
                 result.retrieved_at = retrieved_at
 
     def to_context(self, max_results: int = 5) -> str:
-        """将搜索结果转换为可用于 AI 分析的上下文"""
+        """검색 결과를 AI 분석용 컨텍스트로 변환"""
         if not self.success or not self.results:
             return f"搜索 '{self.query}' 未找到相关结果。"
         
@@ -287,8 +288,12 @@ class SearchResponse:
         return "\n".join(lines)
 
 
+@functools.lru_cache(maxsize=256)
 def _korean_stock_name(stock_code):
-    """005930.KS -> 삼성전자. 네이버 증권 공개 API로 한국어 이름을 받고, 실패하면 None."""
+    """005930.KS -> 삼성전자. 네이버 증권 공개 API로 한국어 이름을 받고, 실패하면 None.
+
+    같은 종목을 검색·분석·보고서에서 여러 번 조회하므로 결과를 프로세스 안에서 캐시한다.
+    """
     import json as _json
     import urllib.request as _ur
     code = str(stock_code).split('.')[0]
@@ -301,15 +306,15 @@ def _korean_stock_name(stock_code):
 
 
 class BaseSearchProvider(ABC):
-    """搜索引擎基类"""
+    """검색 엔진 기반 클래스"""
     
     def __init__(self, api_keys: List[str], name: str):
         """
-        初始化搜索引擎
+        검색 엔진 초기화
         
         Args:
-            api_keys: API Key 列表（支持多个 key 负载均衡）
-            name: 搜索引擎名称
+            api_keys: API Key 목록 (여러 key 부하 분산 지원)
+            name: 검색 엔진 이름
         """
         self._api_keys = api_keys
         self._name = name
@@ -324,49 +329,49 @@ class BaseSearchProvider(ABC):
     
     @property
     def is_available(self) -> bool:
-        """检查是否有可用的 API Key"""
+        """사용 가능한 API Key가 있는지 확인"""
         return bool(self._api_keys)
     
     def _get_next_key(self) -> Optional[str]:
         """
-        获取下一个可用的 API Key（负载均衡）
+        다음 사용 가능한 API Key 가져오기 (부하 분산)
         
-        策略：轮询 + 跳过错误过多的 key
+        전략: 라운드 로빈 + 오류가 많은 key는 건너뜀
         """
         with self._state_lock:
             if not self._key_cycle:
                 return None
             
-            # 最多尝试所有 key
+            # 최대 모든 key를 한 번씩 시도
             for _ in range(len(self._api_keys)):
                 key = next(self._key_cycle)
-                # 跳过错误次数过多的 key（超过 3 次）
+                # 오류가 너무 많은 key(3회 초과)는 건너뜀
                 if self._key_errors.get(key, 0) < 3:
                     return key
             
-            # 所有 key 都有问题，重置错误计数并返回第一个
-            logger.warning(f"[{self._name}] 所有 API Key 都有错误记录，重置错误计数")
+            # 모든 key에 문제가 있으면 오류 카운트를 초기화하고 첫 번째 key 반환
+            logger.warning(f"[{self._name}] 모든 API Key에 오류 기록이 있어 오류 카운트를 초기화합니다")
             self._key_errors = {key: 0 for key in self._api_keys}
             return self._api_keys[0] if self._api_keys else None
     
     def _record_success(self, key: str) -> None:
-        """记录成功使用"""
+        """성공 사용 기록"""
         with self._state_lock:
             self._key_usage[key] = self._key_usage.get(key, 0) + 1
-            # 成功后减少错误计数
+            # 성공하면 오류 카운트 감소
             if key in self._key_errors and self._key_errors[key] > 0:
                 self._key_errors[key] -= 1
     
     def _record_error(self, key: str) -> None:
-        """记录错误"""
+        """오류 기록"""
         with self._state_lock:
             self._key_errors[key] = self._key_errors.get(key, 0) + 1
             error_count = self._key_errors[key]
-        logger.warning(f"[{self._name}] API Key {key[:8]}... 错误计数: {error_count}")
+        logger.warning(f"[{self._name}] API Key {key[:8]}... 오류 카운트: {error_count}")
     
     @abstractmethod
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
-        """执行搜索（子类实现）"""
+        """검색 실행 (하위 클래스에서 구현)"""
         pass
     
     def _execute_search(
@@ -397,7 +402,7 @@ class BaseSearchProvider(ABC):
             if response.success:
                 response.mark_retrieved()
                 self._record_success(api_key)
-                logger.info(f"[{self._name}] 搜索 '{query}' 成功，返回 {len(response.results)} 条结果，耗时 {response.search_time:.2f}s")
+                logger.info(f"[{self._name}] '{query}' 검색 성공, 결과 {len(response.results)}건, 소요 {response.search_time:.2f}s")
             else:
                 self._record_error(api_key)
 
@@ -406,7 +411,7 @@ class BaseSearchProvider(ABC):
         except Exception as e:
             self._record_error(api_key)
             elapsed = time.time() - start_time
-            logger.error(f"[{self._name}] 搜索 '{query}' 失败: {e}")
+            logger.error(f"[{self._name}] '{query}' 검색 실패: {e}")
             return SearchResponse(
                 query=query,
                 results=[],
@@ -418,29 +423,29 @@ class BaseSearchProvider(ABC):
 
     def search(self, query: str, max_results: int = 5, days: int = 7) -> SearchResponse:
         """
-        执行搜索
+        검색 실행
         
         Args:
-            query: 搜索关键词
-            max_results: 最大返回结果数
-            days: 搜索最近几天的时间范围（默认7天）
+            query: 검색 키워드
+            max_results: 최대 반환 결과 수
+            days: 최근 며칠까지 검색할지 (기본 7일)
             
         Returns:
-            SearchResponse 对象
+            SearchResponse 객체
         """
         return self._execute_search(query, max_results=max_results, days=days)
 
 
 class TavilySearchProvider(BaseSearchProvider):
     """
-    Tavily 搜索引擎
+    Tavily 검색 엔진
     
-    特点：
-    - 专为 AI/LLM 优化的搜索 API
-    - 免费版每月 1000 次请求
-    - 返回结构化的搜索结果
+    특징:
+    - AI/LLM에 최적화된 검색 API
+    - 무료 플랜은 월 1000회 요청
+    - 구조화된 검색 결과 반환
     
-    文档：https://docs.tavily.com/
+    문서: https://docs.tavily.com/
     """
     
     def __init__(self, api_keys: List[str]):
@@ -454,7 +459,7 @@ class TavilySearchProvider(BaseSearchProvider):
         days: int = 7,
         topic: Optional[str] = None,
     ) -> SearchResponse:
-        """执行 Tavily 搜索"""
+        """Tavily 검색 실행"""
         try:
             from tavily import TavilyClient
         except ImportError:
@@ -469,14 +474,14 @@ class TavilySearchProvider(BaseSearchProvider):
         try:
             client = TavilyClient(api_key=api_key)
             
-            # 执行搜索（优化：使用advanced深度、限制最近几天）
+            # 검색 실행 (최적화: advanced 깊이 사용, 최근 며칠로 제한)
             search_kwargs: Dict[str, Any] = {
                 "query": query,
-                "search_depth": "basic",  # 为控制credit使用，将advanced修改成basic
+                "search_depth": "basic",  # credit 사용량을 줄이려고 advanced를 basic으로 변경
                 "max_results": max_results,
                 "include_answer": False,
                 "include_raw_content": False,
-                "days": days,  # 搜索最近天数的内容
+                "days": days,  # 최근 N일 이내 콘텐츠 검색
             }
             if topic is not None:
                 search_kwargs["topic"] = topic
@@ -485,16 +490,16 @@ class TavilySearchProvider(BaseSearchProvider):
                 **search_kwargs,
             )
             
-            # 记录原始响应到日志
-            logger.info(f"[Tavily] 搜索完成，query='{query}', 返回 {len(response.get('results', []))} 条结果")
-            logger.debug(f"[Tavily] 原始响应: {response}")
+            # 원본 응답을 로그에 기록
+            logger.info(f"[Tavily] 검색 완료, query='{query}', 결과 {len(response.get('results', []))}건")
+            logger.debug(f"[Tavily] 원본 응답: {response}")
             
-            # 解析结果
+            # 결과 파싱
             results = []
             for item in response.get('results', []):
                 results.append(SearchResult(
                     title=item.get('title', ''),
-                    snippet=item.get('content', '')[:500],  # 截取前500字
+                    snippet=item.get('content', '')[:500],  # 앞 500자만 사용
                     url=item.get('url', ''),
                     source=self._extract_domain(item.get('url', '')),
                     published_date=item.get('published_date') or item.get('publishedDate'),
@@ -509,7 +514,7 @@ class TavilySearchProvider(BaseSearchProvider):
             
         except Exception as e:
             error_msg = str(e)
-            # 检查是否是配额问题
+            # 할당량(quota) 문제인지 확인
             if 'rate limit' in error_msg.lower() or 'quota' in error_msg.lower():
                 error_msg = f"API 配额已用尽: {error_msg}"
             
@@ -528,7 +533,7 @@ class TavilySearchProvider(BaseSearchProvider):
         days: int = 7,
         topic: Optional[str] = None,
     ) -> SearchResponse:
-        """执行 Tavily 搜索，可按调用方选择是否启用新闻 topic。"""
+        """Tavily 검색 실행. 호출 측에서 뉴스 topic 사용 여부를 선택할 수 있음."""
         if topic is None:
             return super().search(query, max_results=max_results, days=days)
 
@@ -550,7 +555,7 @@ class TavilySearchProvider(BaseSearchProvider):
             if response.success:
                 response.mark_retrieved()
                 self._record_success(api_key)
-                logger.info(f"[{self._name}] 搜索 '{query}' 成功，返回 {len(response.results)} 条结果，耗时 {response.search_time:.2f}s")
+                logger.info(f"[{self._name}] '{query}' 검색 성공, 결과 {len(response.results)}건, 소요 {response.search_time:.2f}s")
             else:
                 self._record_error(api_key)
 
@@ -559,7 +564,7 @@ class TavilySearchProvider(BaseSearchProvider):
         except Exception as e:
             self._record_error(api_key)
             elapsed = time.time() - start_time
-            logger.error(f"[{self._name}] 搜索 '{query}' 失败: {e}")
+            logger.error(f"[{self._name}] '{query}' 검색 실패: {e}")
             return SearchResponse(
                 query=query,
                 results=[],
@@ -571,7 +576,7 @@ class TavilySearchProvider(BaseSearchProvider):
     
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """从 URL 提取域名作为来源"""
+        """URL에서 도메인을 추출해 출처로 사용"""
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
@@ -583,14 +588,14 @@ class TavilySearchProvider(BaseSearchProvider):
 
 class SerpAPISearchProvider(BaseSearchProvider):
     """
-    SerpAPI 搜索引擎
+    SerpAPI 검색 엔진
     
-    特点：
-    - 支持 Google、Bing、百度等多种搜索引擎
-    - 免费版每月 100 次请求
-    - 返回真实的搜索结果
+    특징:
+    - Google, Bing, Baidu 등 여러 검색 엔진 지원
+    - 무료 플랜은 월 100회 요청
+    - 실제 검색 결과 반환
     
-    文档：https://serpapi.com/github-daily-stock-analysis
+    문서: https://serpapi.com/github-daily-stock-analysis
     """
 
     _ORGANIC_CONTENT_FETCH_LIMIT = 1
@@ -637,7 +642,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
         super().__init__(api_keys, "SerpAPI")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
-        """执行 SerpAPI 搜索"""
+        """SerpAPI 검색 실행"""
         try:
             from serpapi import GoogleSearch
         except ImportError:
@@ -650,45 +655,45 @@ class SerpAPISearchProvider(BaseSearchProvider):
             )
         
         try:
-            # 确定时间范围参数 tbs
-            tbs = "qdr:w"  # 默认一周
+            # 시간 범위 파라미터 tbs 결정
+            tbs = "qdr:w"  # 기본 1주
             if days <= 1:
-                tbs = "qdr:d"  # 过去24小时
+                tbs = "qdr:d"  # 최근 24시간
             elif days <= 7:
-                tbs = "qdr:w"  # 过去一周
+                tbs = "qdr:w"  # 최근 1주
             elif days <= 30:
-                tbs = "qdr:m"  # 过去一月
+                tbs = "qdr:m"  # 최근 1개월
             else:
-                tbs = "qdr:y"  # 过去一年
+                tbs = "qdr:y"  # 최근 1년
 
-            # 使用 Google 搜索 (获取 Knowledge Graph, Answer Box 等)
+            # Google 검색 사용 (Knowledge Graph, Answer Box 등 확보)
             params = {
                 "engine": "google",
                 "q": query,
                 "api_key": api_key,
-                "google_domain": "google.com.hk", # 使用香港谷歌，中文支持较好
-                "hl": "zh-cn",  # 中文界面
-                "gl": "cn",     # 中国地区偏好
-                "tbs": tbs,     # 时间范围限制
-                "num": max_results # 请求的结果数量，注意：Google API有时不严格遵守
+                "google_domain": "google.com.hk", # 홍콩 Google 사용 (중국어 지원이 더 좋음)
+                "hl": "zh-cn",  # 중국어 인터페이스
+                "gl": "cn",     # 중국 지역 우선
+                "tbs": tbs,     # 시간 범위 제한
+                "num": max_results # 요청 결과 수 (참고: Google API가 항상 정확히 지키지는 않음)
             }
             
             search = GoogleSearch(params)
             response = search.get_dict()
             
-            # 记录原始响应到日志
-            logger.debug(f"[SerpAPI] 原始响应 keys: {response.keys()}")
+            # 원본 응답을 로그에 기록
+            logger.debug(f"[SerpAPI] 원본 응답 keys: {response.keys()}")
             
-            # 解析结果
+            # 결과 파싱
             results = []
             
-            # 1. 解析 Knowledge Graph (知识图谱)
+            # 1. Knowledge Graph(지식 그래프) 파싱
             kg = response.get('knowledge_graph', {})
             if kg:
                 title = kg.get('title', '知识图谱')
                 desc = kg.get('description', '')
                 
-                # 提取额外属性
+                # 추가 속성 추출
                 details = []
                 for key in ['type', 'founded', 'headquarters', 'employees', 'ceo']:
                     val = kg.get(key)
@@ -704,13 +709,13 @@ class SerpAPISearchProvider(BaseSearchProvider):
                     source="Google Knowledge Graph"
                 ))
                 
-            # 2. 解析 Answer Box (精选回答/行情卡片)
+            # 2. Answer Box(추천 답변/시세 카드) 파싱
             ab = response.get('answer_box', {})
             if ab:
                 ab_title = ab.get('title', '精选回答')
                 ab_snippet = ""
                 
-                # 财经类回答
+                # 금융 관련 답변
                 if ab.get('type') == 'finance_results':
                     stock = ab.get('stock', '')
                     price = ab.get('price', '')
@@ -722,7 +727,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
                     ab_title = f"[行情卡片] {stock}"
                     ab_snippet = f"价格: {price} {currency}\n涨跌: {mv_dir} {mv_val}%"
                     
-                    # 提取表格数据
+                    # 표 데이터 추출
                     if 'table' in ab:
                         table_data = []
                         for row in ab['table']:
@@ -731,7 +736,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
                         if table_data:
                             ab_snippet += "\n" + "; ".join(table_data)
                             
-                # 普通文本回答
+                # 일반 텍스트 답변
                 elif 'snippet' in ab:
                     ab_snippet = ab.get('snippet', '')
                     list_items = ab.get('list', [])
@@ -749,9 +754,9 @@ class SerpAPISearchProvider(BaseSearchProvider):
                         source="Google Answer Box"
                     ))
 
-            # 3. 解析 Related Questions (相关问题)
+            # 3. Related Questions(관련 질문) 파싱
             rqs = response.get('related_questions', [])
-            for rq in rqs[:3]: # 取前3个
+            for rq in rqs[:3]: # 앞 3개만 사용
                 question = rq.get('question', '')
                 snippet = rq.get('snippet', '')
                 link = rq.get('link', '')
@@ -764,7 +769,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
                         source="Google Related Questions"
                      ))
 
-            # 4. 解析 Organic Results (自然搜索结果)
+            # 4. Organic Results(일반 검색 결과) 파싱
             organic_results = response.get('organic_results', [])
             organic_content_fetch_attempts = 0
 
@@ -796,7 +801,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
 
                 results.append(SearchResult(
                     title=item.get('title', ''),
-                    snippet=snippet[:1000], # 限制总长度
+                    snippet=snippet[:1000], # 전체 길이 제한
                     url=link,
                     source=item.get('source', self._extract_domain(link)),
                     published_date=item.get('date'),
@@ -821,7 +826,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
     
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """从 URL 提取域名"""
+        """URL에서 도메인 추출"""
         try:
             parsed = urlparse(url)
             return parsed.netloc.replace('www.', '') or '未知来源'
@@ -830,13 +835,13 @@ class SerpAPISearchProvider(BaseSearchProvider):
 
     @classmethod
     def _normalize_organic_text(cls, value: Any) -> str:
-        """标准化 SerpAPI organic 文本字段。"""
+        """SerpAPI organic 텍스트 필드를 정규화한다."""
         text = "" if value is None else str(value)
         return re.sub(r"\s+", " ", text).strip()
 
     @classmethod
     def _extract_rich_snippet_extensions(cls, item: Dict[str, Any]) -> List[str]:
-        """提取 rich_snippet 中已有的结构化摘要，优先复用 API 原始返回。"""
+        """rich_snippet에 이미 있는 구조화 요약을 추출한다. API 원본 응답을 우선 재사용한다."""
         rich_snippet = item.get("rich_snippet")
         if not isinstance(rich_snippet, dict):
             return []
@@ -876,7 +881,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
         label: Optional[str] = None,
         allow_unlabeled_scalar: bool = False,
     ) -> List[str]:
-        """把 rich_snippet.detected_extensions 展平为可读文本。"""
+        """rich_snippet.detected_extensions를 읽기 쉬운 텍스트로 펼친다."""
         if isinstance(value, dict):
             flattened: List[str] = []
             for key, nested_value in value.items():
@@ -919,7 +924,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
         *,
         rich_extensions: Optional[List[str]] = None,
     ) -> str:
-        """构建 organic result 摘要，尽量先消费 SerpAPI 已返回的信息。"""
+        """organic result 요약을 만든다. SerpAPI가 이미 반환한 정보를 최대한 먼저 활용한다."""
         snippet = cls._normalize_organic_text(item.get("snippet", ""))
         if rich_extensions is None:
             rich_extensions = cls._extract_rich_snippet_extensions(item)
@@ -933,7 +938,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
 
     @classmethod
     def _matches_skipped_content_fetch_suffix(cls, value: Any) -> bool:
-        """判断链接片段是否指向附件或其他非 HTML 资源。"""
+        """링크 조각이 첨부 파일 등 HTML이 아닌 리소스를 가리키는지 판단한다."""
         normalized_value = cls._normalize_organic_text(value).lower()
         if not normalized_value:
             return False
@@ -950,7 +955,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
     def _matches_skipped_content_fetch_query_param(
         cls, key: Any, value: Any
     ) -> bool:
-        """仅对少数显式附件参数跳过正文抓取，避免误伤普通 HTML 页面。"""
+        """명시적인 첨부 파일 파라미터가 있는 일부 경우에만 본문 수집을 건너뛰어, 일반 HTML 페이지가 잘못 제외되지 않게 한다."""
         normalized_key = cls._normalize_organic_text(key)
         if not normalized_key:
             return False
@@ -972,7 +977,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
         fetched_count: int,
         has_structured_summary: bool,
     ) -> bool:
-        """仅对极少量高位且摘要明显不足的结果补抓正文。"""
+        """상위권이면서 요약이 확실히 부족한 극소수 결과에만 본문을 추가로 수집한다."""
         if fetched_count >= cls._ORGANIC_CONTENT_FETCH_LIMIT:
             return False
 
@@ -1006,7 +1011,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
 
     @classmethod
     def _merge_organic_snippet_with_content(cls, snippet: str, content: str) -> str:
-        """用较短正文预览补强 snippet，避免拉长单次搜索耗时和返回体积。"""
+        """짧은 본문 미리보기로 snippet을 보강한다. 검색 1회의 소요 시간과 응답 크기가 늘어나지 않게 한다."""
         normalized = cls._normalize_organic_text(content)
         if not normalized:
             return snippet
@@ -1023,22 +1028,22 @@ class SerpAPISearchProvider(BaseSearchProvider):
 
 class BochaSearchProvider(BaseSearchProvider):
     """
-    博查搜索引擎
+    Bocha(博查) 검색 엔진
     
-    特点：
-    - 专为AI优化的中文搜索API
-    - 结果准确、摘要完整
-    - 支持时间范围过滤和AI摘要
-    - 兼容Bing Search API格式
+    특징:
+    - AI에 최적화된 중국어 검색 API
+    - 결과가 정확하고 요약이 충실함
+    - 시간 범위 필터와 AI 요약 지원
+    - Bing Search API 형식과 호환
     
-    文档：https://bocha-ai.feishu.cn/wiki/RXEOw02rFiwzGSkd9mUcqoeAnNK
+    문서: https://bocha-ai.feishu.cn/wiki/RXEOw02rFiwzGSkd9mUcqoeAnNK
     """
     
     def __init__(self, api_keys: List[str]):
         super().__init__(api_keys, "Bocha")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
-        """执行博查搜索"""
+        """Bocha 검색 실행"""
         try:
             import requests
         except ImportError:
@@ -1051,16 +1056,16 @@ class BochaSearchProvider(BaseSearchProvider):
             )
         
         try:
-            # API 端点
+            # API 엔드포인트
             url = "https://api.bocha.cn/v1/web-search"
             
-            # 请求头
+            # 요청 헤더
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
             }
             
-            # 确定时间范围
+            # 시간 범위 결정
             freshness = "oneWeek"
             if days <= 1:
                 freshness = "oneDay"
@@ -1071,20 +1076,20 @@ class BochaSearchProvider(BaseSearchProvider):
             else:
                 freshness = "oneYear"
 
-            # 请求参数（严格按照API文档）
+            # 요청 파라미터 (API 문서를 그대로 따름)
             payload = {
                 "query": query,
-                "freshness": freshness,  # 动态时间范围
-                "summary": True,  # 启用AI摘要
-                "count": min(max_results, 50)  # 最大50条
+                "freshness": freshness,  # 동적 시간 범위
+                "summary": True,  # AI 요약 사용
+                "count": min(max_results, 50)  # 최대 50건
             }
             
-            # 执行搜索（带瞬时 SSL/网络错误重试）
+            # 검색 실행 (일시적 SSL/네트워크 오류 시 재시도)
             response = _post_with_retry(url, headers=headers, json=payload, timeout=10)
             
-            # 检查HTTP状态码
+            # HTTP 상태 코드 확인
             if response.status_code != 200:
-                # 尝试解析错误信息
+                # 오류 메시지 파싱 시도
                 try:
                     if response.headers.get('content-type', '').startswith('application/json'):
                         error_data = response.json()
@@ -1094,7 +1099,7 @@ class BochaSearchProvider(BaseSearchProvider):
                 except Exception:
                     error_message = response.text
                 
-                # 根据错误码处理
+                # 오류 코드별 처리
                 if response.status_code == 403:
                     error_msg = f"余额不足: {error_message}"
                 elif response.status_code == 401:
@@ -1106,7 +1111,7 @@ class BochaSearchProvider(BaseSearchProvider):
                 else:
                     error_msg = f"HTTP {response.status_code}: {error_message}"
                 
-                logger.warning(f"[Bocha] 搜索失败: {error_msg}")
+                logger.warning(f"[Bocha] 검색 실패: {error_msg}")
                 
                 return SearchResponse(
                     query=query,
@@ -1116,7 +1121,7 @@ class BochaSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
             
-            # 解析响应
+            # 응답 파싱
             try:
                 data = response.json()
             except ValueError as e:
@@ -1130,7 +1135,7 @@ class BochaSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
             
-            # 检查响应code
+            # 응답 code 확인
             if data.get('code') != 200:
                 error_msg = data.get('msg') or f"API返回错误码: {data.get('code')}"
                 return SearchResponse(
@@ -1141,20 +1146,20 @@ class BochaSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
             
-            # 记录原始响应到日志
-            logger.info(f"[Bocha] 搜索完成，query='{query}'")
-            logger.debug(f"[Bocha] 原始响应: {data}")
+            # 원본 응답을 로그에 기록
+            logger.info(f"[Bocha] 검색 완료, query='{query}'")
+            logger.debug(f"[Bocha] 원본 응답: {data}")
             
-            # 解析搜索结果
+            # 검색 결과 파싱
             results = []
             web_pages = data.get('data', {}).get('webPages', {})
             value_list = web_pages.get('value', [])
             
             for item in value_list[:max_results]:
-                # 优先使用summary（AI摘要），fallback到snippet
+                # summary(AI 요약)를 우선 사용하고, 없으면 snippet으로 대체
                 snippet = item.get('summary') or item.get('snippet', '')
                 
-                # 截取摘要长度
+                # 요약 길이 자르기
                 if snippet:
                     snippet = snippet[:500]
                 
@@ -1163,10 +1168,10 @@ class BochaSearchProvider(BaseSearchProvider):
                     snippet=snippet,
                     url=item.get('url', ''),
                     source=item.get('siteName') or self._extract_domain(item.get('url', '')),
-                    published_date=item.get('datePublished'),  # UTC+8格式，无需转换
+                    published_date=item.get('datePublished'),  # UTC+8 형식, 변환 불필요
                 ))
             
-            logger.info(f"[Bocha] 成功解析 {len(results)} 条结果")
+            logger.info(f"[Bocha] 결과 {len(results)}건 파싱 성공")
             
             return SearchResponse(
                 query=query,
@@ -1208,7 +1213,7 @@ class BochaSearchProvider(BaseSearchProvider):
     
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """从 URL 提取域名作为来源"""
+        """URL에서 도메인을 추출해 출처로 사용"""
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
@@ -1220,21 +1225,21 @@ class BochaSearchProvider(BaseSearchProvider):
 
 class AnspireSearchProvider(BaseSearchProvider):
     """
-    Anspire Search 搜索引擎
+    Anspire Search 검색 엔진
     
-    特点：
-    - 面向AI生态的下一代实时智能搜索引擎
-    - 结果精准、响应快速
-    - 适用于股票新闻和市场情报搜索
+    특징:
+    - AI 생태계를 겨냥한 차세대 실시간 지능형 검색 엔진
+    - 결과가 정확하고 응답이 빠름
+    - 주식 뉴스와 시장 정보 검색에 적합
     
-    文档: https://open.anspire.cn/document/docs/searchApi/
+    문서: https://open.anspire.cn/document/docs/searchApi/
     """
     
     def __init__(self, api_keys: List[str]):
         super().__init__(api_keys, "Anspire")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7, region_mode: int = 2) -> SearchResponse:
-        """执行 Anspire 搜索"""
+        """Anspire 검색 실행"""
         try:
             import requests
         except ImportError:
@@ -1247,15 +1252,15 @@ class AnspireSearchProvider(BaseSearchProvider):
             )
         
         try:
-            # API 端点
+            # API 엔드포인트
             url = "https://plugin.anspire.cn/api/ntsearch/search"
             
-            # 请求头
+            # 요청 헤더
             headers = {
                 'Authorization': f'Bearer {api_key}'
             }
 
-            # 请求参数
+            # 요청 파라미터
             payload = {
                 "query": query,
                 "top_k": min(max_results,50), 
@@ -1264,12 +1269,12 @@ class AnspireSearchProvider(BaseSearchProvider):
                 "region_mode": region_mode
             }
             
-            # 执行搜索
+            # 검색 실행
             response = _get_with_retry(url, headers=headers, params=payload, timeout=10)
             
-            # 检查 HTTP 状态码
+            # HTTP 상태 코드 확인
             if response.status_code != 200:
-                # 尝试解析错误信息
+                # 오류 메시지 파싱 시도
                 try:
                     if response.headers.get('content-type', '').startswith('application/json'):
                         error_data = response.json()
@@ -1279,7 +1284,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                 except Exception:
                     error_message = response.text
                 
-                # 根据错误码处理
+                # 오류 코드별 처리
                 if response.status_code == 403:
                     error_msg = f"余额不足或权限不足：{error_message}"
                 elif response.status_code == 401:
@@ -1289,7 +1294,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                 else:
                     error_msg = f"HTTP {response.status_code}: {error_message}"
                 
-                logger.warning(f"[Anspire] 搜索失败：{error_msg}")
+                logger.warning(f"[Anspire] 검색 실패: {error_msg}")
                 
                 return SearchResponse(
                     query=query,
@@ -1299,7 +1304,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
             
-            # 解析响应
+            # 응답 파싱
             try:
                 data = response.json()
             except ValueError as e:
@@ -1315,7 +1320,7 @@ class AnspireSearchProvider(BaseSearchProvider):
             
             if 'code' in data and data.get('code') != 200:
                 error_msg = data.get('msg') or f"API 返回错误码：{data.get('code')}"
-                logger.warning(f"[Anspire] 搜索失败：{error_msg}")
+                logger.warning(f"[Anspire] 검색 실패: {error_msg}")
                 return SearchResponse(
                     query=query,
                     results=[],
@@ -1326,7 +1331,7 @@ class AnspireSearchProvider(BaseSearchProvider):
             
             if 'results' not in data:
                 error_msg = "响应中缺少 results 字段"
-                logger.error(f"[Anspire] {error_msg}，原始响应：{data}")
+                logger.error(f"[Anspire] {error_msg}, 원본 응답: {data}")
                 return SearchResponse(
                     query=query,
                     results=[],
@@ -1335,9 +1340,9 @@ class AnspireSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
             
-            # 记录原始响应到日志
-            logger.info(f"[Anspire] 搜索完成，query='{query}'")
-            logger.debug(f"[Anspire] 原始响应：{data}")
+            # 원본 응답을 로그에 기록
+            logger.info(f"[Anspire] 검색 완료, query='{query}'")
+            logger.debug(f"[Anspire] 원본 응답: {data}")
             
             results = []
             value_list = data.get('results', [])
@@ -1355,7 +1360,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                     published_date=item.get('date', '')
                 ))
             
-            logger.info(f"[Anspire] 成功解析 {len(results)} 条结果")
+            logger.info(f"[Anspire] 결과 {len(results)}건 파싱 성공")
             
             return SearchResponse(
                 query=query,
@@ -1397,7 +1402,7 @@ class AnspireSearchProvider(BaseSearchProvider):
     
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """从 URL 提取域名作为来源"""
+        """URL에서 도메인을 추출해 출처로 사용"""
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
@@ -1641,15 +1646,15 @@ class MiniMaxSearchProvider(BaseSearchProvider):
 
 class BraveSearchProvider(BaseSearchProvider):
     """
-    Brave Search 搜索引擎
+    Brave Search 검색 엔진
 
-    特点：
-    - 隐私优先的独立搜索引擎
-    - 索引超过300亿页面
-    - 免费层可用
-    - 支持时间范围过滤
+    특징:
+    - 개인정보 보호를 우선하는 독립 검색 엔진
+    - 300억 개 이상의 페이지 색인
+    - 무료 플랜 제공
+    - 시간 범위 필터 지원
 
-    文档：https://brave.com/search/api/
+    문서: https://brave.com/search/api/
     """
 
     API_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
@@ -1666,17 +1671,17 @@ class BraveSearchProvider(BaseSearchProvider):
         search_lang: Optional[str] = None,
         country: Optional[str] = None,
     ) -> SearchResponse:
-        """执行 Brave 搜索"""
+        """Brave 검색 실행"""
         try:
-            # 请求头
+            # 요청 헤더
             headers = {
                 'X-Subscription-Token': api_key,
                 'Accept': 'application/json'
             }
 
-            # 确定时间范围（freshness 参数）
+            # 시간 범위 결정 (freshness 파라미터)
             if days <= 1:
-                freshness = "pd"  # Past day (24小时)
+                freshness = "pd"  # Past day (24시간)
             elif days <= 7:
                 freshness = "pw"  # Past week
             elif days <= 30:
@@ -1684,10 +1689,10 @@ class BraveSearchProvider(BaseSearchProvider):
             else:
                 freshness = "py"  # Past year
 
-            # 请求参数
+            # 요청 파라미터
             params = {
                 "q": query,
-                "count": min(max_results, 20),  # Brave 最大支持20条
+                "count": min(max_results, 20),  # Brave는 최대 20건까지 지원
                 "freshness": freshness,
                 "safesearch": "moderate"
             }
@@ -1696,7 +1701,7 @@ class BraveSearchProvider(BaseSearchProvider):
             if country:
                 params["country"] = country
 
-            # 执行搜索（GET 请求）
+            # 검색 실행 (GET 요청)
             response = requests.get(
                 self.API_ENDPOINT,
                 headers=headers,
@@ -1704,10 +1709,10 @@ class BraveSearchProvider(BaseSearchProvider):
                 timeout=10
             )
 
-            # 检查HTTP状态码
+            # HTTP 상태 코드 확인
             if response.status_code != 200:
                 error_msg = self._parse_error(response)
-                logger.warning(f"[Brave] 搜索失败: {error_msg}")
+                logger.warning(f"[Brave] 검색 실패: {error_msg}")
                 return SearchResponse(
                     query=query,
                     results=[],
@@ -1716,7 +1721,7 @@ class BraveSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
 
-            # 解析响应
+            # 응답 파싱
             try:
                 data = response.json()
             except ValueError as e:
@@ -1730,35 +1735,35 @@ class BraveSearchProvider(BaseSearchProvider):
                     error_message=error_msg
                 )
 
-            logger.info(f"[Brave] 搜索完成，query='{query}'")
-            logger.debug(f"[Brave] 原始响应: {data}")
+            logger.info(f"[Brave] 검색 완료, query='{query}'")
+            logger.debug(f"[Brave] 원본 응답: {data}")
 
-            # 解析搜索结果
+            # 검색 결과 파싱
             results = []
             web_data = data.get('web', {})
             web_results = web_data.get('results', [])
 
             for item in web_results[:max_results]:
-                # 解析发布日期（ISO 8601 格式）
+                # 게시일 파싱 (ISO 8601 형식)
                 published_date = None
                 age = item.get('age') or item.get('page_age')
                 if age:
                     try:
-                        # 转换 ISO 格式为简单日期字符串
+                        # ISO 형식을 간단한 날짜 문자열로 변환
                         dt = datetime.fromisoformat(age.replace('Z', '+00:00'))
                         published_date = dt.strftime('%Y-%m-%d')
                     except (ValueError, AttributeError):
-                        published_date = age  # 解析失败时使用原始值
+                        published_date = age  # 파싱 실패 시 원래 값 사용
 
                 results.append(SearchResult(
                     title=item.get('title', ''),
-                    snippet=item.get('description', '')[:500],  # 截取到500字符
+                    snippet=item.get('description', '')[:500],  # 500자로 자르기
                     url=item.get('url', ''),
                     source=self._extract_domain(item.get('url', '')),
                     published_date=published_date
                 ))
 
-            logger.info(f"[Brave] 成功解析 {len(results)} 条结果")
+            logger.info(f"[Brave] 결과 {len(results)}건 파싱 성공")
 
             return SearchResponse(
                 query=query,
@@ -1799,11 +1804,11 @@ class BraveSearchProvider(BaseSearchProvider):
             )
 
     def _parse_error(self, response) -> str:
-        """解析错误响应"""
+        """오류 응답 파싱"""
         try:
             if response.headers.get('content-type', '').startswith('application/json'):
                 error_data = response.json()
-                # Brave API 返回的错误格式
+                # Brave API가 반환하는 오류 형식
                 if 'message' in error_data:
                     return error_data['message']
                 if 'error' in error_data:
@@ -1815,7 +1820,7 @@ class BraveSearchProvider(BaseSearchProvider):
 
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """从 URL 提取域名作为来源"""
+        """URL에서 도메인을 추출해 출처로 사용"""
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
@@ -1832,7 +1837,7 @@ class BraveSearchProvider(BaseSearchProvider):
         search_lang: Optional[str] = None,
         country: Optional[str] = None,
     ) -> SearchResponse:
-        """执行 Brave 搜索，可按调用方传入区域与语言偏好。"""
+        """Brave 검색 실행. 호출 측에서 지역·언어 선호를 넘길 수 있음."""
         if search_lang is None and country is None:
             return super().search(query, max_results=max_results, days=days)
 
@@ -1978,7 +1983,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
             stale_urls: List[str] = []
             if cls._public_instances_cache is None and cls._public_instances_stale_retry_after > now:
                 logger.debug(
-                    "[SearXNG] 公共实例冷启动刷新退避中，剩余 %.0fs",
+                    "[SearXNG] 공개 인스턴스 콜드 스타트 갱신 대기(backoff) 중, 남은 시간 %.0fs",
                     cls._public_instances_stale_retry_after - now,
                 )
                 return []
@@ -1989,7 +1994,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 stale_urls = list(cached_urls)
                 if cls._public_instances_stale_retry_after > now:
                     logger.debug(
-                        "[SearXNG] 公共实例刷新退避中，继续使用过期缓存，剩余 %.0fs",
+                        "[SearXNG] 공개 인스턴스 갱신 대기(backoff) 중, 만료된 캐시를 계속 사용, 남은 시간 %.0fs",
                         cls._public_instances_stale_retry_after - now,
                     )
                     return stale_urls
@@ -2001,7 +2006,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 )
                 if response.status_code != 200:
                     logger.warning(
-                        "[SearXNG] 拉取公共实例列表失败: HTTP %s",
+                        "[SearXNG] 공개 인스턴스 목록 가져오기 실패: HTTP %s",
                         response.status_code,
                     )
                 else:
@@ -2009,19 +2014,19 @@ class SearXNGSearchProvider(BaseSearchProvider):
                     if urls:
                         cls._public_instances_cache = (now, list(urls))
                         cls._public_instances_stale_retry_after = 0.0
-                        logger.info("[SearXNG] 已刷新公共实例池，共 %s 个候选实例", len(urls))
+                        logger.info("[SearXNG] 공개 인스턴스 풀 갱신 완료, 후보 인스턴스 %s개", len(urls))
                         return list(urls)
-                    logger.warning("[SearXNG] searx.space 未返回可用公共实例，保留已有缓存")
+                    logger.warning("[SearXNG] searx.space에서 사용 가능한 공개 인스턴스를 받지 못해 기존 캐시를 유지합니다")
             except Exception as exc:
-                logger.warning("[SearXNG] 拉取公共实例列表失败: %s", exc)
+                logger.warning("[SearXNG] 공개 인스턴스 목록 가져오기 실패: %s", exc)
 
             if stale_urls:
                 cls._public_instances_stale_retry_after = (
                     now + cls.PUBLIC_INSTANCES_STALE_REFRESH_BACKOFF_SECONDS
                 )
                 logger.warning(
-                    "[SearXNG] 公共实例刷新失败，继续使用过期缓存，共 %s 个候选实例；"
-                    "%.0fs 内不再刷新",
+                    "[SearXNG] 공개 인스턴스 갱신 실패, 만료된 캐시를 계속 사용(후보 인스턴스 %s개); "
+                    "%.0fs 동안 다시 갱신하지 않음",
                     len(stale_urls),
                     cls.PUBLIC_INSTANCES_STALE_REFRESH_BACKOFF_SECONDS,
                 )
@@ -2030,7 +2035,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 now + cls.PUBLIC_INSTANCES_STALE_REFRESH_BACKOFF_SECONDS
             )
             logger.warning(
-                "[SearXNG] 公共实例冷启动刷新失败，%.0fs 内不再刷新",
+                "[SearXNG] 공개 인스턴스 콜드 스타트 갱신 실패, %.0fs 동안 다시 갱신하지 않음",
                 cls.PUBLIC_INSTANCES_STALE_REFRESH_BACKOFF_SECONDS,
             )
             return []
@@ -2231,7 +2236,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
             if response.success:
                 response.mark_retrieved()
                 logger.info(
-                    "[%s] 搜索 '%s' 成功，实例=%s，返回 %s 条结果，耗时 %.2fs",
+                    "[%s] '%s' 검색 성공, 인스턴스=%s, 결과 %s건, 소요 %.2fs",
                     self.name,
                     query,
                     base_url,
@@ -2241,7 +2246,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 return response
 
             errors.append(f"{base_url}: {response.error_message or '未知错误'}")
-            logger.warning("[%s] 实例 %s 搜索失败: %s", self.name, base_url, response.error_message)
+            logger.warning("[%s] 인스턴스 %s 검색 실패: %s", self.name, base_url, response.error_message)
 
         elapsed = time.time() - start_time
         return SearchResponse(
@@ -2256,17 +2261,17 @@ class SearXNGSearchProvider(BaseSearchProvider):
 
 class SearchService:
     """
-    搜索服务
+    검색 서비스
     
-    功能：
-    1. 管理多个搜索引擎
-    2. 自动故障转移
-    3. 结果聚合和格式化
-    4. 数据源失败时的增强搜索（股价、走势等）
-    5. 港股/美股自动使用英文搜索关键词
+    기능:
+    1. 여러 검색 엔진 관리
+    2. 자동 장애 전환(failover)
+    3. 결과 취합과 포맷팅
+    4. 데이터 소스 실패 시 보강 검색 (주가, 추세 등)
+    5. 홍콩/미국 주식은 자동으로 영어 검색 키워드 사용
     """
     
-    # 增强搜索关键词模板（A股 中文）
+    # 보강 검색 키워드 템플릿 (A주, 중국어)
     ENHANCED_SEARCH_KEYWORDS = [
         "{name} 股票 今日 股价",
         "{name} {code} 最新 行情 走势",
@@ -2275,7 +2280,7 @@ class SearchService:
         "{name} {code} 涨跌 成交量",
     ]
 
-    # 增强搜索关键词模板（港股/美股 英文）
+    # 보강 검색 키워드 템플릿 (홍콩/미국 주식, 영어)
     ENHANCED_SEARCH_KEYWORDS_EN = [
         "{name} stock price today",
         "{name} {code} latest quote trend",
@@ -2429,19 +2434,19 @@ class SearchService:
         news_strategy_profile: str = "short",
     ):
         """
-        初始化搜索服务
+        검색 서비스 초기화
 
         Args:
-            bocha_keys: 博查搜索 API Key 列表
-            tavily_keys: Tavily API Key 列表
-            anspire_keys: Anspire Search API Key 列表
-            brave_keys: Brave Search API Key 列表
-            serpapi_keys: SerpAPI Key 列表
-            minimax_keys: MiniMax API Key 列表
-            searxng_base_urls: SearXNG 实例地址列表（自建无配额兜底）
-            searxng_public_instances_enabled: 未配置自建实例时，是否自动使用公共 SearXNG 实例
-            news_max_age_days: 新闻最大时效（天）
-            news_strategy_profile: 新闻窗口策略档位（ultra_short/short/medium/long）
+            bocha_keys: Bocha 검색 API Key 목록
+            tavily_keys: Tavily API Key 목록
+            anspire_keys: Anspire Search API Key 목록
+            brave_keys: Brave Search API Key 목록
+            serpapi_keys: SerpAPI Key 목록
+            minimax_keys: MiniMax API Key 목록
+            searxng_base_urls: SearXNG 인스턴스 주소 목록 (자체 구축, 할당량 없는 예비 수단)
+            searxng_public_instances_enabled: 자체 인스턴스가 설정되지 않았을 때 공개 SearXNG 인스턴스를 자동으로 쓸지 여부
+            news_max_age_days: 뉴스 최대 유효 기간(일)
+            news_strategy_profile: 뉴스 기간 전략 단계 (ultra_short/short/medium/long)
         """
         self._constructor_kwargs: Dict[str, Any] = {
             "bocha_keys": list(bocha_keys or []),
@@ -2462,7 +2467,7 @@ class SearchService:
         self.news_strategy_profile = normalize_news_strategy_profile(news_strategy_profile)
         if raw_profile != self.news_strategy_profile:
             logger.warning(
-                "NEWS_STRATEGY_PROFILE '%s' 无效，已回退为 'short'",
+                "NEWS_STRATEGY_PROFILE '%s' 값이 잘못되어 'short'로 되돌렸습니다",
                 news_strategy_profile,
             )
         self.news_window_days = resolve_news_window_days(
@@ -2474,33 +2479,33 @@ class SearchService:
             NEWS_STRATEGY_WINDOWS["short"],
         )
 
-        # 初始化搜索引擎（按优先级排序）
-        # 1. Bocha 优先（中文搜索优化，AI摘要）
+        # 검색 엔진 초기화 (우선순위 순)
+        # 1. Bocha 우선 (중국어 검색 최적화, AI 요약)
         if bocha_keys:
             self._providers.append(BochaSearchProvider(bocha_keys))
-            logger.info(f"已配置 Bocha 搜索，共 {len(bocha_keys)} 个 API Key")
+            logger.info(f"Bocha 검색 설정 완료, API Key {len(bocha_keys)}개")
 
-        # 2. Tavily（免费额度更多，每月 1000 次）
+        # 2. Tavily (무료 한도가 더 넉넉함, 월 1000회)
         if tavily_keys:
             self._providers.append(TavilySearchProvider(tavily_keys))
-            logger.info(f"已配置 Tavily 搜索，共 {len(tavily_keys)} 个 API Key")
+            logger.info(f"Tavily 검색 설정 완료, API Key {len(tavily_keys)}개")
 
-        # 3. Brave Search（隐私优先，全球覆盖）
+        # 3. Brave Search (개인정보 보호 우선, 전 세계 커버)
         if brave_keys:
             self._providers.append(BraveSearchProvider(brave_keys))
-            logger.info(f"已配置 Brave 搜索，共 {len(brave_keys)} 个 API Key")
+            logger.info(f"Brave 검색 설정 완료, API Key {len(brave_keys)}개")
 
-        # 4. SerpAPI 作为备选（每月 100 次）
+        # 4. SerpAPI는 예비용 (월 100회)
         if serpapi_keys:
             self._providers.append(SerpAPISearchProvider(serpapi_keys))
-            logger.info(f"已配置 SerpAPI 搜索，共 {len(serpapi_keys)} 个 API Key")
+            logger.info(f"SerpAPI 검색 설정 완료, API Key {len(serpapi_keys)}개")
 
-        # 5. MiniMax（Coding Plan Web Search，结构化结果）
+        # 5. MiniMax (Coding Plan Web Search, 구조화된 결과)
         if minimax_keys:
             self._providers.append(MiniMaxSearchProvider(minimax_keys))
-            logger.info(f"已配置 MiniMax 搜索，共 {len(minimax_keys)} 个 API Key")
+            logger.info(f"MiniMax 검색 설정 완료, API Key {len(minimax_keys)}개")
 
-        # 6. SearXNG（自建实例优先；未配置时可自动发现公共实例）
+        # 6. SearXNG (자체 인스턴스 우선, 미설정 시 공개 인스턴스 자동 탐색 가능)
         searxng_provider = SearXNGSearchProvider(
             searxng_base_urls,
             use_public_instances=bool(searxng_public_instances_enabled and not searxng_base_urls),
@@ -2509,17 +2514,17 @@ class SearchService:
         if searxng_provider.is_available:
             self._providers.append(searxng_provider)
             if searxng_base_urls:
-                logger.info("已配置 SearXNG 搜索，共 %s 个自建实例", len(searxng_base_urls))
+                logger.info("SearXNG 검색 설정 완료, 자체 인스턴스 %s개", len(searxng_base_urls))
             else:
-                logger.info("已启用 SearXNG 公共实例自动发现模式")
+                logger.info("SearXNG 공개 인스턴스 자동 탐색 모드를 켰습니다")
 
-        # 7. Anspire Search（实时智能搜索优化）
+        # 7. Anspire Search (실시간 지능형 검색 최적화)
         if anspire_keys:
             self._providers.insert(0, AnspireSearchProvider(anspire_keys))
-            logger.info(f"已配置 Anspire Search 搜索，共 {len(anspire_keys)} 个 API Key")
+            logger.info(f"Anspire Search 검색 설정 완료, API Key {len(anspire_keys)}개")
             
         if not self._providers:
-            logger.warning("未配置任何搜索能力，新闻搜索功能将不可用")
+            logger.warning("설정된 검색 수단이 없어 뉴스 검색 기능을 사용할 수 없습니다")
 
         # In-memory search result cache: {cache_key: (timestamp, SearchResponse)}
         self._cache: Dict[str, Tuple[float, 'SearchResponse']] = {}
@@ -2528,7 +2533,7 @@ class SearchService:
         # Default cache TTL in seconds (10 minutes)
         self._cache_ttl: int = 600
         logger.info(
-            "新闻时效策略已启用: profile=%s, profile_days=%s, NEWS_MAX_AGE_DAYS=%s, effective_window=%s",
+            "뉴스 유효 기간 전략 적용: profile=%s, profile_days=%s, NEWS_MAX_AGE_DAYS=%s, effective_window=%s",
             self.news_strategy_profile,
             self.news_profile_days,
             self.news_max_age_days,
@@ -2537,7 +2542,7 @@ class SearchService:
     
     @staticmethod
     def _is_foreign_stock(stock_code: str) -> bool:
-        """判断是否为港股或美股。
+        """홍콩 주식 또는 미국 주식인지 판단한다.
 
         Honours all canonical input forms — bare ticker (``AAPL`` / ``00700``),
         suffixed ticker (``AAPL.US`` / ``00700.HK``), and prefixed HK ticker
@@ -2550,12 +2555,12 @@ class SearchService:
         code = canonicalize_foreign_stock_code(stock_code).strip()
         if not code:
             return False
-        # 美股：1-5个大写字母，可能包含点（如 BRK.B）
+        # 미국 주식: 대문자 1~5자, 점이 들어갈 수 있음 (예: BRK.B)
         if SearchService._US_STOCK_RE.match(code):
             return True
-        # 港股：5位纯数字。canonicalize_foreign_stock_code 已把 HK00700 前缀
-        # 与 00700.HK 后缀全部归一为 00700 形式，原 lower.startswith('hk')
-        # 分支在 canonical 之后为不可达死代码，已删除。
+        # 홍콩 주식: 숫자 5자리. canonicalize_foreign_stock_code가 HK00700 접두사
+        # 와 00700.HK 접미사를 모두 00700 형식으로 통일하므로, 기존 lower.startswith('hk')
+        # 분기는 canonical 처리 이후 도달할 수 없는 죽은 코드라 삭제했다.
         if code.isdigit() and len(code) == 5:
             return True
         return False
@@ -2586,7 +2591,7 @@ class SearchService:
 
     @classmethod
     def _is_us_stock(cls, stock_code: str) -> bool:
-        """判断是否为美股/美股指数代码。"""
+        """미국 주식/미국 지수 코드인지 판단한다."""
         code = (stock_code or "").strip().upper()
         return bool(cls._US_STOCK_RE.match(code) or is_us_index_code(code))
 
@@ -2597,7 +2602,7 @@ class SearchService:
         stock_name: str,
         focus_keywords: Optional[List[str]] = None,
     ) -> bool:
-        """A 股或中文名称/关键词场景下优先中文资讯。
+        """A주이거나 종목명/키워드가 중국어인 경우 중국어 뉴스를 우선한다.
 
         Only returns True when there is a positive Chinese signal:
         Chinese characters in keywords/stock_name, or a 6-digit A-stock code.
@@ -2705,7 +2710,7 @@ class SearchService:
 
     @property
     def is_available(self) -> bool:
-        """检查是否有可用的搜索引擎"""
+        """사용 가능한 검색 엔진이 있는지 확인"""
         return any(p.is_available for p in self._providers)
 
     def _cache_key(self, query: str, max_results: int, days: int) -> str:
@@ -3025,7 +3030,7 @@ class SearchService:
         )
 
         if url_host:
-            # 有 URL 时以 URL 主机为准，避免 source label/host 伪装的官方放行。
+            # URL이 있으면 URL 호스트를 기준으로 삼아, source label/host를 위장한 결과가 공식 출처로 통과되지 않게 한다.
             return any(
                 url_host == official_host or url_host.endswith(f".{official_host}")
                 for official_host in cls._OFFICIAL_SOURCE_HOSTS
@@ -3418,7 +3423,7 @@ class SearchService:
         if limited_results:
             top = limited_results[0]
             logger.info(
-                "[新闻相关度] %s: direct=%s, sector=%s, macro=%s, top_score=%s, top_category=%s, reasons=%s",
+                "[뉴스 관련도] %s: direct=%s, sector=%s, macro=%s, top_score=%s, top_category=%s, reasons=%s",
                 log_scope,
                 category_counts[cls._DIRECT_NEWS_CATEGORY],
                 category_counts[cls._SECTOR_NEWS_CATEGORY],
@@ -3483,7 +3488,7 @@ class SearchService:
 
         if dropped_low_quality or dropped_adult_spam or dropped_zero_relevance:
             logger.info(
-                "[新闻准入] %s: provider=%s, total=%s, kept=%s, "
+                "[뉴스 선별] %s: provider=%s, total=%s, kept=%s, "
                 "drop_low_quality=%s, drop_adult_spam=%s, drop_zero_relevance=%s",
                 log_scope,
                 response.provider,
@@ -3766,7 +3771,7 @@ class SearchService:
 
         if dropped_unknown or dropped_old or dropped_future:
             logger.info(
-                "[新闻过滤] %s: provider=%s, total=%s, kept=%s, drop_unknown=%s, drop_old=%s, drop_future=%s, window=[%s,%s]",
+                "[뉴스 필터] %s: provider=%s, total=%s, kept=%s, drop_unknown=%s, drop_old=%s, drop_future=%s, window=[%s,%s]",
                 log_scope,
                 response.provider,
                 len(response.results),
@@ -3931,7 +3936,7 @@ class SearchService:
                         error_type=type(exc).__name__,
                         error_message=exc,
                     )
-                    logger.warning("%s 题材搜索失败: %s，尝试下一个引擎", provider.name, exc)
+                    logger.warning("%s 테마 검색 실패: %s, 다음 엔진을 시도합니다", provider.name, exc)
                     continue
 
                 had_provider_success = had_provider_success or bool(response.success)
@@ -4039,19 +4044,19 @@ class SearchService:
         focus_keywords: Optional[List[str]] = None
     ) -> SearchResponse:
         """
-        搜索股票相关新闻
+        종목 관련 뉴스 검색
         
         Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            max_results: 最大返回结果数
-            focus_keywords: 重点关注的关键词列表
+            stock_code: 종목 코드
+            stock_name: 종목명
+            max_results: 최대 반환 결과 수
+            focus_keywords: 중점적으로 볼 키워드 목록
             
         Returns:
-            SearchResponse 对象
+            SearchResponse 객체
         """
-        # 策略窗口优先：ultra_short/short/medium/long = 1/3/7/30 天，
-        # 并统一受 NEWS_MAX_AGE_DAYS 上限约束。
+        # 전략 기간 우선: ultra_short/short/medium/long = 1/3/7/30일,
+        # 모두 NEWS_MAX_AGE_DAYS 상한을 따른다.
         search_days = self._effective_news_window_days()
         provider_max_results = self._provider_request_size(max_results)
         prefer_chinese = self._should_prefer_chinese_news(
@@ -4060,7 +4065,7 @@ class SearchService:
             focus_keywords=focus_keywords,
         )
 
-        # 构建搜索查询（优化搜索效果）
+        # 검색 query 구성 (검색 효과 최적화)
         is_foreign = self._is_foreign_stock(stock_code)
         # Issue #2026: When STOCK_NAME_MAP maps a foreign ticker to a Chinese
         # display name (e.g. AAPL -> 苹果), the English news search query would
@@ -4076,18 +4081,18 @@ class SearchService:
         # branch below is unreachable and English headlines are missed.
         prefer_chinese = prefer_chinese and not (is_foreign and english_aliases)
         if focus_keywords:
-            # 如果提供了关键词，直接使用关键词作为查询
+            # 키워드가 주어지면 그대로 query로 사용
             query = " ".join(focus_keywords)
         elif prefer_chinese:
-            # 指数 target 的 stock_code 可能为空（Agent 工具 _resolve_search_subject
-            # 有意只传显示名），空 code 直接省略，避免拼出 "上证50  股票" 双空格。
+            # 지수 target은 stock_code가 비어 있을 수 있다 (Agent 도구 _resolve_search_subject가
+            # 의도적으로 표시 이름만 넘김). 빈 code는 생략해 "上证50  股票"처럼 공백이 두 번 들어가지 않게 한다.
             query = (
                 f"{stock_name} {stock_code} 股票 最新消息"
                 if stock_code
                 else f"{stock_name} 股票 最新消息"
             )
         elif is_foreign:
-            # 港股/美股使用英文搜索关键词；优先使用英文公司名（issue #2026）
+            # 홍콩/미국 주식은 영어 검색 키워드 사용. 영문 회사명을 우선 사용 (issue #2026)
             if english_aliases and short_name and short_name != effective_name:
                 query = (
                     f"{effective_name} {short_name} {stock_code} stock latest news"
@@ -4095,14 +4100,14 @@ class SearchService:
             else:
                 query = f"{effective_name} {stock_code} stock latest news"
         else:
-            # 默认主查询：股票名称 + 核心关键词
+            # 기본 메인 query: 종목명 + 핵심 키워드
             query = f"{stock_name} {stock_code} 股票 最新消息"
 
         subject_label = f"{stock_name}({stock_code})" if stock_code else stock_name
         logger.info(
             (
-                "搜索股票新闻: %s, query='%s', 时间范围: 近%s天 "
-                "(profile=%s, NEWS_MAX_AGE_DAYS=%s, prefer_chinese=%s), 目标条数=%s, provider请求条数=%s"
+                "종목 뉴스 검색: %s, query='%s', 기간: 최근 %s일 "
+                "(profile=%s, NEWS_MAX_AGE_DAYS=%s, prefer_chinese=%s), 목표 건수=%s, provider 요청 건수=%s"
             ),
             subject_label,
             query,
@@ -4142,7 +4147,7 @@ class SearchService:
             return cached
 
         try:
-            # 依次尝试各个搜索引擎（若过滤后为空，继续尝试下一引擎）
+            # 검색 엔진을 차례로 시도 (필터링 후 비어 있으면 다음 엔진 계속 시도)
             had_provider_success = False
             best_ranked_response: Optional[SearchResponse] = None
             best_ranked_stats: Optional[Dict[str, int]] = None
@@ -4222,7 +4227,7 @@ class SearchService:
                     )
                     if not admitted_count:
                         logger.info(
-                            "%s 搜索成功但准入过滤后无有效新闻，继续尝试下一引擎",
+                            "%s 검색은 성공했지만 선별 필터 후 유효한 뉴스가 없어 다음 엔진을 시도합니다",
                             provider.name,
                         )
                         continue
@@ -4245,7 +4250,7 @@ class SearchService:
                         not prefer_chinese or stats["preferred_direct_count"] > 0
                     ):
                         logger.info(
-                            "%s 搜索成功，识别到 %s 条直接个股新闻，优先返回",
+                            "%s 검색 성공, 해당 종목 직접 뉴스 %s건을 찾아 우선 반환합니다",
                             provider.name,
                             stats["direct_count"],
                         )
@@ -4254,7 +4259,7 @@ class SearchService:
 
                     if prefer_chinese and stats["direct_count"] > 0:
                         logger.info(
-                            "%s 搜索成功，识别到 %s 条直接个股新闻但缺少中文直接命中，继续尝试下一引擎",
+                            "%s 검색 성공, 해당 종목 직접 뉴스 %s건을 찾았지만 중국어 직접 매칭이 없어 다음 엔진을 시도합니다",
                             provider.name,
                             stats["direct_count"],
                         )
@@ -4262,21 +4267,21 @@ class SearchService:
 
                     if prefer_chinese and stats["preferred_count"] >= max_results:
                         logger.info(
-                            "%s 搜索成功，中文结果已满足目标条数但缺少直接个股命中，继续尝试下一引擎",
+                            "%s 검색 성공, 중국어 결과는 목표 건수를 채웠지만 해당 종목 직접 매칭이 없어 다음 엔진을 시도합니다",
                             provider.name,
                         )
                         continue
 
                     if prefer_chinese and stats["preferred_count"] > 0:
                         logger.info(
-                            "%s 搜索成功，识别到 %s/%s 条中文新闻但缺少直接个股命中，继续尝试下一引擎",
+                            "%s 검색 성공, 중국어 뉴스 %s/%s건을 찾았지만 해당 종목 직접 매칭이 없어 다음 엔진을 시도합니다",
                             provider.name,
                             stats["preferred_count"],
                             len(limited_response.results),
                         )
                     else:
                         logger.info(
-                            "%s 搜索成功但未识别直接个股新闻，继续尝试下一引擎",
+                            "%s 검색은 성공했지만 해당 종목 직접 뉴스를 찾지 못해 다음 엔진을 시도합니다",
                             provider.name,
                         )
                 else:
@@ -4294,12 +4299,12 @@ class SearchService:
                     )
                     if response.success and not filtered_response.results:
                         logger.info(
-                            "%s 搜索成功但过滤后无有效新闻，继续尝试下一引擎",
+                            "%s 검색은 성공했지만 필터링 후 유효한 뉴스가 없어 다음 엔진을 시도합니다",
                             provider.name,
                         )
                     else:
                         logger.warning(
-                            "%s 搜索失败: %s，尝试下一个引擎",
+                            "%s 검색 실패: %s, 다음 엔진을 시도합니다",
                             provider.name,
                             response.error_message,
                         )
@@ -4317,7 +4322,7 @@ class SearchService:
                     error_message=None,
                 )
             
-            # 所有引擎都失败
+            # 모든 엔진 실패
             return SearchResponse(
                 query=query,
                 results=[],
@@ -4336,17 +4341,17 @@ class SearchService:
         event_types: Optional[List[str]] = None
     ) -> SearchResponse:
         """
-        搜索股票特定事件（年报预告、减持等）
+        종목 관련 특정 이벤트 검색 (연간 실적 예고, 지분 매도 등)
         
-        专门针对交易决策相关的重要事件进行搜索
+        매매 판단에 중요한 이벤트만 골라 검색한다
         
         Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            event_types: 事件类型列表
+            stock_code: 종목 코드
+            stock_name: 종목명
+            event_types: 이벤트 유형 목록
             
         Returns:
-            SearchResponse 对象
+            SearchResponse 객체
         """
         if event_types is None:
             if self._is_foreign_stock(stock_code):
@@ -4360,7 +4365,7 @@ class SearchService:
         english_aliases = self._foreign_english_query_terms(stock_code, stock_name)
         effective_name = english_aliases[0] if english_aliases else stock_name
 
-        # 构建针对性查询
+        # 목적에 맞는 query 구성
         event_query = " OR ".join(event_types)
         query = f"{effective_name} ({event_query})"
         cache_key = self._cache_key(
@@ -4370,12 +4375,12 @@ class SearchService:
         )
         cached = self._get_cached(cache_key)
         if cached is not None:
-            logger.info("使用缓存事件搜索结果: %s(%s)", stock_name, stock_code)
+            logger.info("캐시된 이벤트 검색 결과 사용: %s(%s)", stock_name, stock_code)
             return cached
         
-        logger.info(f"搜索股票事件: {stock_name}({stock_code}) - {event_types}")
+        logger.info(f"종목 이벤트 검색: {stock_name}({stock_code}) - {event_types}")
         
-        # 依次尝试各个搜索引擎
+        # 검색 엔진을 차례로 시도
         for provider in self._providers:
             if not provider.is_available:
                 continue
@@ -4401,20 +4406,20 @@ class SearchService:
         max_searches: int = 3
     ) -> Dict[str, SearchResponse]:
         """
-        多维度情报搜索（同时使用多个引擎、多个维度）
+        다차원 정보 검색 (여러 엔진과 여러 관점을 함께 사용)
         
-        搜索维度：
-        1. 最新消息 - 近期新闻动态
-        2. 风险排查 - 减持、处罚、利空
-        3. 业绩预期 - 年报预告、业绩快报
+        검색 관점:
+        1. 최신 소식 - 최근 뉴스 동향
+        2. 리스크 점검 - 지분 매도, 제재, 악재
+        3. 실적 전망 - 연간 실적 예고, 실적 속보
         
         Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            max_searches: 最大搜索次数
+            stock_code: 종목 코드
+            stock_name: 종목명
+            max_searches: 최대 검색 횟수
             
         Returns:
-            {维度名称: SearchResponse} 字典
+            {관점 이름: SearchResponse} 딕셔너리
         """
         results = {}
         search_count = 0
@@ -4555,8 +4560,8 @@ class SearchService:
 
         logger.info(
             (
-                "开始多维度情报搜索: %s(%s), 时间范围: 近%s天 "
-                "(profile=%s, NEWS_MAX_AGE_DAYS=%s), 目标条数=%s, provider请求条数=%s"
+                "다차원 정보 검색 시작: %s(%s), 기간: 최근 %s일 "
+                "(profile=%s, NEWS_MAX_AGE_DAYS=%s), 목표 건수=%s, provider 요청 건수=%s"
             ),
             stock_name,
             stock_code,
@@ -4567,14 +4572,14 @@ class SearchService:
             provider_max_results,
         )
         
-        # 轮流使用不同的搜索引擎
+        # 검색 엔진을 번갈아 사용
         provider_index = 0
         
         for dim in search_dimensions:
             if search_count >= max_searches:
                 break
             
-            # 选择搜索引擎（轮流使用）
+            # 검색 엔진 선택 (번갈아 사용)
             available_providers = [p for p in self._providers if p.is_available]
             if not available_providers:
                 break
@@ -4589,7 +4594,7 @@ class SearchService:
             )
 
             logger.info(
-                "[情报搜索] %s: 使用 %s，请求窗口: 近%s天",
+                "[정보 검색] %s: %s 사용, 요청 기간: 최근 %s일",
                 dim['desc'],
                 provider.name,
                 request_days,
@@ -4649,33 +4654,33 @@ class SearchService:
             
             if response.success:
                 logger.info(
-                    "[情报搜索] %s: 原始=%s条, 过滤后=%s条",
+                    "[정보 검색] %s: 원본=%s건, 필터 후=%s건",
                     dim['desc'],
                     len(response.results),
                     len(filtered_response.results),
                 )
             else:
-                logger.warning(f"[情报搜索] {dim['desc']}: 搜索失败 - {response.error_message}")
+                logger.warning(f"[정보 검색] {dim['desc']}: 검색 실패 - {response.error_message}")
             
-            # 短暂延迟避免请求过快
+            # 요청이 너무 몰리지 않도록 잠깐 대기
             time.sleep(0.5)
         
         return results
     
     def format_intel_report(self, intel_results: Dict[str, SearchResponse], stock_name: str) -> str:
         """
-        格式化情报搜索结果为报告
+        정보 검색 결과를 보고서 형식으로 정리
         
         Args:
-            intel_results: 多维度搜索结果
-            stock_name: 股票名称
+            intel_results: 다차원 검색 결과
+            stock_name: 종목명
             
         Returns:
-            格式化的情报报告文本
+            정리된 정보 보고서 텍스트
         """
         lines = [f"【{stock_name} 情报搜索结果】"]
         
-        # 维度展示顺序
+        # 관점 표시 순서
         display_order = ['latest_news', 'announcements', 'market_analysis', 'risk_check', 'earnings', 'industry']
 
         dim_labels = {
@@ -4693,16 +4698,16 @@ class SearchService:
                 
             resp = intel_results[dim_name]
             
-            # 获取维度描述
+            # 관점 설명 가져오기
             dim_desc = dim_labels.get(dim_name, dim_name)
             
             lines.append(f"\n{dim_desc} (来源: {resp.provider}):")
             if resp.success and resp.results:
-                # 增加显示条数
+                # 표시 건수 늘리기
                 for i, r in enumerate(resp.results[:4], 1):
                     date_str = f" [{r.published_date}]" if r.published_date else ""
                     lines.append(f"  {i}. {r.title}{date_str}")
-                    # 如果摘要太短，可能信息量不足
+                    # 요약이 너무 짧으면 정보가 부족할 수 있음
                     snippet = r.snippet[:150] if len(r.snippet) > 20 else r.snippet
                     lines.append(f"     {snippet}...")
                     if r.relevance_category or r.relevance_reasons:
@@ -4787,21 +4792,21 @@ class SearchService:
                 error_message="未配置搜索能力"
             )
         
-        logger.info(f"[增强搜索] 数据源失败，启动增强搜索: {stock_name}({stock_code})")
+        logger.info(f"[보강 검색] 데이터 소스 실패로 보강 검색 시작: {stock_name}({stock_code})")
         
         all_results = []
         seen_urls = set()
         successful_providers = []
         
-        # 使用多个关键词模板搜索
+        # 여러 키워드 템플릿으로 검색
         is_foreign = self._is_foreign_stock(stock_code)
         keywords = self.ENHANCED_SEARCH_KEYWORDS_EN if is_foreign else self.ENHANCED_SEARCH_KEYWORDS
         for i, keyword_template in enumerate(keywords[:max_attempts]):
             query = keyword_template.format(name=stock_name, code=stock_code)
             
-            logger.info(f"[增强搜索] 第 {i+1}/{max_attempts} 次搜索: {query}")
+            logger.info(f"[보강 검색] {i+1}/{max_attempts}번째 검색: {query}")
             
-            # 依次尝试各个搜索引擎
+            # 검색 엔진을 차례로 시도
             for provider in self._providers:
                 if not provider.is_available:
                     continue
@@ -4810,7 +4815,7 @@ class SearchService:
                     response = provider.search(query, max_results=3)
                     
                     if response.success and response.results:
-                        # 去重并添加结果
+                        # 중복 제거 후 결과 추가
                         for result in response.results:
                             if result.url not in seen_urls:
                                 seen_urls.add(result.url)
@@ -4819,26 +4824,26 @@ class SearchService:
                         if provider.name not in successful_providers:
                             successful_providers.append(provider.name)
                         
-                        logger.info(f"[增强搜索] {provider.name} 返回 {len(response.results)} 条结果")
-                        break  # 成功后跳到下一个关键词
+                        logger.info(f"[보강 검색] {provider.name} 결과 {len(response.results)}건")
+                        break  # 성공하면 다음 키워드로 넘어감
                     else:
-                        logger.debug(f"[增强搜索] {provider.name} 无结果或失败")
+                        logger.debug(f"[보강 검색] {provider.name} 결과 없음 또는 실패")
                         
                 except Exception as e:
-                    logger.warning(f"[增强搜索] {provider.name} 搜索异常: {e}")
+                    logger.warning(f"[보강 검색] {provider.name} 검색 중 예외: {e}")
                     continue
             
-            # 短暂延迟避免请求过快
+            # 요청이 너무 몰리지 않도록 잠깐 대기
             if i < max_attempts - 1:
                 time.sleep(0.5)
         
-        # 汇总结果
+        # 결과 취합
         if all_results:
-            # 截取前 max_results 条
+            # 앞에서 max_results건만 사용
             final_results = all_results[:max_results]
             provider_str = ", ".join(successful_providers) if successful_providers else "None"
             
-            logger.info(f"[增强搜索] 完成，共获取 {len(final_results)} 条结果（来源: {provider_str}）")
+            logger.info(f"[보강 검색] 완료, 결과 {len(final_results)}건 확보 (출처: {provider_str})")
             
             return SearchResponse(
                 query=f"{stock_name}({stock_code}) 股价走势",
@@ -4847,7 +4852,7 @@ class SearchService:
                 success=True,
             )
         else:
-            logger.warning(f"[增强搜索] 所有搜索均未返回结果")
+            logger.warning(f"[보강 검색] 모든 검색에서 결과를 받지 못했습니다")
             return SearchResponse(
                 query=f"{stock_name}({stock_code}) 股价走势",
                 results=[],
@@ -4865,20 +4870,20 @@ class SearchService:
         max_results: int = 5
     ) -> Dict[str, SearchResponse]:
         """
-        综合搜索接口（支持新闻和股价信息）
+        통합 검색 인터페이스 (뉴스와 주가 정보 지원)
         
-        当 include_price=True 时，会同时搜索新闻和股价信息。
-        主要用于数据源完全失败时的兜底方案。
+        include_price=True이면 뉴스와 주가 정보를 함께 검색한다.
+        주로 데이터 소스가 완전히 실패했을 때의 예비 수단으로 쓴다.
         
         Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            include_news: 是否搜索新闻
-            include_price: 是否搜索股价/走势信息
-            max_results: 每类搜索的最大结果数
+            stock_code: 종목 코드
+            stock_name: 종목명
+            include_news: 뉴스 검색 여부
+            include_price: 주가/추세 정보 검색 여부
+            max_results: 검색 유형별 최대 결과 수
             
         Returns:
-            {'news': SearchResponse, 'price': SearchResponse} 字典
+            {'news': SearchResponse, 'price': SearchResponse} 딕셔너리
         """
         results = {}
         
@@ -4901,13 +4906,13 @@ class SearchService:
 
     def format_price_search_context(self, response: SearchResponse) -> str:
         """
-        将股价搜索结果格式化为 AI 分析上下文
+        주가 검색 결과를 AI 분석용 컨텍스트로 정리
         
         Args:
-            response: 搜索响应对象
+            response: 검색 응답 객체
             
         Returns:
-            格式化的文本，可直接用于 AI 分析
+            AI 분석에 바로 쓸 수 있도록 정리된 텍스트
         """
         if not response.success or not response.results:
             return "【股价走势搜索】未找到相关信息，请以其他渠道数据为准。"
@@ -4927,13 +4932,13 @@ class SearchService:
         return "\n".join(lines)
 
 
-# === 便捷函数 ===
+# === 편의 함수 ===
 _search_service: Optional[SearchService] = None
 _search_service_lock = threading.Lock()
 
 
 def get_search_service() -> SearchService:
-    """获取搜索服务单例"""
+    """검색 서비스 싱글턴 가져오기"""
     global _search_service
     
     if _search_service is None:
@@ -4960,29 +4965,29 @@ def get_search_service() -> SearchService:
 
 
 def reset_search_service() -> None:
-    """重置搜索服务（用于测试）"""
+    """검색 서비스 초기화 (테스트용)"""
     global _search_service
     with _search_service_lock:
         _search_service = None
 
 
 if __name__ == "__main__":
-    # 测试搜索服务
+    # 검색 서비스 테스트
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s'
     )
     
-    # 手动测试（需要配置 API Key）
+    # 수동 테스트 (API Key 설정 필요)
     service = get_search_service()
     
     if service.is_available:
-        print("=== 测试股票新闻搜索 ===")
+        print("=== 종목 뉴스 검색 테스트 ===")
         response = service.search_stock_news("300389", "艾比森")
-        print(f"搜索状态: {'成功' if response.success else '失败'}")
-        print(f"搜索引擎: {response.provider}")
-        print(f"结果数量: {len(response.results)}")
-        print(f"耗时: {response.search_time:.2f}s")
+        print(f"검색 상태: {'成功' if response.success else '失败'}")
+        print(f"검색 엔진: {response.provider}")
+        print(f"결과 수: {len(response.results)}")
+        print(f"소요 시간: {response.search_time:.2f}s")
         print("\n" + response.to_context())
     else:
-        print("未配置搜索能力，跳过测试")
+        print("설정된 검색 수단이 없어 테스트를 건너뜁니다")

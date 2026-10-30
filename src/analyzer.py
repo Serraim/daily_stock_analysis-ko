@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - AI分析层
+A주 관심종목 AI 분석 시스템 - AI 분석 계층
 ===================================
 
-职责：
-1. 封装 LLM 调用逻辑（通过 LiteLLM 统一调用 Gemini/Anthropic/OpenAI 等）
-2. 结合技术面和消息面生成分析报告
-3. 解析 LLM 响应为结构化 AnalysisResult
+역할:
+1. LLM 호출 로직 캡슐화 (LiteLLM으로 Gemini/Anthropic/OpenAI 등을 통합 호출)
+2. 기술적 분석과 뉴스를 결합해 분석 리포트 생성
+3. LLM 응답을 구조화된 AnalysisResult로 파싱
 """
 
 import json
@@ -82,6 +82,9 @@ from src.llm.response_content import strip_leading_think_wrapper
 from src.storage import persist_llm_usage
 from src.data.stock_mapping import STOCK_NAME_MAP
 from src.report_language import (
+    format_korean_amount,
+    format_korean_volume,
+    get_korean_currency_word,
     get_signal_level,
     get_no_data_text,
     get_placeholder_text,
@@ -108,6 +111,24 @@ from src.market_phase_prompt import format_market_phase_prompt_section
 from src.market_structure_prompt import format_market_structure_prompt_section
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_korean_stock_name(code: Any, name: Any, report_language: Any) -> Optional[str]:
+    """ko 보고서의 한국 종목이면 네이버 증권에서 한국어 이름을 찾아 돌려준다. 해당 없거나 실패하면 None."""
+    if normalize_report_language(report_language) != "ko":
+        return None
+    code_text = str(code or "").strip().upper()
+    if not code_text.endswith((".KS", ".KQ")):
+        return None
+    if any("\uac00" <= ch <= "\ud7a3" for ch in str(name or "")):
+        return None
+    try:
+        from src.search_service import _korean_stock_name
+
+        return _korean_stock_name(code_text)
+    except Exception as exc:  # 이름 조회 실패는 분석을 막지 않는다
+        logger.debug("[analyzer] Korean stock name lookup skipped for %s: %s", code_text, exc)
+        return None
 
 
 def _localized_text(language: Any, *, en: str, zh: str, ko: str) -> str:
@@ -883,11 +904,11 @@ def _sanitize_trend_analysis_for_prompt(
 def _derive_chip_health(profit_ratio: float, concentration_90: float, language: str = "zh") -> str:
     """Derive chip_health from profit_ratio and concentration_90."""
     if profit_ratio >= 0.9:
-        return localize_chip_health("警惕", language)  # 获利盘极高
+        return localize_chip_health("警惕", language)  # 수익 물량 비중이 매우 높음
     if concentration_90 >= 0.25:
-        return localize_chip_health("警惕", language)  # 筹码分散
+        return localize_chip_health("警惕", language)  # 매물대가 분산됨
     if concentration_90 < 0.15 and 0.3 <= profit_ratio < 0.9:
-        return localize_chip_health("健康", language)  # 集中且获利比例适中
+        return localize_chip_health("健康", language)  # 매물이 집중되고 수익 비중도 적당함
     return localize_chip_health("一般", language)
 
 
@@ -1050,7 +1071,7 @@ def stabilize_decision_with_structure(
 
     The LLM can overreact to one-day price movement.  This guard keeps the
     public `decision_type` enum stable while allowing richer neutral wording
-    such as 震荡/洗盘观察 when support, resistance, and fund flow do not confirm
+    such as 震荡/洗盘观察 (횡보/흔들기 관찰) when support, resistance, and fund flow do not confirm
     an immediate buy/sell action.
     """
     if not result:
@@ -1364,10 +1385,14 @@ def _capital_flow_bias_with_status(
 def _capital_flow_status_for_stability(reason: str, language: str) -> str:
     normalized = str(reason or "").strip().lower()
     if "not_supported" in normalized or "unsupported" in normalized or "not available" in normalized:
-        return "市场资金流服务暂不支持" if language == "zh" else "Capital flow source unsupported"
+        return _localized_text(
+            language, en="Capital flow source unsupported", zh="市场资金流服务暂不支持", ko="이 시장은 자금 흐름 데이터를 지원하지 않음"
+        )
     if "empty_stock_flow" in normalized or "missing" in normalized:
-        return "资金流数据缺失" if language == "zh" else "capital flow data unavailable"
-    return "资金流数据不可用" if language == "zh" else "capital flow unavailable"
+        return _localized_text(
+            language, en="capital flow data unavailable", zh="资金流数据缺失", ko="자금 흐름 데이터 없음"
+        )
+    return _localized_text(language, en="capital flow unavailable", zh="资金流数据不可用", ko="자금 흐름 데이터를 쓸 수 없음")
 
 
 def _set_decision_stability_unavailable(
@@ -1383,7 +1408,12 @@ def _set_decision_stability_unavailable(
     result.dashboard = dashboard
     dashboard["decision_stability"] = {
         "applied": False,
-        "reason": "资金流不可用，未使用资金流校准" if language == "zh" else "Capital flow unavailable; stability calibration not applied",
+        "reason": _localized_text(
+            language,
+            en="Capital flow unavailable; stability calibration not applied",
+            zh="资金流不可用，未使用资金流校准",
+            ko="자금 흐름 데이터가 없어 자금 흐름 보정을 적용하지 않았습니다",
+        ),
         "capital_flow_status": _capital_flow_status_for_stability(flow_status, language),
         "current_price": current_price,
         "support": support,
@@ -1459,7 +1489,7 @@ def _apply_hold_watch_dashboard(
     if not isinstance(core, dict):
         core = {}
         dashboard["core_conclusion"] = core
-    core["signal_type"] = "🟡持有观望" if language == "zh" else "🟡 Hold / Watch"
+    core["signal_type"] = _localized_text(language, en="🟡 Hold / Watch", zh="🟡持有观望", ko="🟡 보유·관망")
     core["one_sentence"] = f"{advice}：{reason}" if language == "zh" else f"{advice}: {reason}"
 
     position_advice = core.get("position_advice")
@@ -1508,6 +1538,12 @@ def _downgrade_buy_without_capital_flow(
         no_position = "空仓先不追买，等待资金流恢复、支撑确认或有效突破后再行动。"
         has_position = "持仓以关键支撑为风控线，资金流恢复前控制仓位。"
         confidence = "低"
+    elif language == "ko":
+        advice = "보유 관찰"
+        reason = f"{status_text}. 매수 판단을 자금 흐름으로 확인할 수 없어 일단 관찰로 처리합니다."
+        no_position = "추격 매수하지 말고 자금 흐름 회복, 지지선 확인, 또는 확실한 돌파를 기다리세요."
+        has_position = "핵심 지지선을 리스크 관리 기준으로 삼고, 자금 흐름이 회복될 때까지 비중을 조절하세요."
+        confidence = "낮음"
     else:
         advice = "Hold and watch"
         reason = f"{status_text}; the buy call lacks capital-flow confirmation, so treat it as watch-only."
@@ -1660,146 +1696,146 @@ def get_stock_name_multi_source(
     data_manager = None
 ) -> str:
     """
-    多来源获取股票中文名称
+    여러 출처에서 종목의 중국어 이름 가져오기
 
-    获取策略（按优先级）：
-    1. 从传入的 context 中获取（realtime 数据）
-    2. 从静态映射表 STOCK_NAME_MAP 获取
-    3. 从 DataFetcherManager 获取（各数据源）
-    4. 返回默认名称（股票+代码）
+    조회 전략 (우선순위 순):
+    1. 전달받은 context에서 가져오기 (realtime 데이터)
+    2. 정적 매핑 테이블 STOCK_NAME_MAP에서 가져오기
+    3. DataFetcherManager에서 가져오기 (각 데이터 소스)
+    4. 기본 이름 반환 (종목+코드)
 
     Args:
-        stock_code: 股票代码
-        context: 分析上下文（可选）
-        data_manager: DataFetcherManager 实例（可选）
+        stock_code: 종목 코드
+        context: 분석 컨텍스트 (선택)
+        data_manager: DataFetcherManager 인스턴스 (선택)
 
     Returns:
-        股票中文名称
+        종목의 중국어 이름
     """
-    # 1. 从上下文获取（实时行情数据）
+    # 1. 컨텍스트(실시간 시세 데이터)에서 가져오기
     if context:
-        # 优先从 stock_name 字段获取
+        # stock_name 필드를 우선 사용
         if context.get('stock_name'):
             name = context['stock_name']
             if name and not name.startswith('股票'):
                 return name
 
-        # 其次从 realtime 数据获取
+        # 다음으로 realtime 데이터에서 가져오기
         if 'realtime' in context and context['realtime'].get('name'):
             return context['realtime']['name']
 
-    # 2. 从静态映射表获取
+    # 2. 정적 매핑 테이블에서 가져오기
     if stock_code in STOCK_NAME_MAP:
         return STOCK_NAME_MAP[stock_code]
 
-    # 3. 从数据源获取
+    # 3. 데이터 소스에서 가져오기
     if data_manager is None:
         try:
             from data_provider.base import DataFetcherManager
             data_manager = DataFetcherManager()
         except Exception as e:
-            logger.debug(f"无法初始化 DataFetcherManager: {e}")
+            logger.debug(f"DataFetcherManager를 초기화할 수 없음: {e}")
 
     if data_manager:
         try:
             name = data_manager.get_stock_name(stock_code)
             if name:
-                # 更新缓存
+                # 캐시 갱신
                 STOCK_NAME_MAP[stock_code] = name
                 return name
         except Exception as e:
-            logger.debug(f"从数据源获取股票名称失败: {e}")
+            logger.debug(f"데이터 소스에서 종목명 조회 실패: {e}")
 
-    # 4. 返回默认名称
+    # 4. 기본 이름 반환
     return f'股票{stock_code}'
 
 
 @dataclass
 class AnalysisResult:
     """
-    AI 分析结果数据类 - 决策仪表盘版
+    AI 분석 결과 데이터 클래스 - 의사결정 대시보드 버전
 
-    封装 Gemini 返回的分析结果，包含决策仪表盘和详细分析
+    Gemini가 반환한 분석 결과를 담으며, 의사결정 대시보드와 상세 분석을 포함한다
     """
     code: str
     name: str
 
-    # ========== 核心指标 ==========
-    sentiment_score: int  # 综合评分 0-100 (>70强烈看多, >60看多, 40-60震荡, <40看空)
-    trend_prediction: str  # 趋势预测：强烈看多/看多/震荡/看空/强烈看空
-    operation_advice: str  # 操作建议：买入/加仓/持有/减仓/卖出/观望
-    decision_type: str = "hold"  # 决策类型：buy/hold/sell（用于统计）
-    confidence_level: str = "中"  # 置信度：高/中/低
-    report_language: str = "zh"  # 报告输出语言：zh/en
-    action: Optional[str] = None  # 建议动作 taxonomy：buy/add/hold/reduce/sell/watch/avoid/alert
-    action_label: Optional[str] = None  # 本地化建议动作标签
+    # ========== 핵심 지표 ==========
+    sentiment_score: int  # 종합 점수 0-100 (>70 강한 강세, >60 강세, 40-60 횡보, <40 약세)
+    trend_prediction: str  # 추세 전망: 강한 강세/강세/횡보/약세/강한 약세
+    operation_advice: str  # 매매 의견: 매수/추가 매수/보유/비중 축소/매도/관망
+    decision_type: str = "hold"  # 결정 유형: buy/hold/sell (통계용)
+    confidence_level: str = "中"  # 신뢰도: 높음/중간/낮음
+    report_language: str = "zh"  # 리포트 출력 언어: zh/en
+    action: Optional[str] = None  # 권장 액션 taxonomy: buy/add/hold/reduce/sell/watch/avoid/alert
+    action_label: Optional[str] = None  # 현지화된 권장 액션 라벨
 
-    # ========== 决策仪表盘 (新增) ==========
-    dashboard: Optional[Dict[str, Any]] = None  # 完整的决策仪表盘数据
+    # ========== 의사결정 대시보드 (신규) ==========
+    dashboard: Optional[Dict[str, Any]] = None  # 전체 의사결정 대시보드 데이터
 
-    # ========== 走势分析 ==========
-    trend_analysis: str = ""  # 走势形态分析（支撑位、压力位、趋势线等）
-    short_term_outlook: str = ""  # 短期展望（1-3日）
-    medium_term_outlook: str = ""  # 中期展望（1-2周）
+    # ========== 주가 흐름 분석 ==========
+    trend_analysis: str = ""  # 차트 패턴 분석 (지지선, 저항선, 추세선 등)
+    short_term_outlook: str = ""  # 단기 전망 (1-3일)
+    medium_term_outlook: str = ""  # 중기 전망 (1-2주)
 
-    # ========== 技术面分析 ==========
-    technical_analysis: str = ""  # 技术指标综合分析
-    ma_analysis: str = ""  # 均线分析（多头/空头排列，金叉/死叉等）
-    volume_analysis: str = ""  # 量能分析（放量/缩量，主力动向等）
-    pattern_analysis: str = ""  # K线形态分析
+    # ========== 기술적 분석 ==========
+    technical_analysis: str = ""  # 기술 지표 종합 분석
+    ma_analysis: str = ""  # 이동평균선 분석 (정배열/역배열, 골든크로스/데드크로스 등)
+    volume_analysis: str = ""  # 거래량 분석 (거래량 증가/감소, 주요 세력 동향 등)
+    pattern_analysis: str = ""  # 캔들 패턴 분석
 
-    # ========== 基本面分析 ==========
-    fundamental_analysis: str = ""  # 基本面综合分析
-    sector_position: str = ""  # 板块地位和行业趋势
-    company_highlights: str = ""  # 公司亮点/风险点
+    # ========== 기본적 분석 ==========
+    fundamental_analysis: str = ""  # 기본적 분석 종합
+    sector_position: str = ""  # 업종 내 위치와 산업 추세
+    company_highlights: str = ""  # 기업의 강점/위험 요인
 
-    # ========== 情绪面/消息面分析 ==========
-    news_summary: str = ""  # 近期重要新闻/公告摘要
-    market_sentiment: str = ""  # 市场情绪分析
-    hot_topics: str = ""  # 相关热点话题
+    # ========== 투자 심리/뉴스 분석 ==========
+    news_summary: str = ""  # 최근 주요 뉴스/공시 요약
+    market_sentiment: str = ""  # 시장 심리 분석
+    hot_topics: str = ""  # 관련 화제 이슈
 
-    # ========== 综合分析 ==========
-    analysis_summary: str = ""  # 综合分析摘要
-    key_points: str = ""  # 核心看点（3-5个要点）
-    risk_warning: str = ""  # 风险提示
-    buy_reason: str = ""  # 买入/卖出理由
+    # ========== 종합 분석 ==========
+    analysis_summary: str = ""  # 종합 분석 요약
+    key_points: str = ""  # 핵심 포인트 (3-5개)
+    risk_warning: str = ""  # 위험 안내
+    buy_reason: str = ""  # 매수/매도 근거
 
-    # ========== 元数据 ==========
-    market_snapshot: Optional[Dict[str, Any]] = None  # 当日行情快照（展示用）
-    raw_response: Optional[str] = None  # 原始响应（调试用）
-    search_performed: bool = False  # 是否执行了联网搜索
-    # 新闻检索实际命中的条数。None 表示未执行检索（如未配置搜索渠道），
-    # 0 表示执行了检索但一条也没拿到；报告会针对两种原因使用不同披露文案。
+    # ========== 메타데이터 ==========
+    market_snapshot: Optional[Dict[str, Any]] = None  # 당일 시세 스냅샷 (표시용)
+    raw_response: Optional[str] = None  # 원본 응답 (디버깅용)
+    search_performed: bool = False  # 웹 검색을 실행했는지 여부
+    # 뉴스 검색에서 실제로 찾은 건수. None이면 검색을 실행하지 않은 것(예: 검색 채널 미설정),
+    # 0이면 검색은 했지만 한 건도 찾지 못한 것. 리포트는 두 경우에 서로 다른 안내 문구를 쓴다.
     news_result_count: Optional[int] = None
-    # 旧历史记录未持久化 news_result_count，重建时必须与明确的 None 区分，
-    # 否则会把未知旧数据误报成「未配置搜索渠道」。实时分析默认值始终可信。
+    # 예전 이력 기록에는 news_result_count가 저장되지 않았으므로, 복원할 때 명시적인 None과 구분해야 한다.
+    # 그렇지 않으면 알 수 없는 예전 데이터를 「검색 채널 미설정」으로 잘못 표시한다. 실시간 분석의 기본값은 항상 신뢰할 수 있다.
     news_result_count_known: bool = True
-    # 本次分析实际收到的消息面证据（news_context）是否非空。
-    # news_result_count 只是「实时搜索命中了几条」，而披露断言的是「结论有没有用到
-    # 新闻面证据」——两者是不同命题：news_context 还可能来自社交情绪或本地已落库的
-    # 资讯池，这些同样进入模型输入却不产生搜索命中。只看计数会把这类分析误报成
-    # 「未纳入新闻面证据」。
+    # 이번 분석이 실제로 받은 뉴스 근거(news_context)가 비어 있지 않은지 여부.
+    # news_result_count는 「실시간 검색에서 몇 건을 찾았는가」일 뿐이고, 안내 문구가 단언하는 것은 「결론에
+    # 뉴스 근거가 쓰였는가」다. 둘은 서로 다른 명제다. news_context는 소셜 심리나 로컬에 이미 저장된
+    # 뉴스 풀에서도 올 수 있고, 이들도 모델 입력에 들어가지만 검색 적중은 생기지 않는다. 건수만 보면 이런 분석을
+    # 「뉴스 근거 미반영」으로 잘못 표시하게 된다.
     news_evidence_present: bool = False
-    data_sources: str = ""  # 数据来源说明
+    data_sources: str = ""  # 데이터 출처 설명
     success: bool = True
     error_message: Optional[str] = None
 
-    # ========== 价格数据（分析时快照）==========
-    current_price: Optional[float] = None  # 分析时的股价
-    change_pct: Optional[float] = None     # 分析时的涨跌幅(%)
+    # ========== 가격 데이터 (분석 시점 스냅샷) ==========
+    current_price: Optional[float] = None  # 분석 시점의 주가
+    change_pct: Optional[float] = None     # 분석 시점의 등락률(%)
 
-    # ========== 模型标记（Issue #528）==========
-    model_used: Optional[str] = None  # 分析使用的 LLM 模型（完整名，如 gemini/gemini-2.0-flash）
+    # ========== 모델 표시 (Issue #528) ==========
+    model_used: Optional[str] = None  # 분석에 사용한 LLM 모델 (전체 이름, 예: gemini/gemini-2.0-flash)
 
-    # ========== 历史对比（Report Engine P0）==========
-    query_id: Optional[str] = None  # 本次分析 query_id，用于历史对比时排除本次记录
+    # ========== 이력 비교 (Report Engine P0) ==========
+    query_id: Optional[str] = None  # 이번 분석의 query_id. 이력 비교 시 이번 기록을 제외하는 데 사용
 
-    # ========== 基本面上下文（仅运行时，用于通知拼装；不持久化到 to_dict）==========
+    # ========== 기본적 분석 컨텍스트 (런타임 전용, 알림 조립용. to_dict에는 저장하지 않음) ==========
     fundamental_context: Optional[Dict[str, Any]] = None
     market_structure_context: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """딕셔너리로 변환"""
         return {
             'code': self.code,
             'name': self.name,
@@ -1811,7 +1847,7 @@ class AnalysisResult:
             'report_language': self.report_language,
             'action': self.action,
             'action_label': self.action_label,
-            'dashboard': self.dashboard,  # 决策仪表盘数据
+            'dashboard': self.dashboard,  # 의사결정 대시보드 데이터
             'trend_analysis': self.trend_analysis,
             'short_term_outlook': self.short_term_outlook,
             'medium_term_outlook': self.medium_term_outlook,
@@ -1843,13 +1879,13 @@ class AnalysisResult:
         }
 
     def get_core_conclusion(self) -> str:
-        """获取核心结论（一句话）"""
+        """핵심 결론 가져오기 (한 문장)"""
         if self.dashboard and 'core_conclusion' in self.dashboard:
             return self.dashboard['core_conclusion'].get('one_sentence', self.analysis_summary)
         return self.analysis_summary
 
     def get_position_advice(self, has_position: bool = False) -> str:
-        """获取持仓建议"""
+        """보유 여부별 조언 가져오기"""
         if self.dashboard and 'core_conclusion' in self.dashboard:
             pos_advice = self.dashboard['core_conclusion'].get('position_advice', {})
             if has_position:
@@ -1858,25 +1894,25 @@ class AnalysisResult:
         return self.operation_advice
 
     def get_sniper_points(self) -> Dict[str, str]:
-        """获取狙击点位"""
+        """매매 진입 가격대 가져오기"""
         if self.dashboard and 'battle_plan' in self.dashboard:
             return self.dashboard['battle_plan'].get('sniper_points', {})
         return {}
 
     def get_checklist(self) -> List[str]:
-        """获取检查清单"""
+        """체크리스트 가져오기"""
         if self.dashboard and 'battle_plan' in self.dashboard:
             return self.dashboard['battle_plan'].get('action_checklist', [])
         return []
 
     def get_risk_alerts(self) -> List[str]:
-        """获取风险警报"""
+        """위험 경보 가져오기"""
         if self.dashboard and 'intelligence' in self.dashboard:
             return self.dashboard['intelligence'].get('risk_alerts', [])
         return []
 
     def get_emoji(self) -> str:
-        """根据操作建议返回对应 emoji"""
+        """매매 의견에 맞는 emoji 반환"""
         _, emoji, _ = get_signal_level(
             self.operation_advice,
             self.sentiment_score,
@@ -1885,7 +1921,7 @@ class AnalysisResult:
         return emoji
 
     def get_confidence_stars(self) -> str:
-        """返回置信度星级"""
+        """신뢰도 별점 반환"""
         star_map = {
             "高": "⭐⭐⭐",
             "high": "⭐⭐⭐",
@@ -1927,23 +1963,23 @@ def populate_decision_action_fields(
 
 class GeminiAnalyzer:
     """
-    Gemini AI 分析器
+    Gemini AI 분석기
 
-    职责：
-    1. 调用 Google Gemini API 进行股票分析
-    2. 结合预先搜索的新闻和技术面数据生成分析报告
-    3. 解析 AI 返回的 JSON 格式结果
+    역할:
+    1. Google Gemini API를 호출해 종목 분석
+    2. 미리 검색한 뉴스와 기술적 데이터를 결합해 분석 리포트 생성
+    3. AI가 반환한 JSON 형식 결과 파싱
 
-    使用方式：
+    사용법:
         analyzer = GeminiAnalyzer()
         result = analyzer.analyze(context, news_context)
     """
 
     # ========================================
-    # 系统提示词 - 决策仪表盘 v2.0
+    # 시스템 프롬프트 - 의사결정 대시보드 v2.0
     # ========================================
-    # 输出格式升级：从简单信号升级为决策仪表盘
-    # 核心模块：核心结论 + 数据透视 + 舆情情报 + 作战计划
+    # 출력 형식 개선: 단순 신호에서 의사결정 대시보드로 확장
+    # 핵심 모듈: 핵심 결론 + 데이터 분석 + 여론 정보 + 실행 계획
     # ========================================
 
     LEGACY_DEFAULT_SYSTEM_PROMPT = """你是一位专注于趋势交易的{market_placeholder}投资分析师，负责生成专业的【决策仪表盘】分析报告。
@@ -2722,6 +2758,21 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in Korean (한국어).
 - Use the common Korean or original listed company name when confident; do not invent one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
+- The JSON template above shows English example values. Never copy those English words; write the Korean equivalent instead. Use these Korean values:
+  - `trend_prediction`: 강한 상승 / 상승 / 횡보 / 하락 / 강한 하락
+  - `operation_advice`: 매수 / 추가 매수 / 보유 / 비중축소 / 매도 / 관망
+  - `confidence_level`: 높음 / 보통 / 낮음
+  - `signal_type`: 🟢매수 신호 / 🟡보유·관망 / 🔴매도 신호 / ⚠️리스크 경고
+  - `time_sensitivity`: 즉시 대응 / 오늘 중 / 이번 주 / 서두를 필요 없음
+  - `bias_status`: 안전 / 경계 / 위험
+  - `volume_status`: 거래량 증가 / 거래량 감소 / 거래량 보통
+  - `chip_health`: 양호 / 보통 / 주의
+  - `action_window`: 장 시작 전 계획 / 장중 추적 / 점심 무렵 확인 / 마감 전 리스크 관리 / 장 마감 후 점검 / 휴장일 관찰
+  - `immediate_action`: 즉시 대응 / 확인 후 대응 / 관망 / 손절·익절 경계 / 추격 매수 금지 / 장중 대응 없음
+  - `risk_alerts` items start with "리스크 1:", "리스크 2:"; `positive_catalysts` items start with "호재 1:", "호재 2:"; `action_checklist` items look like "✅ 체크 1: ..."; `latest_news` starts with "[최신 뉴스]".
+  - `data_sources`: describe sources in Korean (e.g. 일봉, 실시간 뉴스, 재무제표).
+- Keep machine enums in English exactly as defined: `decision_type` (buy/hold/sell), `action` (buy/add/hold/reduce/sell/watch/avoid/alert) and `phase_context.phase`.
+- Write prices and amounts in Korean style (e.g. 220,750원, 84.4조 원); for share counts use 주 / 만 주.
 """
         return base_prompt + """
 
@@ -3995,20 +4046,20 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         analysis_context_pack_summary: Optional[str] = None,
     ) -> AnalysisResult:
         """
-        分析单只股票
+        단일 종목 분석
         
-        流程：
-        1. 格式化输入数据（技术面 + 新闻）
-        2. 调用 Gemini API（带重试和模型切换）
-        3. 解析 JSON 响应
-        4. 返回结构化结果
+        흐름:
+        1. 입력 데이터 포맷팅 (기술적 데이터 + 뉴스)
+        2. Gemini API 호출 (재시도 및 모델 전환 포함)
+        3. JSON 응답 파싱
+        4. 구조화된 결과 반환
         
         Args:
-            context: 从 storage.get_analysis_context() 获取的上下文数据
-            news_context: 预先搜索的新闻内容（可选）
+            context: storage.get_analysis_context()에서 가져온 컨텍스트 데이터
+            news_context: 미리 검색한 뉴스 내용 (선택)
 
         Returns:
-            AnalysisResult 对象
+            AnalysisResult 객체
         """
         def _emit_progress(progress: int, message: str) -> None:
             if progress_callback is None:
@@ -4024,22 +4075,28 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         system_prompt = self._get_analysis_system_prompt(report_language, stock_code=code)
         skill_instructions, default_skill_policy, use_legacy_default_prompt = self._get_skill_prompt_sections()
         
-        # 请求前增加延时（防止连续请求触发限流）
+        # 요청 전에 지연을 둔다 (연속 요청으로 인한 속도 제한 방지)
         request_delay = config.gemini_request_delay
         if request_delay > 0:
-            logger.debug(f"[LLM] 请求前等待 {request_delay:.1f} 秒...")
+            logger.debug(f"[LLM] 요청 전 {request_delay:.1f}초 대기...")
             _emit_progress(65, f"{code}：LLM 请求前等待 {request_delay:.1f} 秒")
             time.sleep(request_delay)
         
-        # 优先从上下文获取股票名称（由 main.py 传入）
+        # 컨텍스트의 종목명을 우선 사용 (main.py에서 전달)
         name = context.get('stock_name')
         if not name or name.startswith('股票'):
-            # 备选：从 realtime 中获取
+            # 대안: realtime에서 가져오기
             if 'realtime' in context and context['realtime'].get('name'):
                 name = context['realtime']['name']
             else:
-                # 最后从映射表获取
+                # 마지막으로 매핑 테이블에서 가져오기
                 name = STOCK_NAME_MAP.get(code, f'股票{code}')
+
+        # 한국어 보고서 + 한국 종목(.KS/.KQ): yfinance 영문 약칭(예: SamsungElec) 대신 한국어 이름을 쓴다
+        korean_name = _resolve_korean_stock_name(code, name, report_language)
+        if korean_name and korean_name != name:
+            name = korean_name
+            context['stock_name'] = korean_name
 
         backend_error = self.get_generation_backend_config_error()
         if backend_error is not None and not self._can_use_generation_fallback(backend_error):
@@ -4091,7 +4148,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                 report_language=report_language,
             )
 
-        # 如果模型不可用，返回默认结果
+        # 모델을 사용할 수 없으면 기본 결과 반환
         if not self.is_available():
             return AnalysisResult(
                 code=code,
@@ -4124,7 +4181,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
             )
         
         try:
-            # 格式化输入（包含技术面数据和新闻）
+            # 입력 포맷팅 (기술적 데이터와 뉴스 포함)
             prompt = self._format_prompt(
                 context,
                 name,
@@ -4159,30 +4216,30 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
             if backend_id in LOCAL_CLI_GENERATION_BACKEND_IDS:
                 model_name = backend_id
                 legacy_audit_context["transport"] = backend_id
-            logger.info(f"========== AI 分析 {name}({code}) ==========")
-            logger.info(f"[LLM配置] 模型: {model_name}")
-            logger.info(f"[LLM配置] Prompt 长度: {len(prompt)} 字符")
-            logger.info(f"[LLM配置] 是否包含新闻: {'是' if news_context else '否'}")
+            logger.info(f"========== AI 분석 {name}({code}) ==========")
+            logger.info(f"[LLM 설정] 모델: {model_name}")
+            logger.info(f"[LLM 설정] Prompt 길이: {len(prompt)}자")
+            logger.info(f"[LLM 설정] 뉴스 포함 여부: {'是' if news_context else '否'}")
 
-            # 本地 CLI backend 是进程执行能力，不记录完整 prompt。
+            # 로컬 CLI backend는 프로세스 실행 방식이므로 전체 prompt를 기록하지 않는다.
             if backend_id in LOCAL_CLI_GENERATION_BACKEND_IDS:
                 prompt_preview = redact_diagnostic_text(prompt, limit=500)
             else:
                 prompt_preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
-            logger.info(f"[LLM Prompt 预览]\n{prompt_preview}")
+            logger.info(f"[LLM Prompt 미리보기]\n{prompt_preview}")
             if backend_id not in LOCAL_CLI_GENERATION_BACKEND_IDS:
-                logger.debug(f"=== 完整 Prompt ({len(prompt)}字符) ===\n{prompt}\n=== End Prompt ===")
+                logger.debug(f"=== 전체 Prompt ({len(prompt)}자) ===\n{prompt}\n=== End Prompt ===")
 
-            # 设置生成配置
+            # 생성 설정
             generation_config = {
                 "temperature": config.llm_temperature,
                 "max_output_tokens": 8192,
             }
 
-            logger.info(f"[LLM调用] 开始调用 {model_name}...")
+            logger.info(f"[LLM 호출] {model_name} 호출 시작...")
             _emit_progress(68, f"{name}：LLM 已接收请求，等待响应")
 
-            # 使用 litellm 调用（支持完整性校验重试）
+            # litellm으로 호출 (완전성 검증 재시도 지원)
             current_prompt = prompt
             retry_count = 0
             max_retries = config.report_integrity_retry if config.report_integrity_enabled else 0
@@ -4213,33 +4270,33 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                         raise
                 elapsed = time.time() - start_time
 
-                # 记录响应信息
+                # 응답 정보 기록
                 logger.info(
-                    f"[LLM返回] {model_name} 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符"
+                    f"[LLM 응답] {model_name} 응답 성공, 소요 {elapsed:.2f}s, 응답 길이 {len(response_text)}자"
                 )
                 if backend_id in LOCAL_CLI_GENERATION_BACKEND_IDS:
                     response_preview = redact_diagnostic_text(response_text, limit=300)
                 else:
                     response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
-                logger.info(f"[LLM返回 预览]\n{response_preview}")
+                logger.info(f"[LLM 응답 미리보기]\n{response_preview}")
                 if backend_id not in LOCAL_CLI_GENERATION_BACKEND_IDS:
                     logger.debug(
-                        f"=== {model_name} 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ==="
+                        f"=== {model_name} 전체 응답 ({len(response_text)}자) ===\n{response_text}\n=== End Response ==="
                     )
                 # Keep parser/retry progress monotonic so task progress/message never "goes backward".
                 parse_progress = min(99, 93 + retry_count * 2)
                 _emit_progress(parse_progress, f"{name}：LLM 返回完成，正在解析 JSON")
 
-                # 解析响应
+                # 응답 파싱
                 result = self._parse_response(response_text, code, name)
                 result.raw_response = response_text
                 result.search_performed = bool(news_context)
-                result.market_snapshot = self._build_market_snapshot(context)
+                result.market_snapshot = self._build_market_snapshot(context, report_language=report_language)
                 result.model_used = model_used
                 result.report_language = report_language
                 normalize_chip_structure_availability(result, context.get("chip"))
 
-                # 内容完整性校验（可选）
+                # 내용 완전성 검증 (선택)
                 if not config.report_integrity_enabled:
                     break
                 require_phase_decision = isinstance(context.get("market_phase_context"), dict)
@@ -4258,7 +4315,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                     )
                     retry_count += 1
                     logger.info(
-                        "[LLM完整性] 必填字段缺失 %s，第 %d 次补全重试",
+                        "[LLM 완전성] 필수 필드 누락 %s, %d번째 보완 재시도",
                         missing_fields,
                         retry_count,
                     )
@@ -4270,7 +4327,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                 else:
                     self._apply_placeholder_fill(result, missing_fields)
                     logger.warning(
-                        "[LLM完整性] 必填字段缺失 %s，已占位补全，不阻塞流程",
+                        "[LLM 완전성] 필수 필드 누락 %s, 자리표시 값으로 채웠으며 흐름은 계속 진행",
                         missing_fields,
                     )
                     break
@@ -4278,13 +4335,13 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
             if should_persist_usage_telemetry(llm_usage):
                 persist_llm_usage(llm_usage, model_used, call_type="analysis", stock_code=code)
 
-            logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
+            logger.info(f"[LLM 파싱] {name}({code}) 분석 완료: {result.trend_prediction}, 점수 {result.sentiment_score}")
 
             return result
             
         except Exception as e:
             safe_error = self._sanitize_hermes_exception_text(e)
-            logger.error("AI 分析 %s(%s) 失败: %s", name, code, safe_error)
+            logger.error("AI 분석 %s(%s) 실패: %s", name, code, safe_error)
             return AnalysisResult(
                 code=code,
                 name=name,
@@ -4319,14 +4376,14 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         analysis_context_pack_summary: Optional[str] = None,
     ) -> str:
         """
-        格式化分析提示词（决策仪表盘 v2.0）
+        분석 프롬프트 포맷팅 (의사결정 대시보드 v2.0)
         
-        包含：技术指标、实时行情（量比/换手率）、筹码分布、趋势分析、新闻
+        포함 항목: 기술 지표, 실시간 시세(거래량 비율/회전율), 매물대 분포, 추세 분석, 뉴스
         
         Args:
-            context: 技术面数据上下文（包含增强数据）
-            name: 股票名称（默认值，可能被上下文覆盖）
-            news_context: 预先搜索的新闻内容
+            context: 기술적 데이터 컨텍스트 (보강 데이터 포함)
+            name: 종목명 (기본값, 컨텍스트 값으로 덮어쓸 수 있음)
+            news_context: 미리 검색한 뉴스 내용
         """
         code = context.get('code', 'Unknown')
         report_language = normalize_report_language(report_language)
@@ -4335,7 +4392,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         english = report_language in ("en", "ko")
         _, _, use_legacy_default_prompt = self._get_skill_prompt_sections()
         
-        # 优先使用上下文中的股票名称（从 realtime_quote 获取）
+        # 컨텍스트의 종목명을 우선 사용 (realtime_quote에서 가져옴)
         stock_name = context.get('stock_name', name)
         if not stock_name or stock_name == f'股票{code}':
             stock_name = STOCK_NAME_MAP.get(code, f'股票{code}')
@@ -4381,7 +4438,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         )
         quote_rows_text = "\n".join(quote_rows)
         
-        # ========== 构建决策仪表盘格式的输入 ==========
+        # ========== 의사결정 대시보드 형식의 입력 구성 ==========
         if english:
             prompt = f"""# Decision Dashboard Analysis Request
 
@@ -4461,7 +4518,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 | 均线形态 | {context.get('ma_status', unknown_text)} | 多头/空头/缠绕 |
 """
         
-        # 添加实时行情数据（量比、换手率等）
+        # 실시간 시세 데이터 추가 (거래량 비율, 회전율 등)
         if 'realtime' in context and english:
             rt = context['realtime']
             prompt += f"""
@@ -4493,7 +4550,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 | 60日涨跌幅 | {rt.get('change_60d', 'N/A')}% | 中期表现 |
 """
 
-        # 添加财报与分红（价值投资口径）
+        # 실적과 배당 추가 (가치 투자 관점)
         fundamental_context = context.get("fundamental_context") if isinstance(context, dict) else None
         earnings_block = (
             fundamental_context.get("earnings", {})
@@ -4623,8 +4680,8 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 > 资金流向只能作为价格位置的过滤器：接近压力且主力流出时不得追买；接近支撑且未放量跌破时，优先判断为持有观察、震荡或洗盘观察。
 """
 
-        # 添加三大法人动向（台股筹码过滤器）— tw-only；仅当 institution 区块 status='ok'
-        # 且有净额时注入，其他市场 status='not_supported' 会跳过，严格 additive。
+        # 3대 법인 동향 추가 (대만 주식 수급 필터) — tw 전용. institution 블록의 status='ok'이고
+        # 순매수 금액이 있을 때만 주입한다. 다른 시장은 status='not_supported'라 건너뛰며, 엄격히 추가만 한다.
         institution_block = (
             fundamental_context.get("institution", {})
             if isinstance(fundamental_context, dict)
@@ -4671,7 +4728,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 > 三大法人是台股的筹码过滤器（相当于 A 股主力资金/龙虎榜的角色，但口径不同、不可混用）：外资与投信同向净买支持价格、同向净卖压制价格。请据此判断台股筹码结构，不要在有本数据时写“筹码结构：数据缺失”。
 """
 
-        # 添加筹码分布数据
+        # 매물대 분포 데이터 추가
         if 'chip' in context and english:
             chip = context['chip']
             profit_ratio = chip.get('profit_ratio', 0)
@@ -4715,7 +4772,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 > {chip_instruction}
 """
         
-        # 添加趋势分析结果（仅隐式内建 bull_trend 默认回退保留旧口径）
+        # 추세 분석 결과 추가 (암묵적 내장 bull_trend 기본 폴백만 예전 기준 유지)
         if 'trend_analysis' in context:
             trend = _sanitize_trend_analysis_for_prompt(
                 context['trend_analysis'],
@@ -4835,7 +4892,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 {chr(10).join('- ' + note for note in consistency_notes)}
 """
         
-        # 添加昨日对比数据
+        # 전일 대비 데이터 추가
         if 'yesterday' in context:
             volume_change = context.get('volume_change_ratio', 'N/A')
             if english:
@@ -4860,7 +4917,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - ⚠️ 量能异常提示：成交量较昨日放大超过10倍，可能受异常数据或一次性冲量影响，必须降权解读，不能机械视为强确认信号
 """
         
-        # 添加新闻搜索结果（重点区域）
+        # 뉴스 검색 결과 추가 (중점 영역)
         news_window_days: Optional[int] = None
         context_window = context.get("news_window_days")
         try:
@@ -4928,7 +4985,7 @@ No recent news was found for this stock. Base the analysis mainly on the technic
 未搜索到该股票近期的相关新闻。请主要依据技术面数据进行分析。
 """
 
-        # 注入缺失数据警告
+        # 누락 데이터 경고 주입
         if context.get('data_missing') and english:
             prompt += """
 ⚠️ **Missing data warning**
@@ -4944,7 +5001,7 @@ When answering technical questions (such as moving averages or bias), state dire
 在回答技术面问题（如均线、乖离率）时，请直接说明“数据缺失，无法判断”，**严禁编造数据**。
 """
 
-        # 明确的输出要求
+        # 명확한 출력 요구 사항
         if english:
             prompt += f"""
 ---
@@ -5079,6 +5136,7 @@ Output the complete Decision Dashboard in JSON format."""
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, all nested dashboard text, checklist items, and every summary field.
 - Use the common Korean or original listed company name when you are confident. If not, keep the listed company name rather than inventing one.
 - When data is missing, explain it in Korean instead of Chinese.
+- Even where the JSON template shows English example values (e.g. "No rush", "Risk 1:", "Post-market review", "Watch"), write them in Korean (e.g. "서두를 필요 없음", "리스크 1:", "장 마감 후 점검", "관망").
 """
         else:
             prompt += f"""
@@ -5093,7 +5151,7 @@ Output the complete Decision Dashboard in JSON format."""
         return prompt
     
     def _format_volume(self, volume: Optional[float], report_language: str = "zh") -> str:
-        """格式化成交量显示"""
+        """거래량 표시 형식 지정"""
         if volume is None:
             return 'N/A'
         if normalize_report_language(report_language) in ("en", "ko"):
@@ -5106,7 +5164,7 @@ Output the complete Decision Dashboard in JSON format."""
             return f"{volume:.0f} 股"
     
     def _format_amount(self, amount: Optional[float], report_language: str = "zh") -> str:
-        """格式化成交额显示"""
+        """거래대금 표시 형식 지정"""
         if amount is None:
             return 'N/A'
         if normalize_report_language(report_language) in ("en", "ko"):
@@ -5130,7 +5188,7 @@ Output the complete Decision Dashboard in JSON format."""
         return f"{value:.0f}"
 
     def _format_percent(self, value: Optional[float]) -> str:
-        """格式化百分比显示"""
+        """백분율 표시 형식 지정"""
         if value is None:
             return 'N/A'
         try:
@@ -5139,7 +5197,7 @@ Output the complete Decision Dashboard in JSON format."""
             return 'N/A'
 
     def _format_price(self, value: Optional[float]) -> str:
-        """格式化价格显示"""
+        """가격 표시 형식 지정"""
         if value is None:
             return 'N/A'
         try:
@@ -5147,8 +5205,8 @@ Output the complete Decision Dashboard in JSON format."""
         except (TypeError, ValueError):
             return 'N/A'
 
-    def _build_market_snapshot(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """构建当日行情快照（展示用）"""
+    def _build_market_snapshot(self, context: Dict[str, Any], report_language: str = "zh") -> Dict[str, Any]:
+        """당일 시세 스냅샷을 만든다(표시용). ko 보고서는 거래량·거래대금을 한국어 단위로 표시한다."""
         today = context.get('today', {}) or {}
         realtime = context.get('realtime', {}) or {}
         yesterday = context.get('yesterday', {}) or {}
@@ -5184,6 +5242,12 @@ Output the complete Decision Dashboard in JSON format."""
             "volume": self._format_volume(today.get('volume')),
             "amount": self._format_amount(today.get('amount')),
         }
+        if normalize_report_language(report_language) == "ko":
+            currency_word = get_korean_currency_word(None, context.get('code'))
+            if today.get('volume') is not None:
+                snapshot["volume"] = format_korean_volume(today.get('volume'))
+            if today.get('amount') is not None:
+                snapshot["amount"] = format_korean_amount(today.get('amount'), currency_word)
 
         if realtime:
             snapshot.update({
@@ -5431,10 +5495,10 @@ Output the complete Decision Dashboard in JSON format."""
         name: str
     ) -> AnalysisResult:
         """
-        解析 Gemini 响应（决策仪表盘版）
+        Gemini 응답 파싱 (의사결정 대시보드 버전)
         
-        尝试从响应中提取 JSON 格式的分析结果，包含 dashboard 字段
-        如果解析失败，尝试智能提取或返回默认结果
+        응답에서 dashboard 필드를 포함한 JSON 형식 분석 결과를 추출한다
+        파싱에 실패하면 지능형 추출을 시도하거나 기본 결과를 반환한다
         """
         try:
             report_language = normalize_report_language(
@@ -5444,10 +5508,10 @@ Output the complete Decision Dashboard in JSON format."""
                 _json_str, data = self._extract_analysis_json_object(response_text)
                 self._validate_analysis_minimal_contract(data)
             except Exception as exc:
-                logger.warning("无法从响应中提取唯一有效 JSON，标记为解析失败: %s", exc)
+                logger.warning("응답에서 유효한 JSON을 하나로 추출할 수 없어 파싱 실패로 표시: %s", exc)
                 return self._parse_text_response(response_text, code, name)
 
-            # 提取 dashboard 数据
+            # dashboard 데이터 추출
             dashboard = data.get('dashboard', None)
             guardrail_reason = data.get("guardrail_reason") or data.get("downgrade_reason")
             if guardrail_reason and isinstance(dashboard, dict):
@@ -5456,16 +5520,16 @@ Output the complete Decision Dashboard in JSON format."""
                     score_calibration = {}
                     dashboard["decision_score_calibration"] = score_calibration
                 score_calibration.setdefault("guardrail_reason", str(guardrail_reason).strip())
-            # 归一化 signal_attribution（LLM 可能返回字符串/负数/总和≠100）
+            # signal_attribution 정규화 (LLM이 문자열/음수/합계≠100을 반환할 수 있음)
             normalize_report_signal_attribution(dashboard)
 
-            # 优先使用 AI 返回的股票名称（如果原名称无效或包含代码）
+            # AI가 반환한 종목명을 우선 사용 (원래 이름이 유효하지 않거나 코드가 포함된 경우)
             ai_stock_name = data.get('stock_name')
             if ai_stock_name and (name.startswith('股票') or name == code or 'Unknown' in name):
                 name = ai_stock_name
 
-            # 解析所有字段，使用默认值防止缺失
-            # 解析 decision_type，如果没有则根据 operation_advice 推断
+            # 모든 필드를 파싱하고, 누락을 막기 위해 기본값 사용
+            # decision_type을 파싱하고, 없으면 operation_advice로 추론
             decision_type = data.get('decision_type', '')
             if not decision_type:
                 op = data.get('operation_advice', localize_operation_advice('持有', report_language))
@@ -5478,7 +5542,7 @@ Output the complete Decision Dashboard in JSON format."""
             result = AnalysisResult(
                 code=code,
                 name=name,
-                # 核心指标
+                # 핵심 지표
                 sentiment_score=int(data.get('sentiment_score', 50)),
                 trend_prediction=data.get('trend_prediction', localize_trend_prediction('震荡', report_language)),
                 operation_advice=data.get('operation_advice', localize_operation_advice('持有', report_language)),
@@ -5488,32 +5552,32 @@ Output the complete Decision Dashboard in JSON format."""
                     report_language,
                 ),
                 report_language=report_language,
-                # 决策仪表盘
+                # 의사결정 대시보드
                 dashboard=dashboard,
-                # 走势分析
+                # 주가 흐름 분석
                 trend_analysis=data.get('trend_analysis', ''),
                 short_term_outlook=data.get('short_term_outlook', ''),
                 medium_term_outlook=data.get('medium_term_outlook', ''),
-                # 技术面
+                # 기술적 분석
                 technical_analysis=data.get('technical_analysis', ''),
                 ma_analysis=data.get('ma_analysis', ''),
                 volume_analysis=data.get('volume_analysis', ''),
                 pattern_analysis=data.get('pattern_analysis', ''),
-                # 基本面
+                # 기본적 분석
                 fundamental_analysis=data.get('fundamental_analysis', ''),
                 sector_position=data.get('sector_position', ''),
                 company_highlights=data.get('company_highlights', ''),
-                # 情绪面/消息面
+                # 투자 심리/뉴스
                 news_summary=data.get('news_summary', ''),
                 market_sentiment=data.get('market_sentiment', ''),
                 hot_topics=data.get('hot_topics', ''),
-                # 综合
+                # 종합
                 analysis_summary=data.get('analysis_summary', _localized_text(
                     report_language, en='Analysis completed', zh='分析完成', ko='분석 완료')),
                 key_points=data.get('key_points', ''),
                 risk_warning=data.get('risk_warning', ''),
                 buy_reason=data.get('buy_reason', ''),
-                # 元数据
+                # 메타데이터
                 search_performed=data.get('search_performed', False),
                 data_sources=data.get('data_sources', _localized_text(
                     report_language, en='Technical data', zh='技术面数据', ko='기술적 데이터')),
@@ -5526,22 +5590,22 @@ Output the complete Decision Dashboard in JSON format."""
             )
                 
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}，标记为解析失败")
+            logger.warning(f"JSON 파싱 실패: {e}, 파싱 실패로 표시")
             return self._parse_text_response(response_text, code, name)
     
     def _fix_json_string(self, json_str: str) -> str:
-        """修复常见的 JSON 格式问题"""
+        """흔한 JSON 형식 오류 수정"""
         import re
         
-        # 移除注释
+        # 주석 제거
         json_str = re.sub(r'//.*?\n', '\n', json_str)
         json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
         
-        # 修复尾随逗号
+        # 후행 쉼표 수정
         json_str = re.sub(r',\s*}', '}', json_str)
         json_str = re.sub(r',\s*]', ']', json_str)
         
-        # 确保布尔值是小写
+        # 불리언 값을 소문자로 맞춤
         json_str = json_str.replace('True', 'true').replace('False', 'false')
         
         # fix by json-repair
@@ -5595,18 +5659,18 @@ Output the complete Decision Dashboard in JSON format."""
         code: str, 
         name: str
     ) -> AnalysisResult:
-        """从纯文本响应中尽可能提取分析信息"""
+        """일반 텍스트 응답에서 가능한 한 분석 정보 추출"""
         report_language = normalize_report_language(
             getattr(self._get_runtime_config(), "report_language", "zh")
         )
-        # 尝试识别关键词来判断情绪
+        # 키워드를 찾아 심리 판단 시도
         sentiment_score = 50
         trend = localize_trend_prediction('震荡', report_language)
         advice = localize_operation_advice('持有', report_language)
         
         text_lower = response_text.lower()
         
-        # 简单的情绪识别
+        # 간단한 심리 판별
         positive_keywords = ['看多', '买入', '上涨', '突破', '强势', '利好', '加仓', 'bullish', 'buy']
         negative_keywords = ['看空', '卖出', '下跌', '跌破', '弱势', '利空', '减仓', 'bearish', 'sell']
         
@@ -5626,7 +5690,7 @@ Output the complete Decision Dashboard in JSON format."""
         else:
             decision_type = 'hold'
         
-        # 截取前500字符作为摘要
+        # 앞 500자를 요약으로 사용
         summary = response_text[:500] if response_text else _localized_text(
             report_language, en='No analysis result', zh='无分析结果', ko='분석 결과 없음')
         
@@ -5664,22 +5728,22 @@ Output the complete Decision Dashboard in JSON format."""
         delay_between: float = 2.0
     ) -> List[AnalysisResult]:
         """
-        批量分析多只股票
+        여러 종목 일괄 분석
         
-        注意：为避免 API 速率限制，每次分析之间会有延迟
+        참고: API 속도 제한을 피하려고 분석 사이마다 지연을 둔다
         
         Args:
-            contexts: 上下文数据列表
-            delay_between: 每次分析之间的延迟（秒）
+            contexts: 컨텍스트 데이터 목록
+            delay_between: 분석 사이 지연 시간 (초)
             
         Returns:
-            AnalysisResult 列表
+            AnalysisResult 목록
         """
         results = []
         
         for i, context in enumerate(contexts):
             if i > 0:
-                logger.debug(f"等待 {delay_between} 秒后继续...")
+                logger.debug(f"{delay_between}초 대기 후 계속...")
                 time.sleep(delay_between)
             
             result = self.analyze(context)
@@ -5688,17 +5752,17 @@ Output the complete Decision Dashboard in JSON format."""
         return results
 
 
-# 便捷函数
+# 편의 함수
 def get_analyzer() -> GeminiAnalyzer:
-    """获取 LLM 分析器实例"""
+    """LLM 분석기 인스턴스 가져오기"""
     return GeminiAnalyzer()
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # 테스트 코드
     logging.basicConfig(level=logging.DEBUG)
     
-    # 模拟上下文数据
+    # 모의 컨텍스트 데이터
     test_context = {
         'code': '600519',
         'date': '2026-01-09',
@@ -5723,8 +5787,8 @@ if __name__ == "__main__":
     analyzer = GeminiAnalyzer()
     
     if analyzer.is_available():
-        print("=== AI 分析测试 ===")
+        print("=== AI 분석 테스트 ===")
         result = analyzer.analyze(test_context)
-        print(f"分析结果: {result.to_dict()}")
+        print(f"분석 결과: {result.to_dict()}")
     else:
-        print("Gemini API 未配置，跳过测试")
+        print("Gemini API가 설정되지 않아 테스트를 건너뜀")

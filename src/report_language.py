@@ -57,10 +57,12 @@ _OPERATION_ADVICE_CANONICAL_MAP = {
     "strong_sell": "strong_sell",
     "적극 매수": "strong_buy",
     "매수": "buy",
+    "추가 매수": "buy",
     "보유": "hold",
     "보유 관찰": "hold",
     "관망": "watch",
     "비중축소": "reduce",
+    "비중 축소": "reduce",
     "매도": "sell",
     "적극 매도": "strong_sell",
 }
@@ -644,7 +646,7 @@ _REPORT_LABELS: Dict[str, Dict[str, str]] = {
         "sentiment_summary_label": "투자심리",
         "earnings_outlook_label": "실적 전망",
         "risk_alerts_label": "리스크 경보",
-        "positive_catalysts_label": "긍정 촉매",
+        "positive_catalysts_label": "호재",
         "latest_news_label": "최신 뉴스",
         "core_conclusion_heading": "핵심 결론",
         "one_sentence_label": "한 줄 결론",
@@ -724,8 +726,8 @@ _REPORT_LABELS: Dict[str, Dict[str, str]] = {
         "net_profit_label": "지배주주 순이익",
         "operating_cash_flow_label": "영업 현금흐름",
         "roe_label": "ROE",
-        "revenue_yoy_label": "매출 전년比",
-        "net_profit_yoy_label": "순이익 전년比",
+        "revenue_yoy_label": "매출 전년 대비",
+        "net_profit_yoy_label": "순이익 전년 대비",
         "gross_margin_label": "매출총이익률",
         "shareholder_return_heading": "주주 환원",
         "ttm_cash_dividend_label": "최근 12개월 주당 현금배당(세전)",
@@ -1339,3 +1341,213 @@ def get_sentiment_label(score: int, language: Optional[str]) -> str:
     if score >= 20:
         return "悲观"
     return "极度悲观"
+
+
+# ---------------------------------------------------------------------------
+# 한국어(ko) 보고서 전용 표시 보정
+#
+# LLM 출력 스키마는 영어 예시값("No rush", "Risk 1: ...")을 그대로 보여 주기 때문에
+# 한국어 지시를 줘도 모델이 영어 값을 남기는 경우가 있다. 아래 도우미는 ko 보고서를
+# 렌더링할 때만 알려진 영어/중국어 고정값을 한국어로 바꾼다. zh/en 출력은 건드리지 않는다.
+# ---------------------------------------------------------------------------
+
+_KO_DISPLAY_PHRASES = {
+    # time_sensitivity
+    "act now": "즉시 대응",
+    "today": "오늘 중",
+    "this week": "이번 주",
+    "no rush": "서두를 필요 없음",
+    "立即行动": "즉시 대응",
+    "今日内": "오늘 중",
+    "本周内": "이번 주",
+    "不急": "서두를 필요 없음",
+    # volume_status
+    "high volume": "거래량 증가",
+    "low volume": "거래량 감소",
+    "normal volume": "거래량 보통",
+    "放量": "거래량 증가",
+    "缩量": "거래량 감소",
+    "平量": "거래량 보통",
+    # phase_decision.action_window
+    "pre market plan": "장 시작 전 계획",
+    "intraday tracking": "장중 추적",
+    "midday confirmation": "점심 무렵 확인",
+    "pre close risk control": "마감 전 리스크 관리",
+    "post market review": "장 마감 후 점검",
+    "non trading day watch": "휴장일 관찰",
+    # phase_decision.immediate_action
+    "wait for confirmation": "확인 후 대응",
+    "watch": "관망",
+    "stop loss or take profit alert": "손절·익절 경계",
+    "do not chase": "추격 매수 금지",
+    "no intraday action": "장중 대응 없음",
+    # core_conclusion.signal_type (이모지 뒤 텍스트)
+    "buy signal": "매수 신호",
+    "hold and watch": "보유·관망",
+    "hold / watch": "보유·관망",
+    "sell signal": "매도 신호",
+    "risk warning": "리스크 경고",
+}
+
+_KO_DATA_SOURCE_PHRASES = {
+    "daily bars": "일봉",
+    "daily k line": "일봉",
+    "real time news": "실시간 뉴스",
+    "realtime news": "실시간 뉴스",
+    "news": "뉴스",
+    "financial reports": "재무제표",
+    "financial report": "재무제표",
+    "financial statements": "재무제표",
+    "real time quotes": "실시간 시세",
+    "realtime quotes": "실시간 시세",
+    "real time quote": "실시간 시세",
+    "quotes": "시세",
+    "technical indicators": "기술 지표",
+    "technical analysis": "기술적 분석",
+    "chip distribution": "매물대 분포",
+    "capital flow": "자금 흐름",
+    "fundamentals": "펀더멘털",
+    "market data": "시장 데이터",
+    "web search": "웹 검색",
+}
+
+_KO_ITEM_PREFIX_LABELS = {
+    "risk": "리스크",
+    "catalyst": "호재",
+    "check": "체크",
+    "watch condition": "관찰 조건",
+    "limitation": "한계",
+}
+
+_KO_ITEM_PREFIX_RE = re.compile(
+    r"^(?P<lead>[^A-Za-z0-9\[]*)(?P<word>risk|catalyst|check|watch condition|limitation)\s*(?P<num>\d+)\s*[:：]\s*",
+    re.IGNORECASE,
+)
+_KO_LATEST_NEWS_PREFIX_RE = re.compile(r"^\s*\[\s*latest news\s*\]\s*", re.IGNORECASE)
+_KO_LEADING_SYMBOLS_RE = re.compile(r"^(?P<lead>[^A-Za-z0-9\u4e00-\u9fff]*)(?P<body>.*)$", re.DOTALL)
+
+
+def localize_display_phrase(value: Any, language: Optional[str]) -> Any:
+    """ko 보고서에서 LLM이 남긴 영어 고정값·번호 접두어를 한국어로 바꾼다.
+
+    zh/en이면 값을 그대로 돌려준다. 알 수 없는 문장은 손대지 않는다.
+    """
+    if normalize_report_language(language) != "ko" or not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text:
+        return value
+
+    match = _KO_LEADING_SYMBOLS_RE.match(text)
+    lead = match.group("lead") if match else ""
+    body = match.group("body") if match else text
+    translated = _KO_DISPLAY_PHRASES.get(_normalize_lookup_key(body).rstrip(".")) or _KO_DISPLAY_PHRASES.get(body)
+    if translated:
+        return f"{lead}{translated}"
+
+    text = _KO_LATEST_NEWS_PREFIX_RE.sub("[최신 뉴스] ", text)
+    prefix_match = _KO_ITEM_PREFIX_RE.match(text)
+    if prefix_match:
+        word = _KO_ITEM_PREFIX_LABELS[prefix_match.group("word").lower()]
+        text = f"{prefix_match.group('lead')}{word} {prefix_match.group('num')}: {text[prefix_match.end():]}"
+    return text
+
+
+def localize_data_sources_text(value: Any, language: Optional[str]) -> Any:
+    """ko 보고서의 데이터 출처 문구("Daily bars, Real-time news")를 항목별로 한국어로 바꾼다."""
+    if normalize_report_language(language) != "ko" or not isinstance(value, str):
+        return value
+    parts = [part.strip() for part in re.split(r"[,，、/]", value) if part.strip()]
+    if not parts:
+        return value
+    localized = [_KO_DATA_SOURCE_PHRASES.get(_normalize_lookup_key(part), part) for part in parts]
+    return ", ".join(localized)
+
+
+_KO_CURRENCY_WORDS = {
+    "KRW": "원",
+    "USD": "달러",
+    "HKD": "홍콩달러",
+    "CNY": "위안",
+    "RMB": "위안",
+    "CNH": "위안",
+    "TWD": "대만달러",
+    "JPY": "엔",
+}
+
+_KO_MARKET_CURRENCY = {
+    "kr": "KRW",
+    "us": "USD",
+    "hk": "HKD",
+    "cn": "CNY",
+    "tw": "TWD",
+    "jp": "JPY",
+}
+
+
+def get_currency_code_for_stock(stock_code: Any) -> Optional[str]:
+    """종목 코드로 거래 통화를 추정한다(005930.KS -> KRW). 알 수 없으면 None."""
+    code = str(stock_code or "").strip().upper()
+    if not code:
+        return None
+    if code.endswith((".KS", ".KQ")):
+        return "KRW"
+    try:
+        from src.core.trading_calendar import get_market_for_stock
+
+        market = get_market_for_stock(code)
+    except Exception:
+        market = None
+    return _KO_MARKET_CURRENCY.get(market or "")
+
+
+def get_korean_currency_word(currency: Any = None, stock_code: Any = None) -> str:
+    """한국어 통화 단위를 돌려준다. 원화(KRW)일 때만 '원'이고, 알 수 없으면 빈 문자열."""
+    currency_code = str(currency or "").strip().upper()
+    if currency_code in _KO_CURRENCY_WORDS:
+        return _KO_CURRENCY_WORDS[currency_code]
+    stock_currency = get_currency_code_for_stock(stock_code)
+    return _KO_CURRENCY_WORDS.get(stock_currency or "", "")
+
+
+def format_korean_amount(value: Any, currency_word: str = "", *, signed: str = "-") -> str:
+    """금액을 조/억/만 단위로 표시한다(예: 171.50조 원, 3.25억 원). 숫자가 아니면 N/A."""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "N/A"
+    if amount != amount:  # NaN
+        return "N/A"
+    if signed == "+":
+        sign = "+" if amount > 0 else ("-" if amount < 0 else "")
+    else:
+        sign = "-" if amount < 0 else ""
+    abs_amount = abs(amount)
+    suffix = f" {currency_word}" if currency_word else ""
+    if abs_amount >= 1e12:
+        return f"{sign}{abs_amount / 1e12:,.2f}조{suffix}"
+    if abs_amount >= 1e8:
+        return f"{sign}{abs_amount / 1e8:,.2f}억{suffix}"
+    if abs_amount >= 1e4:
+        return f"{sign}{abs_amount / 1e4:,.2f}만{suffix}"
+    return f"{sign}{abs_amount:,.0f}{suffix}"
+
+
+def format_korean_volume(value: Any, *, signed: str = "-") -> str:
+    """주식 수를 억 주/만 주 단위로 표시한다(예: 2,208.55만 주). 숫자가 아니면 N/A."""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return "N/A"
+    if amount != amount:  # NaN
+        return "N/A"
+    if signed == "+":
+        sign = "+" if amount > 0 else ("-" if amount < 0 else "")
+    else:
+        sign = "-" if amount < 0 else ""
+    abs_amount = abs(amount)
+    if abs_amount >= 1e8:
+        return f"{sign}{abs_amount / 1e8:,.2f}억 주"
+    if abs_amount >= 1e4:
+        return f"{sign}{abs_amount / 1e4:,.2f}만 주"
+    return f"{sign}{abs_amount:,.0f}주"

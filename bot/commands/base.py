@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-命令基类
+명령 기본 클래스
 ===================================
 
-定义命令处理器的抽象基类，所有命令都必须继承此类。
+명령 처리기의 추상 기본 클래스를 정의합니다. 모든 명령은 이 클래스를 상속해야 합니다.
 """
 
 import asyncio
@@ -16,11 +16,11 @@ from bot.models import BotMessage, BotResponse
 
 class BotCommand(ABC):
     """
-    命令处理器抽象基类
+    명령 처리기 추상 기본 클래스
 
-    所有命令都必须继承此类并实现抽象方法。
+    모든 명령은 이 클래스를 상속하고 추상 메서드를 구현해야 합니다.
 
-    使用示例：
+    사용 예:
         class MyCommand(BotCommand):
             @property
             def name(self) -> str:
@@ -28,27 +28,27 @@ class BotCommand(ABC):
 
             @property
             def aliases(self) -> List[str]:
-                return ["mc", "我的命令"]
+                return ["mc", "내명령"]
 
             @property
             def description(self) -> str:
-                return "这是我的命令"
+                return "내가 만든 명령입니다"
 
             @property
             def usage(self) -> str:
-                return "/mycommand [参数]"
+                return "/mycommand [인자]"
 
             def execute(self, message: BotMessage, args: List[str]) -> BotResponse:
-                return BotResponse.text_response("命令执行成功")
+                return BotResponse.text_response("명령 실행 성공")
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
         """
-        命令名称（不含前缀）
+        명령 이름(접두사 제외)
 
-        例如 "analyze"，用户输入 "/analyze" 触发
+        예: "analyze" — 사용자가 "/analyze"를 입력하면 실행
         """
         pass
 
@@ -56,81 +56,81 @@ class BotCommand(ABC):
     @abstractmethod
     def aliases(self) -> List[str]:
         """
-        命令别名列表
+        명령 별칭 목록
 
-        例如 ["a", "分析"]，用户输入 "/a" 或 "分析" 也能触发
+        예: ["a", "分析"] — 사용자가 "/a"나 "分析"을 입력해도 실행
         """
         pass
 
     @property
     @abstractmethod
     def description(self) -> str:
-        """命令描述（用于帮助信息）"""
+        """명령 설명(도움말에 표시)"""
         pass
 
     @property
     @abstractmethod
     def usage(self) -> str:
         """
-        使用说明（用于帮助信息）
+        사용법(도움말에 표시)
 
-        例如 "/analyze <股票代码>"
+        예: "/analyze <종목코드>"
         """
         pass
 
     @property
     def hidden(self) -> bool:
         """
-        是否在帮助列表中隐藏
+        도움말 목록에서 숨길지 여부
 
-        默认 False，设为 True 则不显示在 /help 列表中
+        기본값 False. True면 /help 목록에 나오지 않음
         """
         return False
 
     @property
     def admin_only(self) -> bool:
         """
-        是否仅管理员可用
+        관리자 전용 여부
 
-        默认 False，设为 True 则需要管理员权限
+        기본값 False. True면 관리자 권한 필요
         """
         return False
 
     @abstractmethod
     def execute(self, message: BotMessage, args: List[str]) -> BotResponse:
         """
-        执行命令
+        명령 실행
 
         Args:
-            message: 原始消息对象
-            args: 命令参数列表（已分割）
+            message: 원본 메시지 객체
+            args: 명령 인자 목록(이미 분리됨)
 
         Returns:
-            BotResponse 响应对象
+            BotResponse 응답 객체
         """
         pass
 
     async def execute_async(self, message: BotMessage, args: List[str]) -> BotResponse:
-        """异步执行命令。
+        """명령을 비동기로 실행합니다.
 
-        默认将同步 `execute()` 下沉到线程池，避免在异步分发链路中阻塞事件循环。
+        기본으로 동기 `execute()`를 스레드 풀에서 돌려, 비동기 분배 흐름에서 이벤트 루프가 막히지 않게 합니다.
         """
         return await asyncio.to_thread(self.execute, message, args)
 
     def validate_args(self, args: List[str]) -> Optional[str]:
         """
-        验证参数
+        인자 검증
 
-        子类可重写此方法进行参数校验。
+        하위 클래스에서 이 메서드를 재정의해 인자를 검사할 수 있습니다.
 
         Args:
-            args: 命令参数列表
+            args: 명령 인자 목록
 
         Returns:
-            如果参数有效返回 None，否则返回错误信息
+            인자가 올바르면 None, 아니면 오류 메시지를 반환
         """
         return None
 
     def get_help_text(self) -> str:
-        """获取帮助文本"""
-        return f"**{self.name}** - {self.description}\n用法: `{self.usage}`"
+        """도움말 텍스트 가져오기"""
+        return f"**{self.name}** - {self.description}\n사용법: `{self.usage}`"

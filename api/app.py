@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-FastAPI 应用工厂模块
+FastAPI 앱 생성 모듈
 ===================================
 
-职责：
-1. 创建和配置 FastAPI 应用实例
-2. 配置 CORS 中间件
-3. 注册路由和异常处理器
-4. 托管前端静态文件（生产模式）
+역할:
+1. FastAPI 앱 인스턴스 생성·설정
+2. CORS 미들웨어 설정
+3. 라우트와 예외 처리기 등록
+4. 프런트엔드 정적 파일 제공 (운영 모드)
 
-使用方式：
+사용법:
     from api.app import create_app
     app = create_app()
 """
@@ -290,8 +290,8 @@ async def app_lifespan(app: FastAPI):
         runtime_scheduler=app.state.runtime_scheduler_service,
     )
     _schedule_stock_index_background_refresh(app, "startup")
-    # 名称解析器的 AkShare 缓存预热：命中磁盘缓存则零网络加载，否则发起
-    # 后台单飞拉取。把冷启动等待从首个用户请求挪到进程启动窗口。
+    # 종목명 해석기의 AkShare 캐시 미리 채우기: 디스크 캐시가 있으면 네트워크를 안 쓰고, 없으면
+    # 백그라운드에서 한 번만 받아 옴. 첫 사용자 요청이 아니라 프로세스 시작 때 기다리게 하려는 것.
     from src.services.name_to_code_resolver import warmup_akshare_cache
 
     warmup_akshare_cache()
@@ -313,21 +313,21 @@ async def app_lifespan(app: FastAPI):
 
 def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     """
-    创建并配置 FastAPI 应用实例
+    FastAPI 앱 인스턴스 생성·설정
     
     Args:
-        static_dir: 静态文件目录路径（可选，默认为项目根目录下的 static）
+        static_dir: 정적 파일 폴더 경로 (선택, 기본값은 프로젝트 루트의 static)
         
     Returns:
-        配置完成的 FastAPI 应用实例
+        설정이 끝난 FastAPI 앱 인스턴스
     """
-    # 默认静态文件目录
+    # 기본 정적 파일 폴더
     _register_frontend_asset_mime_types()
 
     if static_dir is None:
         static_dir = Path(__file__).parent.parent / "static"
     
-    # 创建 FastAPI 实例
+    # FastAPI 인스턴스 생성
     app = FastAPI(
         title="Daily Stock Analysis API",
         description=(
@@ -345,7 +345,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     )
     
     # ============================================================
-    # CORS 配置
+    # CORS 설정
     # ============================================================
     
     allowed_origins = [
@@ -355,12 +355,12 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
         "http://127.0.0.1:3000",
     ]
     
-    # 从环境变量添加额外的允许来源
+    # 환경 변수에서 허용 출처 추가
     extra_origins = os.environ.get("CORS_ORIGINS", "")
     if extra_origins:
         allowed_origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
     
-    # 允许所有来源（开发/演示用）
+    # 모든 출처 허용 (개발/데모용)
     allow_all_origins = os.environ.get("CORS_ALLOW_ALL", "").lower() == "true"
     allow_credentials = not allow_all_origins
     if allow_all_origins:
@@ -388,14 +388,14 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
         add_auth_middleware(app)
     
     # ============================================================
-    # 注册路由
+    # 라우트 등록
     # ============================================================
     
     app.include_router(api_v1_router, prefix="/api/v1")
     add_error_handlers(app)
     
     # ============================================================
-    # 根路由和健康检查
+    # 루트 라우트와 헬스 체크
     # ============================================================
     
     has_frontend = static_dir.exists() and (static_dir / "index.html").exists()
@@ -408,7 +408,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
 
         @app.get("/", include_in_schema=False)
         async def root():
-            """根路由 - 返回前端页面"""
+            """루트 라우트 - 프런트엔드 페이지 반환"""
             return _frontend_index_response(static_dir)
     else:
         _FRONTEND_NOT_BUILT_HTML = """<!DOCTYPE html>
@@ -440,25 +440,25 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
 
         @app.get("/", include_in_schema=False)
         async def root():
-            """根路由 - 前端未构建时返回引导页面"""
+            """루트 라우트 - 프런트엔드가 빌드되지 않았을 때 안내 페이지 반환"""
             return HTMLResponse(content=_FRONTEND_NOT_BUILT_HTML)
     
     @app.get(
         "/health",
         response_model=HealthResponse,
         tags=["Health"],
-        summary="健康检查",
-        description="用于负载均衡器或监控系统检查服务状态"
+        summary="헬스 체크",
+        description="로드 밸런서나 모니터링 시스템이 서비스 상태를 확인하는 용도"
     )
     @app.get(
         "/api/health",
         response_model=HealthResponse,
         tags=["Health"],
-        summary="健康检查",
-        description="用于负载均衡器或监控系统检查服务状态"
+        summary="헬스 체크",
+        description="로드 밸런서나 모니터링 시스템이 서비스 상태를 확인하는 용도"
     )
     async def health_check() -> HealthResponse:
-        """健康检查接口"""
+        """헬스 체크 API"""
         return HealthResponse(
             status="ok",
             timestamp=datetime.now().isoformat()
@@ -507,7 +507,7 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
         )
     
     # ============================================================
-    # 静态文件托管（前端 SPA）
+    # 정적 파일 제공 (프런트엔드 SPA)
     # ============================================================
     
     if has_frontend:
@@ -543,10 +543,10 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
                 media_type=_missing_asset_media_type(asset_path),
             )
 
-        # SPA 路由回退
+        # SPA 라우트 대체
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(request: Request, full_path: str):
-            """SPA 路由回退 - 非 API 路由返回 index.html"""
+            """SPA 라우트 대체 - API 가 아닌 경로는 index.html 반환"""
             if full_path == "api" or full_path.startswith("api/"):
                 return JSONResponse(
                     status_code=404,
@@ -572,5 +572,5 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     return app
 
 
-# 默认应用实例（供 uvicorn 直接使用）
+# 기본 앱 인스턴스 (uvicorn 에서 바로 사용)
 app = create_app()

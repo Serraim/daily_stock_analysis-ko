@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-通用响应模型
+공통 응답 모델
 ===================================
 
-职责：
-1. 定义通用的响应模型（HealthResponse, ErrorResponse 等）
-2. 提供统一的响应格式
+역할:
+1. 공통 응답 모델 정의 (HealthResponse, ErrorResponse 등)
+2. 통일된 응답 형식 제공
 """
 
 from typing import Optional, Any
@@ -15,10 +15,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class RootResponse(BaseModel):
-    """API 根路由响应"""
+    """API 루트 라우트 응답"""
     
-    message: str = Field(..., description="API 运行状态消息", json_schema_extra={"example": "Daily Stock Analysis API is running"})
-    version: Optional[str] = Field(None, description="API 版本", json_schema_extra={"example": "1.0.0"})
+    message: str = Field(..., description="API 실행 상태 메시지", json_schema_extra={"example": "Daily Stock Analysis API is running"})
+    version: Optional[str] = Field(None, description="API 버전", json_schema_extra={"example": "1.0.0"})
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -29,10 +29,10 @@ class RootResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """健康检查响应"""
+    """헬스 체크 응답"""
     
-    status: str = Field(..., description="服务状态", json_schema_extra={"example": "ok"})
-    timestamp: Optional[str] = Field(None, description="时间戳")
+    status: str = Field(..., description="서비스 상태", json_schema_extra={"example": "ok"})
+    timestamp: Optional[str] = Field(None, description="타임스탬프")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -43,32 +43,32 @@ class HealthResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """错误响应"""
+    """오류 응답"""
     
-    error: str = Field(..., description="错误类型", json_schema_extra={"example": "validation_error"})
-    message: str = Field(..., description="错误详情", json_schema_extra={"example": "请求参数错误"})
-    detail: Optional[Any] = Field(None, description="附加错误信息")
+    error: str = Field(..., description="오류 종류", json_schema_extra={"example": "validation_error"})
+    message: str = Field(..., description="오류 상세", json_schema_extra={"example": "요청 파라미터 오류"})
+    detail: Optional[Any] = Field(None, description="추가 오류 정보")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "error": "not_found",
-            "message": "资源不存在",
+            "message": "리소스 없음",
             "detail": None
         }
     })
 
 
 class SuccessResponse(BaseModel):
-    """通用成功响应"""
+    """공통 성공 응답"""
     
-    success: bool = Field(True, description="是否成功")
-    message: Optional[str] = Field(None, description="成功消息")
-    data: Optional[Any] = Field(None, description="响应数据")
+    success: bool = Field(True, description="성공 여부")
+    message: Optional[str] = Field(None, description="성공 메시지")
+    data: Optional[Any] = Field(None, description="응답 데이터")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "success": True,
-            "message": "操作成功",
+            "message": "처리 성공",
             "data": None
         }
     })

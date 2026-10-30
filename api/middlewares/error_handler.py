@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-全局异常处理中间件
+전역 예외 처리 미들웨어
 ===================================
 
-职责：
-1. 捕获未处理的异常
-2. 统一错误响应格式
-3. 记录错误日志
+역할:
+1. 처리되지 않은 예외 잡기
+2. 오류 응답 형식 통일
+3. 오류 로그 기록
 """
 
 import logging
@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     """
-    全局异常处理中间件
+    전역 예외 처리 미들웨어
     
-    捕获所有未处理的异常，返回统一格式的错误响应
+    처리되지 않은 예외를 모두 잡아서 같은 형식의 오류 응답으로 반환
     """
     
     async def dispatch(
@@ -34,34 +34,34 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
         call_next: Callable
     ) -> Response:
         """
-        处理请求，捕获异常
+        요청을 처리하고 예외를 잡음
         
         Args:
-            request: 请求对象
-            call_next: 下一个处理器
+            request: 요청 객체
+            call_next: 다음 처리기
             
         Returns:
-            Response: 响应对象
+            Response: 응답 객체
         """
         try:
             response = await call_next(request)
             return response
             
         except Exception as e:
-            # 记录错误日志
+            # 오류 로그 기록
             logger.error(
-                f"未处理的异常: {e}\n"
-                f"请求路径: {request.url.path}\n"
-                f"请求方法: {request.method}\n"
-                f"堆栈: {traceback.format_exc()}"
+                f"처리되지 않은 예외: {e}\n"
+                f"요청 경로: {request.url.path}\n"
+                f"요청 메서드: {request.method}\n"
+                f"스택: {traceback.format_exc()}"
             )
             
-            # 返回统一格式的错误响应
+            # 통일된 형식의 오류 응답 반환
             return JSONResponse(
                 status_code=500,
                 content={
                     "error": "internal_error",
-                    "message": "服务器内部错误，请稍后重试",
+                    "message": "서버 내부 오류예요. 잠시 후 다시 시도하세요",
                     "detail": str(e) if logger.isEnabledFor(logging.DEBUG) else None
                 }
             )
@@ -69,26 +69,26 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
 
 def add_error_handlers(app) -> None:
     """
-    添加全局异常处理器
+    전역 예외 처리기 추가
     
-    为 FastAPI 应用添加各类异常的处理器
+    FastAPI 앱에 예외 종류별 처리기 추가
     
     Args:
-        app: FastAPI 应用实例
+        app: FastAPI 앱 인스턴스
     """
     from fastapi import HTTPException
     from fastapi.exceptions import RequestValidationError
     
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
-        """处理 HTTP 异常"""
-        # 如果 detail 已经是 ErrorResponse 格式的 dict，直接使用
+        """HTTP 예외 처리"""
+        # detail 이 이미 ErrorResponse 형식 dict 면 그대로 사용
         if isinstance(exc.detail, dict) and "error" in exc.detail and "message" in exc.detail:
             return JSONResponse(
                 status_code=exc.status_code,
                 content=exc.detail
             )
-        # 否则将 detail 包装成 ErrorResponse 格式
+        # 아니면 detail 을 ErrorResponse 형식으로 감쌈
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -100,29 +100,29 @@ def add_error_handlers(app) -> None:
     
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        """处理请求验证异常"""
+        """요청 검사 예외 처리"""
         return JSONResponse(
             status_code=422,
             content={
                 "error": "validation_error",
-                "message": "请求参数验证失败",
+                "message": "요청 파라미터 검사 실패",
                 "detail": exc.errors()
             }
         )
     
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
-        """处理通用异常"""
+        """일반 예외 처리"""
         logger.error(
-            f"未处理的异常: {exc}\n"
-            f"请求路径: {request.url.path}\n"
-            f"堆栈: {traceback.format_exc()}"
+            f"처리되지 않은 예외: {exc}\n"
+            f"요청 경로: {request.url.path}\n"
+            f"스택: {traceback.format_exc()}"
         )
         return JSONResponse(
             status_code=500,
             content={
                 "error": "internal_error",
-                "message": "服务器内部错误",
+                "message": "서버 내부 오류",
                 "detail": None
             }
         )

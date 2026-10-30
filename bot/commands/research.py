@@ -4,8 +4,8 @@ Research command — deep research on a stock or market topic.
 
 Usage:
     /research 600519                        -> Deep research on Kweichow Moutai
-    /research 600519 近期业绩风险            -> Focused research with specific question
-    /research 新能源板块前景分析              -> Topic-based research
+    /research 600519 최근 실적 리스크        -> Focused research with specific question
+    /research 신에너지 업종 전망 분석        -> Topic-based research
 """
 
 import logging
@@ -30,8 +30,8 @@ class ResearchCommand(BotCommand):
 
     Usage:
         /research 600519                    -> Deep research on a stock
-        /research 600519 业绩风险分析        -> Focused question
-        /research 新能源板块 发展前景         -> Sector research
+        /research 600519 실적 리스크 분석        -> Focused question
+        /research 신에너지 업종 성장 전망         -> Sector research
     """
 
     @property
@@ -54,15 +54,15 @@ class ResearchCommand(BotCommand):
         if not args:
             return BotResponse.text_response(
                 f"Usage: {self.usage}\n"
-                "Example: /research 600519 近期有哪些风险\n"
-                "Example: /research 新能源板块前景分析"
+                "Example: /research 600519 최근 어떤 리스크가 있나\n"
+                "Example: /research 신에너지 업종 전망 분석"
             )
 
         config = get_config()
 
         if not config.agent_mode:
             return BotResponse.text_response(
-                "⚠️ Agent 模式未开启，无法使用深度研究功能。\n请在配置中设置 `AGENT_MODE=true`。"
+                "⚠️ Agent 모드가 꺼져 있어 심층 리서치 기능을 쓸 수 없습니다.\n설정에서 `AGENT_MODE=true`로 바꿔 주세요."
             )
 
         # Parse arguments — first arg may be stock code, rest is the question

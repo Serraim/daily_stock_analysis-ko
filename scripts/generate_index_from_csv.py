@@ -11,10 +11,10 @@ Input:
 Output: apps/dsa-web/public/stocks.index.json
 
 Usage:
-    python scripts/generate_index_from_csv.py              # 默认使用 Tushare
+    python scripts/generate_index_from_csv.py              # 기본값: Tushare 사용
     python scripts/generate_index_from_csv.py --source akshare
-    python scripts/generate_index_from_csv.py --test       # 测试模式
-    python scripts/generate_index_from_csv.py --index-only --test  # 仅合并指数 seed
+    python scripts/generate_index_from_csv.py --test       # 테스트 모드
+    python scripts/generate_index_from_csv.py --index-only --test  # 지수 seed만 합치기
 """
 
 import argparse
@@ -90,13 +90,13 @@ def load_csv_data(csv_path: Path) -> List[Dict[str, Any]]:
 
 def load_tushare_data(data_dir: Path) -> List[Dict[str, Any]]:
     """
-    从 Tushare CSV 文件加载多市场股票数据
+    Tushare CSV 파일에서 여러 시장의 종목 데이터를 불러옵니다
 
     Args:
-        data_dir: 数据目录路径
+        data_dir: 데이터 폴더 경로
 
     Returns:
-        合并后的股票列表
+        합쳐진 종목 목록
     """
     all_stocks = []
     seed_dir = Path(__file__).parent / 'stock_index_seeds'
@@ -119,10 +119,10 @@ def load_tushare_data(data_dir: Path) -> List[Dict[str, Any]]:
 
     for market_name, csv_file in market_files.items():
         if not csv_file.exists():
-            print(f"[Warning] 未找到文件：{csv_file}")
+            print(f"[Warning] 파일을 찾을 수 없어요: {csv_file}")
             continue
 
-        print(f"  正在读取 {market_name} 市场数据：{csv_file.name}")
+        print(f"  {market_name} 시장 데이터 읽는 중: {csv_file.name}")
 
         try:
             file_stocks = []
@@ -131,7 +131,7 @@ def load_tushare_data(data_dir: Path) -> List[Dict[str, Any]]:
                 reader = csv.DictReader(f)
 
                 for row in reader:
-                    # 传入市场参数以优化判断（对于特殊格式如 DUMMY）
+                    # 시장 값을 넘겨 판단을 돕습니다 (DUMMY 같은 특수 형식용)
                     parsed = parse_stock_row(row, market_name)
                     if not parsed:
                         continue
@@ -153,29 +153,29 @@ def load_tushare_data(data_dir: Path) -> List[Dict[str, Any]]:
                 file_stocks = [item for item, _priority in selected_us_stocks.values()]
                 all_stocks.extend(file_stocks)
 
-            print(f"    ✓ {market_name} 市场读取完成：{len(file_stocks)} 只股票")
+            print(f"    ✓ {market_name} 시장 읽기 완료: 종목 {len(file_stocks)}개")
 
         except Exception as e:
-            print(f"    [Error] 读取 {csv_file.name} 失败：{e}")
+            print(f"    [Error] {csv_file.name} 읽기 실패: {e}")
 
     return all_stocks
 
 
 def get_us_delist_priority(row: Dict[str, str]) -> int:
     """
-    为复用 ticker 的美股记录生成去重优先级。
+    ticker를 재사용하는 미국 종목 기록의 중복 제거 우선순위를 만듭니다.
 
-    Tushare us_basic 导出的 delist_date 对当前记录并不总是稳定：
-    - 空字符串通常表示当前仍在使用的 ticker
-    - ``NaT`` 多见于历史记录或日期占位值
-    - 实际日期表示明确退市
+    Tushare us_basic에서 내보낸 delist_date는 현재 기록에서 항상 믿을 만하지는 않습니다:
+    - 빈 문자열은 보통 지금도 쓰이는 ticker를 뜻합니다
+    - ``NaT``는 주로 과거 기록이나 날짜 자리표시 값에서 나옵니다
+    - 실제 날짜는 상장폐지가 확정됐다는 뜻입니다
 
-    因此前置去重时优先选择：
-    1. delist_date 为空
-    2. delist_date 为 NaT
-    3. delist_date 为实际日期
+    그래서 미리 중복을 제거할 때 다음 순서로 고릅니다:
+    1. delist_date가 비어 있음
+    2. delist_date가 NaT
+    3. delist_date가 실제 날짜
 
-    同优先级时保留 CSV 中最先出现的记录，避免在信息不足时随意切换名称。
+    우선순위가 같으면 CSV에서 먼저 나온 기록을 남깁니다. 정보가 부족할 때 이름이 함부로 바뀌지 않게 하려는 것입니다.
     """
     delist_date = (row.get('delist_date') or '').strip()
     if not delist_date:
@@ -187,28 +187,28 @@ def get_us_delist_priority(row: Dict[str, str]) -> int:
 
 def load_akshare_data(logs_dir: Path) -> List[Dict[str, Any]]:
     """
-    从 AkShare CSV 文件加载股票数据
+    AkShare CSV 파일에서 종목 데이터를 불러옵니다
 
     Args:
-        logs_dir: 日志目录路径
+        logs_dir: 로그 폴더 경로
 
     Returns:
-        股票列表
+        종목 목록
 
-    说明：
-        AkShare 这条输入路径保留其原始 name 字段，不额外套用
-        Tushare A 股那套 XD / XR / DR 状态前缀修正逻辑。这里的目标是
-        复用 AkShare 已输出的展示名，而不是对其做二次归一化。
+    참고:
+        AkShare 입력 경로는 원래 name 필드를 그대로 두고,
+        Tushare A주용 XD / XR / DR 상태 접두어 보정 로직을 따로 적용하지 않습니다. 목적은
+        AkShare가 이미 내놓은 표시 이름을 재사용하는 것이지, 다시 정규화하는 것이 아닙니다.
     """
     csv_files = list(logs_dir.glob("stock_basic_*.csv"))
 
     if not csv_files:
-        print("[Error] 未找到 CSV 文件：logs/stock_basic_*.csv")
+        print("[Error] CSV 파일을 찾을 수 없어요: logs/stock_basic_*.csv")
         return []
 
-    # 使用最新的 CSV 文件
+    # 가장 최근 CSV 파일 사용
     csv_file = sorted(csv_files)[-1]
-    print(f"  正在读取 AkShare 数据：{csv_file.name}")
+    print(f"  AkShare 데이터 읽는 중: {csv_file.name}")
 
     stocks = []
     with open(csv_file, 'r', encoding='utf-8-sig') as f:
@@ -232,7 +232,7 @@ def load_akshare_data(logs_dir: Path) -> List[Dict[str, Any]]:
                 'list_date': row.get('list_date', ''),
             })
 
-    print(f"    ✓ 共读取 {len(stocks)} 只股票")
+    print(f"    ✓ 종목 총 {len(stocks)}개 읽음")
     return stocks
 
 
@@ -303,29 +303,29 @@ def normalize_stock_name_for_index(name: str, market: str) -> str:
 
 def extract_symbol_from_ts_code(ts_code: str, market: str) -> Optional[str]:
     """
-    从 ts_code 提取 displayCode
+    ts_code에서 displayCode를 뽑습니다
 
-    - A股：000001.SZ → 000001
-    - 港股：00700.HK → 00700
-    - 美股：AAPL → AAPL
-    - 日股/韩股：7203.T / 005930.KS → 保留后缀，避免与其他市场裸代码冲突
+    - A주: 000001.SZ → 000001
+    - 홍콩주: 00700.HK → 00700
+    - 미국주: AAPL → AAPL
+    - 일본주/한국주: 7203.T / 005930.KS → 다른 시장의 접미어 없는 코드와 겹치지 않게 접미어 유지
 
     Args:
-        ts_code: TS代码
-        market: 市场代码
+        ts_code: TS 코드
+        market: 시장 코드
 
     Returns:
-        displayCode 或 None
+        displayCode 또는 None
     """
     if not ts_code:
         return None
 
     if market in {'US', 'JP', 'KR'}:
-        # 美股常见 class/share 后缀、日韩 Yahoo 后缀都是代码身份的一部分。
+        # 미국주의 class/share 접미어, 일본·한국 Yahoo 접미어는 모두 코드의 일부입니다.
         return ts_code
 
     if '.' in ts_code:
-        # A股和港股：去除后缀
+        # A주와 홍콩주: 접미어 제거
         return ts_code.split('.')[0]
 
     return ts_code
@@ -333,24 +333,24 @@ def extract_symbol_from_ts_code(ts_code: str, market: str) -> Optional[str]:
 
 def get_stock_name(row: Dict[str, str], market: str) -> Optional[str]:
     """
-    获取股票名称
+    종목 이름 가져오기
 
-    - A股/港股/日股/韩股：使用 name 字段
-    - 美股：使用 enname 字段（英文名称）
+    - A주/홍콩주/일본주/한국주: name 필드 사용
+    - 미국주: enname 필드 사용 (영문 이름)
 
     Args:
-        row: CSV 行数据
-        market: 市场代码
+        row: CSV 행 데이터
+        market: 시장 코드
 
     Returns:
-        股票名称或 None
+        종목 이름 또는 None
     """
     if market == 'US':
-        # 美股使用英文名称
+        # 미국주는 영문 이름 사용
         name = row.get('enname', '').strip()
         return name if name else None
     else:
-        # A股和港股使用中文名称
+        # A주와 홍콩주는 중국어 이름 사용
         name = row.get('name', '').strip()
         name = normalize_stock_name_for_index(name, market)
         return name if name else None
@@ -372,45 +372,45 @@ def parse_aliases(row: Dict[str, str]) -> List[str]:
 
 def parse_stock_row(row: Dict[str, str], preferred_market: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    解析单行股票数据
+    종목 데이터 한 줄을 해석합니다
 
-    - 美股 DUMMY 过滤（严格过滤）
-    - 空值校验
-    - 自动判断市场类型（当无法判断时使用 preferred_market）
-    - 返回统一格式的字典
+    - 미국주 DUMMY 걸러내기 (엄격하게)
+    - 빈 값 검사
+    - 시장 종류 자동 판단 (판단이 안 되면 preferred_market 사용)
+    - 통일된 형식의 딕셔너리 반환
 
     Args:
-        row: CSV 行数据
-        preferred_market: 当 ts_code 无法判断市场时使用（如美股 DUMMY 记录）
+        row: CSV 행 데이터
+        preferred_market: ts_code로 시장을 판단할 수 없을 때 사용 (예: 미국주 DUMMY 기록)
 
     Returns:
-        解析后的股票字典，无效数据返回 None
+        해석된 종목 딕셔너리. 잘못된 데이터면 None 반환
     """
     ts_code = row.get('ts_code', '').strip()
 
     if not ts_code:
         return None
 
-    # 自动判断市场类型
+    # 시장 종류 자동 판단
     market = determine_market(ts_code)
 
-    # 如果 ts_code 没有后缀（无法准确判断），且提供了 preferred_market，则使用它
-    # 这主要用于处理美股的特殊格式（如 DUMMY 记录）
+    # ts_code에 접미어가 없어 정확히 판단할 수 없고 preferred_market이 있으면 그것을 사용
+    # 주로 미국주의 특수 형식(예: DUMMY 기록)을 처리하기 위한 것
     if '.' not in ts_code and preferred_market:
         market = preferred_market
 
-    # 美股特殊处理：严格过滤 DUMMY 记录
+    # 미국주 특수 처리: DUMMY 기록은 엄격하게 걸러냄
     if market == 'US':
         enname = row.get('enname', '').strip()
         if not enname or 'DUMMY' in enname.upper():
             return None
 
-    # 获取股票名称
+    # 종목 이름 가져오기
     name = get_stock_name(row, market)
     if not name:
         return None
 
-    # 提取 displayCode
+    # displayCode 뽑기
     display_code = extract_symbol_from_ts_code(ts_code, market)
     if not display_code:
         return None
@@ -435,9 +435,9 @@ def determine_market(ts_code: str) -> str:
         Market code (CN, HK, US, BSE, JP, KR)
     """
     if '.' in ts_code:
-        # 有后缀的情况
+        # 접미어가 있는 경우
         suffix = ts_code.split('.')[1]
-        # 检查是否为中国市场后缀
+        # 중국 시장 접미어인지 확인
         if suffix in ['SH', 'SZ']:
             return 'CN'
         elif suffix == 'HK':
@@ -448,18 +448,18 @@ def determine_market(ts_code: str) -> str:
             return 'JP'
         elif suffix in ['KS', 'KQ']:
             return 'KR'
-        # 有后缀但不是中国市场后缀，检查是否为美股
-        # 美股可能有点号后缀（如 BRK.B, GOOG.A, AAPL.U）
+        # 접미어는 있지만 중국 시장 것이 아니면 미국주인지 확인
+        # 미국주는 점(.) 접미어가 있을 수 있음 (예: BRK.B, GOOG.A, AAPL.U)
         prefix = ts_code.split('.')[0]
         if prefix.isalpha():
             return 'US'
     else:
-        # 无后缀的情况
-        # 纯字母代码为美股
+        # 접미어가 없는 경우
+        # 알파벳만 있는 코드는 미국주
         if ts_code.isalpha():
             return 'US'
 
-    # 默认为 A股
+    # 기본값은 A주
     return 'CN'
 
 
@@ -476,7 +476,7 @@ def generate_aliases(name: str, market: str) -> List[str]:
     """
     aliases = []
 
-    # A股常见别名
+    # A주 자주 쓰는 별칭
     cn_alias_map = {
         '贵州茅台': ['茅台'],
         '中国平安': ['平安'],
@@ -503,7 +503,7 @@ def generate_aliases(name: str, market: str) -> List[str]:
         '中国石油': ['石油'],
     }
 
-    # 港股常见别名
+    # 홍콩주 자주 쓰는 별칭
     hk_alias_map = {
         '腾讯控股': ['腾讯', 'Tencent'],
         '阿里巴巴-SW': ['阿里', '阿里巴巴', 'Alibaba'],
@@ -517,7 +517,7 @@ def generate_aliases(name: str, market: str) -> List[str]:
         '中国海洋石油': ['中海油', 'CNOOC'],
     }
 
-    # 美股常见别名
+    # 미국주 자주 쓰는 별칭
     us_alias_map = {
         'Apple Inc.': ['Apple', 'AAPL'],
         'Microsoft Corporation': ['Microsoft', 'MSFT'],
@@ -531,7 +531,7 @@ def generate_aliases(name: str, market: str) -> List[str]:
         'Advanced Micro Devices': ['AMD', 'AMD'],
     }
 
-    # 根据市场选择映射表
+    # 시장에 맞는 매핑 표 고르기
     if market == 'CN':
         alias_map = cn_alias_map
     elif market == 'HK':
@@ -552,7 +552,7 @@ def build_stock_index(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Build the stock index.
 
     Args:
-        stocks: Raw stock rows（已包含 market 字段）
+        stocks: Raw stock rows (market 필드 포함)
 
     Returns:
         Stock index entries
@@ -563,9 +563,9 @@ def build_stock_index(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         ts_code = stock['ts_code']
         symbol = stock['symbol']
         name = stock['name']
-        market = stock.get('market', 'CN')  # 优先使用已解析的市场，否则从 ts_code 判断
+        market = stock.get('market', 'CN')  # 이미 해석된 시장을 우선 쓰고, 없으면 ts_code로 판단
 
-        # 如果没有 market 字段，从 ts_code 判断
+        # market 필드가 없으면 ts_code로 판단
         if market == 'CN' and '.' not in ts_code:
             market = determine_market(ts_code)
 
@@ -596,13 +596,13 @@ def build_stock_index(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def compress_index(index: List[Dict[str, Any]]) -> List[List]:
     """
-    压缩索引为数组格式以减少文件大小
+    파일 크기를 줄이려고 인덱스를 배열 형식으로 압축합니다
 
     Args:
-        index: 原始索引
+        index: 원본 인덱스
 
     Returns:
-        压缩后的索引
+        압축된 인덱스
     """
     compressed = []
     for item in index:
@@ -971,64 +971,64 @@ def run_index_only(output_path: Path, *, test: bool = False) -> List[List[Any]]:
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description='从 CSV 生成股票自动补全索引')
+    """메인 함수"""
+    parser = argparse.ArgumentParser(description='CSV로 종목 자동완성 인덱스 만들기')
     parser.add_argument(
         '--source',
         choices=['tushare', 'akshare'],
         default='tushare',
-        help='数据源选择（默认: tushare）'
+        help='데이터 소스 선택 (기본값: tushare)'
     )
     parser.add_argument(
         '--index-only',
         action='store_true',
-        help='仅合并指数注册表 seed 到现有压缩 JSON，不重建股票索引'
+        help='지수 등록표 seed만 기존 압축 JSON에 합치고, 종목 인덱스는 다시 만들지 않음'
     )
     parser.add_argument(
         '--test', '-t',
         action='store_true',
-        help='测试模式：只验证不写入文件'
+        help='테스트 모드: 확인만 하고 파일은 쓰지 않음'
     )
     args = parser.parse_args()
 
     print("=" * 60)
-    print("股票索引生成工具（从 CSV）")
+    print("종목 인덱스 생성 도구 (CSV 기반)")
     print("=" * 60)
 
     if not require_pypinyin():
         return 1
 
-    # 输出路径
+    # 출력 경로
     output_path = (
         Path(__file__).parent.parent / "apps" / "dsa-web" / "public" / "stocks.index.json"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # --index-only: 只合并指数 seed，不重建股票索引。
+    # --index-only: 지수 seed만 합치고 종목 인덱스는 다시 만들지 않음.
     if args.index_only:
-        print(f"数据源：index-only（合并指数注册表 seed）")
-        print("\n[1/3] 读取指数注册表 seed...")
+        print(f"데이터 소스: index-only (지수 등록표 seed 합치기)")
+        print("\n[1/3] 지수 등록표 seed 읽는 중...")
         merged = run_index_only(output_path, test=args.test)
-        print(f"      合并后共 {len(merged)} 条记录")
+        print(f"      합친 뒤 총 {len(merged)}건")
         index_rows = [item for item in merged if len(item) > 7 and item[7] == "index"]
-        print(f"      其中指数 {len(index_rows)} 条")
+        print(f"      그중 지수 {len(index_rows)}건")
         if args.test:
-            print("\n[2/3] 测试模式：跳过写入文件")
+            print("\n[2/3] 테스트 모드: 파일 쓰기 건너뜀")
         else:
-            print(f"\n[2/3] 写入文件：{output_path}")
+            print(f"\n[2/3] 파일 쓰기: {output_path}")
             file_size = output_path.stat().st_size
-            print(f"      文件大小：{file_size / 1024:.2f} KB")
-        print("\n[3/3] 验证合并结果...")
+            print(f"      파일 크기: {file_size / 1024:.2f} KB")
+        print("\n[3/3] 합친 결과 확인 중...")
         # In test mode the output file is untouched, so validate/report the
         # would-be merged payload returned by ``run_index_only`` rather than
         # reopening the unchanged file.
-        print(f"      验证通过：{len(merged)} 条记录")
+        print(f"      확인 통과: {len(merged)}건")
         return 0
 
-    print(f"数据源：{args.source}")
+    print(f"데이터 소스: {args.source}")
 
-    # 加载数据
-    print("\n[1/5] 读取 CSV 数据...")
+    # 데이터 불러오기
+    print("\n[1/5] CSV 데이터 읽는 중...")
     if args.source == 'tushare':
         data_dir = Path(__file__).parent.parent / 'data'
         stocks = load_tushare_data(data_dir)
@@ -1036,20 +1036,20 @@ def main():
         logs_dir = Path(__file__).parent.parent / 'logs'
         stocks = load_akshare_data(logs_dir)
     else:
-        print(f"[Error] 不支持的数据源：{args.source}")
+        print(f"[Error] 지원하지 않는 데이터 소스: {args.source}")
         return 1
 
     if not stocks:
-        print("[Error] 未加载到任何股票数据")
+        print("[Error] 불러온 종목 데이터가 없어요")
         return 1
 
-    print(f"      共读取 {len(stocks)} 只股票")
+    print(f"      종목 총 {len(stocks)}개 읽음")
 
-    print("\n[2/5] 生成索引数据...")
+    print("\n[2/5] 인덱스 데이터 만드는 중...")
     index = build_stock_index(stocks)
 
-    # 合并指数注册表 seed，防止后续重建擦除 index 行。
-    print("\n[2.5/5] 合并指数注册表 seed...")
+    # 지수 등록표 seed를 합쳐, 나중에 다시 만들 때 index 행이 지워지지 않게 함.
+    print("\n[2.5/5] 지수 등록표 seed 합치는 중...")
     seed_rows = load_index_registry_seed()
     index_entries = build_index_entries_from_seed(seed_rows)
     # Validate the seed index rows against the freshly built stock/ETF rows so
@@ -1063,46 +1063,46 @@ def main():
     index_entries.sort(key=lambda entry: str(entry["canonicalCode"]))
     index.extend(index_entries)
 
-    print("\n[3/5] 压缩索引数据...")
+    print("\n[3/5] 인덱스 데이터 압축 중...")
     compressed = compress_index(index)
 
     if args.test:
-        print("\n[4/5] 测试模式：跳过写入文件")
-        print(f"      输出路径：{output_path}")
+        print("\n[4/5] 테스트 모드: 파일 쓰기 건너뜀")
+        print(f"      출력 경로: {output_path}")
 
-        # 验证数据
-        print("\n[5/5] 验证数据...")
-        print(f"      压缩前：{len(index)} 条记录")
-        print(f"      压缩后：{len(compressed)} 条记录")
+        # 데이터 확인
+        print("\n[5/5] 데이터 확인 중...")
+        print(f"      압축 전: {len(index)}건")
+        print(f"      압축 후: {len(compressed)}건")
 
-        # 显示前5条示例
+        # 앞의 5건 예시 보여주기
         if compressed:
-            print("\n      前5条示例：")
+            print("\n      앞의 5건 예시:")
             for i, item in enumerate(compressed[:5]):
                 print(f"        {i + 1}. {item}")
     else:
-        print(f"\n[4/5] 写入文件：{output_path}")
+        print(f"\n[4/5] 파일 쓰기: {output_path}")
         _atomic_write_json(output_path, compressed)
 
         file_size = output_path.stat().st_size
-        print(f"      文件大小：{file_size / 1024:.2f} KB")
+        print(f"      파일 크기: {file_size / 1024:.2f} KB")
 
-        # 验证文件
-        print("\n[5/5] 验证文件...")
+        # 파일 확인
+        print("\n[5/5] 파일 확인 중...")
         with open(output_path, 'r', encoding='utf-8') as f:
             test_data = json.load(f)
-            print(f"      验证通过：{len(test_data)} 条记录")
+            print(f"      확인 통과: {len(test_data)}건")
 
-    # 统计信息
+    # 통계 정보
     market_stats = {}
     for item in index:
         market = item['market']
         market_stats[market] = market_stats.get(market, 0) + 1
 
     print(f"\n{'=' * 60}")
-    print("生成完成！市场分布：")
+    print("생성 완료! 시장별 분포:")
     for market, count in sorted(market_stats.items()):
-        print(f"  - {market}: {count} 只")
+        print(f"  - {market}: {count}개")
     print(f"{'=' * 60}")
 
     return 0

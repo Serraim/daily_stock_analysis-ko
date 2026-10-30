@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 主调度程序
+A주 관심종목 AI 분석 시스템 - 메인 실행 프로그램
 ===================================
 
-职责：
-1. 协调各模块完成股票分析流程
-2. 实现低并发的线程池调度
-3. 全局异常处理，确保单股失败不影响整体
-4. 提供命令行入口
+하는 일:
+1. 각 모듈을 묶어 주식 분석 과정을 끝까지 실행
+2. 동시 실행 수를 낮게 잡은 스레드 풀로 작업 배분
+3. 전체 예외 처리: 한 종목이 실패해도 나머지는 계속 진행
+4. 명령줄 실행 진입점 제공
 
-使用方式：
-    python main.py              # 正常运行
-    python main.py --debug      # 调试模式
-    python main.py --dry-run    # 仅获取数据不分析
+사용법:
+    python main.py              # 일반 실행
+    python main.py --debug      # 디버그 모드
+    python main.py --dry-run    # 데이터만 받고 분석은 안 함
 
-交易理念（已融入分析）：
-- 严进策略：不追高，乖离率 > 5% 不买入
-- 趋势交易：只做 MA5>MA10>MA20 多头排列
-- 效率优先：关注筹码集中度好的股票
-- 买点偏好：缩量回踩 MA5/MA10 支撑
+매매 원칙(분석에 반영됨):
+- 신중한 진입: 급등주를 쫓지 않음, 이격도 > 5%면 매수 안 함
+- 추세 매매: MA5>MA10>MA20 정배열일 때만 매매
+- 효율 우선: 매물이 한곳에 잘 모인 종목에 주목
+- 선호 매수 시점: 거래량이 줄며 MA5/MA10 지지선까지 눌릴 때
 """
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ from src.config import setup_env
 _INITIAL_PROCESS_ENV = dict(os.environ)
 setup_env()
 
-# 代理配置 - 通过 USE_PROXY 环境变量控制，默认关闭
-# GitHub Actions 环境自动跳过代理配置
+# 프록시 설정 - USE_PROXY 환경 변수로 켜고 끔, 기본값은 꺼짐
+# GitHub Actions 환경에서는 프록시 설정을 자동으로 건너뜀
 if os.getenv("GITHUB_ACTIONS") != "true" and os.getenv("USE_PROXY", "false").lower() == "true":
-    # 本地开发环境，启用代理（可在 .env 中配置 PROXY_HOST 和 PROXY_PORT）
+    # 로컬 개발 환경: 프록시 사용(.env에서 PROXY_HOST와 PROXY_PORT 설정 가능)
     proxy_host = os.getenv("PROXY_HOST", "127.0.0.1")
     proxy_port = os.getenv("PROXY_PORT", "10809")
     proxy_url = f"http://{proxy_host}:{proxy_port}"
@@ -153,7 +153,7 @@ def _read_active_env_values() -> Optional[Dict[str, str]]:
     try:
         values = dotenv_values(env_path)
     except Exception as exc:  # pragma: no cover - defensive branch
-        logger.warning("读取配置文件 %s 失败，继续沿用当前环境变量: %s", env_path, exc)
+        logger.warning("설정 파일 %s 읽기 실패, 현재 환경 변수를 그대로 사용합니다: %s", env_path, exc)
         return None
 
     return {
@@ -297,183 +297,183 @@ def _reload_env_file_values_preserving_overrides() -> None:
 
 
 def parse_arguments() -> argparse.Namespace:
-    """解析命令行参数"""
+    """명령줄 인자 해석"""
     parser = argparse.ArgumentParser(
-        description='A股自选股智能分析系统',
+        description='A주 관심종목 AI 분석 시스템',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
-示例:
-  python main.py                    # 正常运行
-  python main.py --debug            # 调试模式
-  python main.py --dry-run          # 仅获取数据，不进行 AI 分析
-  python main.py --stocks 600519,000001  # 指定分析特定股票
-  python main.py --stocks sh000016,000300.CSI,930955.CSI  # 指定分析已登记指数（sh/sz 前缀或 .CSI alias）
-  python main.py --portfolio futu   # 使用 Futu 真实正股持仓（覆盖 --stocks）
-  python main.py --no-notify        # 不发送推送通知
-  python main.py --check-notify     # 检查通知配置，不发送通知
-  python main.py --single-notify    # 启用单股推送模式（每分析完一只立即推送）
-  python main.py --schedule         # 启用定时任务模式
-  python main.py --market-review    # 仅运行大盘复盘
-  python main.py --etf-rotation     # ETF 轮动：最新信号 + 规则回测报告
+예시:
+  python main.py                    # 일반 실행
+  python main.py --debug            # 디버그 모드
+  python main.py --dry-run          # 데이터만 받고 AI 분석은 안 함
+  python main.py --stocks 600519,000001  # 지정한 종목만 분석
+  python main.py --stocks sh000016,000300.CSI,930955.CSI  # 등록된 지수 분석(sh/sz 접두사 또는 .CSI 별칭)
+  python main.py --portfolio futu   # Futu 실제 보유 주식 사용(--stocks 무시)
+  python main.py --no-notify        # 알림 보내지 않음
+  python main.py --check-notify     # 알림 설정만 점검, 알림은 보내지 않음
+  python main.py --single-notify    # 종목별 알림 모드(한 종목 분석이 끝날 때마다 바로 알림)
+  python main.py --schedule         # 예약 실행 모드
+  python main.py --market-review    # 시장 전체 리뷰만 실행
+  python main.py --etf-rotation     # ETF 로테이션: 최신 신호 + 규칙 백테스트 보고서
         '''
     )
 
     parser.add_argument(
         '--debug',
         action='store_true',
-        help='启用调试模式，输出详细日志'
+        help='디버그 모드 켜기, 자세한 로그 출력'
     )
 
     parser.add_argument(
         '--dry-run',
         action='store_true',
-        help='仅获取数据，不进行 AI 分析'
+        help='데이터만 받고 AI 분석은 하지 않음'
     )
 
     parser.add_argument(
         '--stocks',
         type=str,
-        help='指定要分析的股票代码，逗号分隔（覆盖配置文件）；支持已登记指数：sh/sz 前缀（如 sh000016）或 .CSI alias（如 000300.CSI、930955.CSI）'
+        help='분석할 종목 코드, 쉼표로 구분(설정 파일보다 우선). 등록된 지수도 가능: sh/sz 접두사(예: sh000016) 또는 .CSI 별칭(예: 000300.CSI, 930955.CSI)'
     )
 
     parser.add_argument(
         '--portfolio',
         type=str.lower,
         choices=('futu',),
-        help='使用券商真实持仓作为股票列表；当前支持 futu，并覆盖 --stocks/STOCK_LIST'
+        help='증권사 실제 보유 종목을 종목 목록으로 사용. 현재 futu만 지원하며 --stocks/STOCK_LIST보다 우선'
     )
 
     parser.add_argument(
         '--no-notify',
         action='store_true',
-        help='不发送推送通知'
+        help='알림 보내지 않음'
     )
 
     parser.add_argument(
         '--check-notify',
         action='store_true',
-        help='只读检查通知渠道配置，不发送通知'
+        help='알림 채널 설정만 읽어서 점검, 알림은 보내지 않음'
     )
 
     parser.add_argument(
         '--single-notify',
         action='store_true',
-        help='启用单股推送模式：每分析完一只股票立即推送，而不是汇总推送'
+        help='종목별 알림 모드: 모아서 보내지 않고 한 종목 분석이 끝날 때마다 바로 알림'
     )
 
     parser.add_argument(
         '--workers',
         type=int,
         default=None,
-        help='并发线程数（默认使用配置值）'
+        help='동시 실행 스레드 수(기본값은 설정 값)'
     )
 
     parser.add_argument(
         '--schedule',
         action='store_true',
-        help='启用定时任务模式，每日定时执行'
+        help='예약 실행 모드: 매일 정해진 시간에 실행'
     )
 
     parser.add_argument(
         '--no-run-immediately',
         action='store_true',
-        help='定时任务启动时不立即执行一次'
+        help='예약 실행 시작 시 바로 한 번 실행하지 않음'
     )
 
     parser.add_argument(
         '--market-review',
         action='store_true',
-        help='仅运行大盘复盘分析'
+        help='시장 전체 리뷰 분석만 실행'
     )
 
     parser.add_argument(
         '--no-market-review',
         action='store_true',
-        help='跳过大盘复盘分析'
+        help='시장 전체 리뷰 분석 건너뛰기'
     )
 
     parser.add_argument(
         '--force-run',
         action='store_true',
-        help='跳过交易日检查，强制执行全量分析（Issue #373）'
+        help='거래일 확인을 건너뛰고 전체 분석을 강제로 실행(Issue #373)'
     )
 
     parser.add_argument(
         '--webui',
         action='store_true',
-        help='启动 Web 管理界面'
+        help='웹 관리 화면 실행'
     )
 
     parser.add_argument(
         '--webui-only',
         action='store_true',
-        help='仅启动 Web 服务，不执行自动分析'
+        help='웹 서비스만 실행, 자동 분석은 안 함'
     )
 
     parser.add_argument(
         '--serve',
         action='store_true',
-        help='启动 FastAPI 后端服务（同时执行分析任务）'
+        help='FastAPI 백엔드 서비스 실행(분석 작업도 함께 실행)'
     )
 
     parser.add_argument(
         '--serve-only',
         action='store_true',
-        help='仅启动 FastAPI 后端服务，不自动执行分析'
+        help='FastAPI 백엔드 서비스만 실행, 자동 분석은 안 함'
     )
 
     parser.add_argument(
         '--port',
         type=int,
         default=None,
-        help='FastAPI 服务端口（默认使用 WEBUI_PORT，未配置时为 8000）'
+        help='FastAPI 서비스 포트(기본값은 WEBUI_PORT, 설정이 없으면 8000)'
     )
 
     parser.add_argument(
         '--host',
         type=str,
         default=None,
-        help='FastAPI 服务监听地址（默认使用 WEBUI_HOST，未配置时为 127.0.0.1）'
+        help='FastAPI 서비스 접속 주소(기본값은 WEBUI_HOST, 설정이 없으면 127.0.0.1)'
     )
 
     parser.add_argument(
         '--no-context-snapshot',
         action='store_true',
-        help='不保存分析上下文快照'
+        help='분석 컨텍스트 스냅샷을 저장하지 않음'
     )
 
     # === Backtest ===
     parser.add_argument(
         '--backtest',
         action='store_true',
-        help='运行回测（对历史分析结果进行评估）'
+        help='백테스트 실행(과거 분석 결과 평가)'
     )
 
     parser.add_argument(
         '--backtest-code',
         type=str,
         default=None,
-        help='仅回测指定股票代码'
+        help='지정한 종목 코드만 백테스트'
     )
 
     parser.add_argument(
         '--backtest-days',
         type=int,
         default=None,
-        help='回测评估窗口（交易日数，默认使用配置）'
+        help='백테스트 평가 기간(거래일 수, 기본값은 설정 값)'
     )
 
     parser.add_argument(
         '--backtest-force',
         action='store_true',
-        help='强制回测（即使已有回测结果也重新计算）'
+        help='백테스트 강제 실행(이미 결과가 있어도 다시 계산)'
     )
 
     # === ETF Rotation ===
     parser.add_argument(
         '--etf-rotation',
         action='store_true',
-        help='运行 ETF 轮动：输出最新调仓信号与规则回测报告（不调用 LLM，配置见 ETF_ROTATION_*）'
+        help='ETF 로테이션 실행: 최신 리밸런싱 신호와 규칙 백테스트 보고서 출력(LLM 호출 없음, 설정은 ETF_ROTATION_* 참고)'
     )
 
     return parser.parse_args()
@@ -508,11 +508,11 @@ def _compute_trading_day_filter(
     for code in stock_codes:
         mkt = get_market_for_stock(code)
         if mkt is None:
-            # 指数 code（如 sh000016/csi930955/930955.CSI）的 get_market_for_stock
-            # 返回 None，若直接 fail-open 保留，A 股休市日指数不会被过滤，破坏
-            # per-stock 交易日契约。对市场未知的 code 用 parse_analysis_target
-            # 判型，已登记指数按 market=cn 参与 CN 交易日过滤；仍未知的非指数
-            # code 继续 fail-open 保留。
+            # 지수 code(예: sh000016/csi930955/930955.CSI)는 get_market_for_stock 결과가
+            # None이라서, 그냥 fail-open으로 남기면 A주 휴장일에도 지수가 걸러지지 않아
+            # 종목별 거래일 규칙이 깨진다. 시장을 모르는 code는 parse_analysis_target으로
+            # 종류를 판별해, 등록된 지수는 market=cn으로 CN 거래일 필터를 거친다. 그래도 모르는 비지수
+            # code는 계속 fail-open으로 남긴다.
             target = parse_analysis_target(code)
             if target.asset_type == ParseStatus.INDEX:
                 mkt = "cn"
@@ -582,7 +582,7 @@ def _run_market_review_with_shared_lock(
 
     lock_token = try_acquire_market_review_lock(config)
     if lock_token is None:
-        logger.warning("大盘复盘正在执行中，跳过本次大盘复盘")
+        logger.warning("시장 전체 리뷰가 이미 실행 중이라 이번 리뷰는 건너뜁니다")
         return None
 
     try:
@@ -613,11 +613,11 @@ def _refresh_stock_index_cache_for_analysis(config: Config) -> None:
 
         result = refresh_remote_stock_index_cache(settings_from_config(config))
         if result.refreshed:
-            logger.info("[stock-index] 分析前已刷新股票索引缓存: %s", result.cache_path)
+            logger.info("[stock-index] 분석 전에 종목 인덱스 캐시를 새로 고쳤습니다: %s", result.cache_path)
         elif result.error:
-            logger.debug("[stock-index] 分析前刷新未完成，继续使用本地索引: %s", result.error)
+            logger.debug("[stock-index] 분석 전 새로 고침이 끝나지 않아 로컬 인덱스를 그대로 씁니다: %s", result.error)
     except Exception as exc:  # noqa: BLE001 - stock index freshness must not block analysis.
-        logger.warning("[stock-index] 分析前刷新股票索引失败，继续执行分析: %s", exc)
+        logger.warning("[stock-index] 분석 전 종목 인덱스 새로 고침 실패, 분석은 계속합니다: %s", exc)
 
 
 def _resolve_portfolio_stock_codes(args: argparse.Namespace) -> Optional[List[str]]:
@@ -626,7 +626,7 @@ def _resolve_portfolio_stock_codes(args: argparse.Namespace) -> Optional[List[st
     if not portfolio:
         return None
     if portfolio != "futu":  # argparse prevents this for CLI callers; keep API callers safe.
-        raise ValueError(f"不支持的 portfolio: {portfolio}")
+        raise ValueError(f"지원하지 않는 portfolio: {portfolio}")
 
     from src.brokers.futu.portfolio import load_futu_stock_codes
 
@@ -635,7 +635,7 @@ def _resolve_portfolio_stock_codes(args: argparse.Namespace) -> Optional[List[st
         for code in load_futu_stock_codes()
         if (code or "").strip()
     ]
-    logger.info("portfolio=futu 已覆盖 stocks/STOCK_LIST，使用 %d 只真实正股", len(stock_codes))
+    logger.info("portfolio=futu가 stocks/STOCK_LIST를 대신합니다, 실제 보유 주식 %d개 사용", len(stock_codes))
     return stock_codes
 
 
@@ -836,7 +836,7 @@ def _save_reused_market_review_report(
             filepath,
         )
     except Exception as exc:
-        logger.warning("复用大盘上下文保存大盘复盘报告失败: %s", exc)
+        logger.warning("시장 컨텍스트를 재사용해 시장 리뷰 보고서를 저장하지 못했습니다: %s", exc)
 
 
 def _run_auto_backtest(config: Config) -> None:
@@ -848,7 +848,7 @@ def _run_auto_backtest(config: Config) -> None:
 
         from src.services.backtest_service import BacktestService
 
-        logger.info("开始自动回测...")
+        logger.info("자동 백테스트 시작...")
         service = BacktestService()
         stats = service.run_backtest(
             force=False,
@@ -857,12 +857,12 @@ def _run_auto_backtest(config: Config) -> None:
             limit=200,
         )
         logger.info(
-            f"自动回测完成: processed={stats.get('processed')} "
+            f"자동 백테스트 완료: processed={stats.get('processed')} "
             f"saved={stats.get('saved')} completed={stats.get('completed')} "
             f"insufficient={stats.get('insufficient')} errors={stats.get('errors')}"
         )
     except Exception as exc:
-        logger.warning(f"自动回测失败（已忽略）: {exc}")
+        logger.warning(f"자동 백테스트 실패(무시함): {exc}")
 
 
 def _all_stock_targets_succeeded(
@@ -903,13 +903,13 @@ def run_full_analysis(
     refresh_watchlist: bool = True,
 ) -> bool:
     """
-    执行完整的分析流程（个股 + 大盘复盘）
+    전체 분석 과정 실행(개별 종목 + 시장 전체 리뷰)
 
-    这是定时任务调用的主函数。Futu 持仓解析失败始终传播给调用方；
-    ``raise_errors`` 只控制持仓解析成功后的分析流程异常语义。
-    ``analysis_targets`` 与 ``stock_codes`` 对齐，携带结构化分析目标
-    （指数目标用于推导 market=cn 与能力矩阵）。
-    ``refresh_watchlist=False`` 仅用于已原子认领的定时快照，避免认领后再次热更新。
+    예약 실행이 부르는 메인 함수. Futu 보유 종목 해석 실패는 항상 호출한 쪽으로 전달된다.
+    ``raise_errors`` 는 보유 종목 해석이 성공한 뒤 분석 과정의 예외 처리 방식만 정한다.
+    ``analysis_targets`` 는 ``stock_codes``와 순서가 같고, 구조화된 분석 대상을 담는다
+    (지수 대상은 market=cn과 기능 매트릭스를 정하는 데 쓰인다).
+    ``refresh_watchlist=False`` 는 이미 원자적으로 확보한 예약 스냅샷에만 쓰며, 확보 후 다시 핫 업데이트되는 것을 막는다.
     """
     # Capture the entry-level stock list for the run-marker scope: the local
     # ``stock_codes`` variable is later replaced by the trading-day filter and
@@ -967,7 +967,7 @@ def run_full_analysis(
         ):
             _LAST_ANALYSIS_FAILURE_REASON = "empty_stock_list"
             logger.error(
-                "本轮分析未生成报告：STOCK_LIST 为空，且未启用大盘复盘。"
+                "이번 분석에서 보고서가 만들어지지 않았습니다: STOCK_LIST가 비어 있고 시장 전체 리뷰도 꺼져 있습니다."
             )
             return _return_with_auto_backtest(False)
 
@@ -989,7 +989,7 @@ def run_full_analysis(
             return True
         if set(filtered_codes) != set(effective_codes):
             skipped = set(effective_codes) - set(filtered_codes)
-            logger.info("今日休市股票已跳过: %s", skipped)
+            logger.info("오늘 휴장인 종목은 건너뜀: %s", skipped)
         if analysis_targets is not None:
             if len(analysis_targets) != len(effective_codes):
                 raise ValueError("analysis_targets must align with stock_codes")
@@ -1007,11 +1007,11 @@ def run_full_analysis(
             portfolio_stock_codes is not None and not stock_codes
         )
 
-        # 命令行参数 --single-notify 覆盖配置（#55）
+        # 명령줄 인자 --single-notify가 설정보다 우선(#55)
         if getattr(args, 'single_notify', False):
             config.single_stock_notify = True
 
-        # Issue #190: 个股与大盘复盘合并推送
+        # Issue #190: 개별 종목과 시장 전체 리뷰를 한 번에 알림
         merge_notification = (
             getattr(config, 'merge_email_notification', False)
             and config.market_review_enabled
@@ -1019,7 +1019,7 @@ def run_full_analysis(
             and not config.single_stock_notify
         )
 
-        # 创建调度器
+        # 스케줄러 만들기
         save_context_snapshot = None
         if getattr(args, 'no_context_snapshot', False):
             save_context_snapshot = False
@@ -1042,7 +1042,7 @@ def run_full_analysis(
         ):
             _LAST_ANALYSIS_FAILURE_REASON = "empty_stock_list"
             logger.error(
-                "本轮分析未生成报告：STOCK_LIST 为空，且未启用大盘复盘。"
+                "이번 분석에서 보고서가 만들어지지 않았습니다: STOCK_LIST가 비어 있고 시장 전체 리뷰도 꺼져 있습니다."
             )
             return _return_with_auto_backtest(False)
         should_use_daily_market_context = (
@@ -1095,12 +1095,12 @@ def run_full_analysis(
                 require_current_query_match=True,
             )
 
-        # 1. 运行个股分析
+        # 1. 개별 종목 분석 실행
         if skip_futu_stock_analysis:
             if portfolio_is_empty:
                 logger.info("真实账户中无符合条件的 Futu 持仓，跳过个股分析。")
             else:
-                logger.info("Futu 持仓经交易日过滤后无可分析股票，跳过个股分析。")
+                logger.info("Futu 보유 종목을 거래일로 걸러 보니 분석할 종목이 없어 개별 종목 분석을 건너뜁니다.")
             results = []
         else:
             results = pipeline.run(
@@ -1128,10 +1128,10 @@ def run_full_analysis(
             )
             market_context_generated_during_stock = bool(market_context_summary)
 
-        # Issue #128: 分析间隔 - 在个股分析和大盘分析之间添加延迟
+        # Issue #128: 분석 간격 - 개별 종목 분석과 시장 분석 사이에 잠시 대기
         analysis_delay = getattr(config, 'analysis_delay', 0)
 
-        # 2. 运行大盘复盘（如果启用且不是仅个股模式）
+        # 2. 시장 전체 리뷰 실행(켜져 있고 개별 종목 전용 모드가 아닐 때)
         if should_run_market_review:
             schedule_mode = bool(
                 getattr(args, 'schedule', False)
@@ -1155,7 +1155,7 @@ def run_full_analysis(
             if can_skip_market_review:
                 market_report = market_context_full_report or market_context_summary
                 logger.info(
-                    "复盘上下文可复用，跳过重复大盘复盘并复用上下文内容。"
+                    "리뷰 컨텍스트를 재사용할 수 있어 시장 리뷰를 다시 돌리지 않고 기존 내용을 씁니다."
                 )
                 _save_reused_market_review_report(
                     pipeline.notifier,
@@ -1175,14 +1175,14 @@ def run_full_analysis(
                         email_send_to_all=True,
                         route_type="report",
                     ):
-                        logger.info("复用本轮大盘上下文推送大盘复盘成功")
+                        logger.info("이번 시장 컨텍스트를 재사용해 시장 리뷰 알림 전송 성공")
                     else:
-                        logger.warning("复用本轮大盘上下文推送大盘复盘失败")
+                        logger.warning("이번 시장 컨텍스트를 재사용한 시장 리뷰 알림 전송 실패")
 
             review_result = None
             if not can_skip_market_review:
                 if analysis_delay > 0:
-                    logger.info(f"等待 {analysis_delay} 秒后执行大盘复盘（避免API限流）...")
+                    logger.info(f"{analysis_delay}초 기다린 뒤 시장 전체 리뷰 실행(API 호출 제한 회피)...")
                     time.sleep(analysis_delay)
 
                 review_result = _run_market_review_with_shared_lock(
@@ -1197,7 +1197,7 @@ def run_full_analysis(
                     query_id=query_id,
                     trigger_source=review_trigger_source,
                 )
-                # 如果复盘仍未执行成功，再做一次复用历史/缓存读取（防止与并发运行竞态）。
+                # 리뷰가 아직 성공하지 못했다면 기록/캐시를 한 번 더 읽어 재사용(동시 실행 경합 방지).
                 if not review_result and should_use_daily_market_context:
                     (
                         market_context_summary,
@@ -1219,7 +1219,7 @@ def run_full_analysis(
                 elif not review_result:
                     can_reuse_market_context = False
 
-            # 如果有结果，赋值给 market_report 用于后续飞书文档生成
+            # 결과가 있으면 market_report에 담아 이후 Feishu 문서 생성에 사용
             if review_result:
                 market_report = _market_review_report_text(review_result)
             elif can_reuse_market_context:
@@ -1237,7 +1237,7 @@ def run_full_analysis(
             _LAST_ANALYSIS_FAILURE_REASON = "report_save_failed"
             save_error = getattr(pipeline, "_last_local_report_error", None) or "unknown error"
             logger.error(
-                "本轮分析已生成个股结果，但汇总报告保存失败，未生成本地报告文件: %s",
+                "이번 분석에서 개별 종목 결과는 나왔지만 종합 보고서 저장에 실패해 로컬 보고서 파일이 없습니다: %s",
                 save_error,
             )
             deferred_failure_result = False
@@ -1248,11 +1248,11 @@ def run_full_analysis(
         if (expected_stock_report or expected_market_report) and not results and not market_report:
             _LAST_ANALYSIS_FAILURE_REASON = "no_report"
             logger.error(
-                "本轮分析未生成任何报告：预期的个股分析或大盘复盘均未产出结果。"
+                "이번 분석에서 보고서가 하나도 만들어지지 않았습니다: 예정된 개별 종목 분석과 시장 전체 리뷰 모두 결과가 없습니다."
             )
             return _return_with_auto_backtest(False)
 
-        # Issue #190: 合并推送（个股+大盘复盘）
+        # Issue #190: 한 번에 알림(개별 종목 + 시장 전체 리뷰)
         if merge_notification and (results or market_report) and not args.no_notify:
             parts = []
             if market_report:
@@ -1267,43 +1267,43 @@ def run_full_analysis(
                 combined_content = "\n\n---\n\n".join(parts)
                 if pipeline.notifier.is_available():
                     if pipeline.notifier.send(combined_content, email_send_to_all=True, route_type="report"):
-                        logger.info("已合并推送（个股+大盘复盘）")
+                        logger.info("한 번에 알림 보냄(개별 종목 + 시장 전체 리뷰)")
                     else:
-                        logger.warning("合并推送失败")
+                        logger.warning("통합 알림 전송 실패")
 
-        # 输出摘要
+        # 요약 출력
         if results:
-            logger.info("\n===== 分析结果摘要 =====")
+            logger.info("\n===== 분석 결과 요약 =====")
             for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
                 emoji = r.get_emoji()
                 logger.info(
                     f"{emoji} {r.name}({r.code}): {r.operation_advice} | "
-                    f"评分 {r.sentiment_score} | {r.trend_prediction}"
+                    f"점수 {r.sentiment_score} | {r.trend_prediction}"
                 )
 
-        logger.info("\n任务执行完成")
+        logger.info("\n작업 완료")
 
-        # === 新增：生成飞书云文档 ===
+        # === 추가: Feishu 클라우드 문서 생성 ===
         try:
             from src.feishu_doc import FeishuDocManager
 
             feishu_doc = FeishuDocManager()
             if feishu_doc.is_configured() and (results or market_report):
-                logger.info("正在创建飞书云文档...")
+                logger.info("Feishu 클라우드 문서를 만드는 중...")
 
-                # 1. 准备标题 "01-01 13:01大盘复盘"
+                # 1. 제목 준비 "01-01 13:01大盘复盘"
                 tz_cn = timezone(timedelta(hours=8))
                 now = datetime.now(tz_cn)
                 doc_title = f"{now.strftime('%Y-%m-%d %H:%M')} 大盘复盘"
 
-                # 2. 准备内容 (拼接个股分析和大盘复盘)
+                # 2. 내용 준비(개별 종목 분석과 시장 전체 리뷰를 이어 붙임)
                 full_content = ""
 
-                # 添加大盘复盘内容（如果有）
+                # 시장 전체 리뷰 내용 추가(있으면)
                 if market_report:
                     full_content += f"# 📈 大盘复盘\n\n{market_report}\n\n---\n\n"
 
-                # 添加个股决策仪表盘（使用 NotificationService 生成，按 report_type 分支）
+                # 개별 종목 결정 대시보드 추가(NotificationService로 생성, report_type에 따라 분기)
                 if results:
                     dashboard_content = pipeline.notifier.generate_aggregate_report(
                         results,
@@ -1311,19 +1311,19 @@ def run_full_analysis(
                     )
                     full_content += f"# 🚀 个股决策仪表盘\n\n{dashboard_content}"
 
-                # 3. 创建文档
+                # 3. 문서 만들기
                 doc_url = feishu_doc.create_daily_doc(doc_title, full_content)
                 if doc_url:
-                    logger.info(f"飞书云文档创建成功: {doc_url}")
-                    # 可选：将文档链接也推送到群里
+                    logger.info(f"Feishu 클라우드 문서 생성 성공: {doc_url}")
+                    # 선택: 문서 링크도 그룹 채팅에 알림
                     if not args.no_notify:
                         pipeline.notifier.send(
-                            f"[{now.strftime('%Y-%m-%d %H:%M')}] 复盘文档创建成功: {doc_url}",
+                            f"[{now.strftime('%Y-%m-%d %H:%M')}] 리뷰 문서 생성 성공: {doc_url}",
                             route_type="report",
                         )
 
         except Exception as e:
-            logger.error(f"飞书文档生成失败: {e}")
+            logger.error(f"Feishu 문서 생성 실패: {e}")
 
         final_result = (
             deferred_failure_result
@@ -1360,7 +1360,7 @@ def run_full_analysis(
     except Exception as e:
         if _LAST_ANALYSIS_FAILURE_REASON is None:
             _LAST_ANALYSIS_FAILURE_REASON = "runtime_error"
-        logger.exception(f"分析流程执行失败: {e}")
+        logger.exception(f"분석 과정 실행 실패: {e}")
         if raise_errors:
             raise
         return False
@@ -1428,12 +1428,12 @@ def _run_analysis_with_runtime_scheduler_lock(
 
 def start_api_server(host: str, port: int, config: Config) -> None:
     """
-    在后台线程启动 FastAPI 服务
+    백그라운드 스레드에서 FastAPI 서비스 실행
 
     Args:
-        host: 监听地址
-        port: 监听端口
-        config: 配置对象
+        host: 접속 주소
+        port: 접속 포트
+        config: 설정 객체
     """
     import socket
     import threading
@@ -1507,7 +1507,7 @@ def start_api_server(host: str, port: int, config: Config) -> None:
                 f"FastAPI server failed to start: {host}:{port}; {startup_error[0]}"
             )
         if uvicorn_server.started:
-            logger.info(f"FastAPI 服务已启动: http://{host}:{port}")
+            logger.info(f"FastAPI 서비스 시작됨: http://{host}:{port}")
             return
         if not thread.is_alive():
             break
@@ -1516,12 +1516,12 @@ def start_api_server(host: str, port: int, config: Config) -> None:
     if startup_error:
         raise RuntimeError(f"FastAPI server failed to start: {host}:{port}; {startup_error[0]}")
     if uvicorn_server.started:
-        logger.info(f"FastAPI 服务已启动: http://{host}:{port}")
+        logger.info(f"FastAPI 서비스 시작됨: http://{host}:{port}")
         return
     if not thread.is_alive():
-        raise RuntimeError(f"FastAPI 服务器启动后立即退出: {host}:{port}")
+        raise RuntimeError(f"FastAPI 서버가 시작하자마자 종료됨: {host}:{port}")
 
-    raise RuntimeError(f"FastAPI 服务在 {timeout_seconds:.1f}s 内未完成启动: {host}:{port}")
+    raise RuntimeError(f"FastAPI 서비스가 {timeout_seconds:.1f}초 안에 시작을 마치지 못함: {host}:{port}")
 
 
 def _is_truthy_env(var_name: str, default: str = "true") -> bool:
@@ -1532,7 +1532,7 @@ def _is_truthy_env(var_name: str, default: str = "true") -> bool:
 
 def start_bot_stream_clients(config: Config) -> None:
     """Start bot stream clients when enabled in config."""
-    # 启动钉钉 Stream 客户端
+    # DingTalk Stream 클라이언트 실행
     if config.dingtalk_stream_enabled:
         try:
             from bot.platforms import start_dingtalk_stream_background, DINGTALK_STREAM_AVAILABLE
@@ -1547,7 +1547,7 @@ def start_bot_stream_clients(config: Config) -> None:
         except Exception as exc:
             logger.error(f"[Main] Failed to start Dingtalk Stream client: {exc}")
 
-    # 启动飞书 Stream 客户端
+    # Feishu Stream 클라이언트 실행
     if getattr(config, 'feishu_stream_enabled', False):
         try:
             from bot.platforms import start_feishu_stream_background, FEISHU_SDK_AVAILABLE
@@ -1678,15 +1678,15 @@ def _build_schedule_times_provider(default_schedule_time: str):
 
 def main() -> int:
     """
-    主入口函数
+    메인 진입 함수
 
     Returns:
-        退出码（0 表示成功）
+        종료 코드(0이면 성공)
     """
-    # 解析命令行参数
+    # 명령줄 인자 해석
     args = parse_arguments()
 
-    # 在配置加载前先初始化 bootstrap 日志，确保早期失败也能落盘
+    # 설정을 읽기 전에 bootstrap 로그부터 준비해, 초기 실패도 파일에 남도록 함
     try:
         _setup_bootstrap_logging(debug=args.debug)
     except Exception as exc:
@@ -1695,28 +1695,28 @@ def main() -> int:
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             stream=sys.stderr,
         )
-        logger.warning("Bootstrap 日志初始化失败，已回退到 stderr: %s", exc)
+        logger.warning("Bootstrap 로그 준비 실패, stderr로 대신 출력합니다: %s", exc)
 
-    # 加载配置（在 bootstrap logging 之后执行，确保异常有日志）
+    # 설정 불러오기(bootstrap logging 다음에 실행해 예외도 로그에 남김)
     try:
         config = get_config()
     except Exception as exc:
         logger.exception("加载配置失败: %s", exc)
         return 1
 
-    # 配置日志（输出到控制台和文件）
+    # 로그 설정(콘솔과 파일에 출력)
     try:
         _setup_runtime_logging(config.log_dir, debug=args.debug)
     except Exception as exc:
-        logger.exception("切换到配置日志目录失败: %s", exc)
+        logger.exception("설정된 로그 폴더로 바꾸지 못했습니다: %s", exc)
         return 1
 
     logger.info("=" * 60)
-    logger.info("A股自选股智能分析系统 启动")
-    logger.info(f"运行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("A주 관심종목 AI 분석 시스템 시작")
+    logger.info(f"실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 60)
 
-    # 验证配置
+    # 설정 확인
     warnings = config.validate()
     for warning in warnings:
         logger.warning(warning)
@@ -1731,37 +1731,37 @@ def main() -> int:
         print(format_notification_diagnostics(result))
         return 0 if result.ok else 1
 
-    # 解析股票列表（统一为大写 Issue #355）
-    # Story 1.5: 一次性 --stocks 入口使用 parse_analysis_target 构造结构化
-    # AnalysisTarget 列表，指数目标（sh/sz/csi 前缀与 .CSI alias）在入口即保留
-    # 身份语义；unsupported 目标（如未登记 .CSI）在入口明确拒绝，不进入 provider。
-    # 不消费个股列表的模式（回测/大盘复盘/仅服务/portfolio/定时）整体跳过
-    # 分类与索引刷新（_skips_stock_entry），避免无关坏 token 拦截模式主体。
+    # 종목 목록 해석(모두 대문자로 통일, Issue #355)
+    # Story 1.5: 1회 실행용 --stocks 입력은 parse_analysis_target으로 구조화된
+    # AnalysisTarget 목록을 만든다. 지수 대상(sh/sz/csi 접두사와 .CSI 별칭)은 입력 단계에서
+    # 지수라는 정체를 유지하고, 지원하지 않는 대상(예: 미등록 .CSI)은 입력 단계에서 거절해 provider로 넘기지 않는다.
+    # 종목 목록을 쓰지 않는 모드(백테스트/시장 리뷰/서비스 전용/portfolio/예약)는
+    # 분류와 인덱스 새로 고침을 통째로 건너뛰어(_skips_stock_entry) 상관없는 잘못된 token이 모드를 막지 않게 한다.
     _skip_stock_entry = _skips_stock_entry(args, config)
     if args.stocks and getattr(args, "portfolio", None):
-        logger.info("同时指定了 --portfolio；实际分析时 portfolio 将覆盖 --stocks")
+        logger.info("--portfolio도 함께 지정됨. 실제 분석 때는 portfolio가 --stocks보다 우선합니다")
     stock_codes = None
     analysis_targets = None
     if args.stocks and not _skip_stock_entry:
-        # 在解析 --stocks 前先 best-effort 刷新股票索引注册表，保证首次运行能吃到
-        # 刷新后的 alias/身份；失败/超时/禁用不阻断分析。仅 --stocks 入口需要，
-        # 其他模式由 run_full_analysis 内的既有刷新覆盖。
+        # --stocks를 해석하기 전에 종목 인덱스 목록을 가능한 범위에서 새로 고쳐, 첫 실행에도
+        # 새 별칭/정보가 반영되게 한다. 실패/시간 초과/비활성이어도 분석은 막지 않는다. --stocks 입력에만 필요하고,
+        # 다른 모드는 run_full_analysis 안의 기존 새로 고침이 맡는다.
         _refresh_stock_index_cache_for_analysis(config)
         tokens = [c for c in split_stock_list(args.stocks) if (c or "").strip()]
         resolved = _classify_stock_list_tokens(tokens, entry_label="--stocks")
         if resolved is None:
             return 1
         stock_codes, analysis_targets = resolved
-        logger.info(f"使用命令行指定的股票列表: {stock_codes}")
+        logger.info(f"명령줄에서 지정한 종목 목록 사용: {stock_codes}")
     elif (
         os.getenv("GITHUB_ACTIONS") == "true"
         and not _skip_stock_entry
     ):
-        # 每日工作流（GITHUB_ACTIONS=true）无参数运行 `python main.py`（full 或
-        # stocks-only 模式）：把 STOCK_LIST token 分类为与一次性 --stocks 等价的
-        # 结构化 target，显式指数 token 进入指数路径、个股 token 保持既有路径。
-        # 不消费个股列表的模式由 _skips_stock_entry 整体跳过（不刷新不分类），
-        # 本地默认路径不在本入口构造 target。
+        # 매일 도는 워크플로(GITHUB_ACTIONS=true)가 인자 없이 `python main.py`를 실행할 때(full 또는
+        # stocks-only 모드): STOCK_LIST token을 1회 실행용 --stocks와 같은 방식으로
+        # 구조화된 target으로 분류한다. 명시된 지수 token은 지수 경로로, 개별 종목 token은 기존 경로로 간다.
+        # 종목 목록을 쓰지 않는 모드는 _skips_stock_entry로 통째로 건너뛰고(새로 고침·분류 없음),
+        # 로컬 기본 실행은 여기서 target을 만들지 않는다.
         raw_value = config.stock_list or []
         raw_tokens = (
             split_stock_list(raw_value)
@@ -1777,19 +1777,19 @@ def main() -> int:
             if resolved is None:
                 return 1
             stock_codes, analysis_targets = resolved
-            logger.info(f"GitHub Actions 默认 STOCK_LIST: {stock_codes}")
+            logger.info(f"GitHub Actions 기본 STOCK_LIST: {stock_codes}")
 
-    # === 处理 --webui / --webui-only 参数，映射到 --serve / --serve-only ===
+    # === --webui / --webui-only 인자를 --serve / --serve-only로 연결 ===
     if args.webui:
         args.serve = True
     if args.webui_only:
         args.serve_only = True
 
-    # 兼容旧版 WEBUI_ENABLED 环境变量
+    # 예전 WEBUI_ENABLED 환경 변수도 지원
     if config.webui_enabled and not (args.serve or args.serve_only):
         args.serve = True
 
-    # === 启动 Web 服务 (如果启用) ===
+    # === 웹 서비스 실행(켜져 있으면) ===
     start_serve = (args.serve or args.serve_only) and os.getenv("GITHUB_ACTIONS") != "true"
 
     if start_serve:
@@ -1842,12 +1842,12 @@ def main() -> int:
             runtime_scheduler_args["portfolio"] = args.portfolio
         os.environ[RUNTIME_SCHEDULER_ARGS_ENV] = json.dumps(runtime_scheduler_args)
         if not prepare_webui_frontend_assets():
-            logger.warning("前端静态资源未就绪，继续启动 FastAPI 服务（Web 页面可能不可用）")
+            logger.warning("프론트엔드 정적 파일이 준비되지 않았지만 FastAPI 서비스는 계속 실행합니다(웹 페이지가 안 열릴 수 있음)")
         try:
             start_api_server(host=args.host, port=args.port, config=config)
             bot_clients_started = True
         except Exception as e:
-            logger.error(f"启动 FastAPI 服务失败: {e}")
+            logger.error(f"FastAPI 서비스 실행 실패: {e}")
             if args.serve_only:
                 return 1
             start_serve = False
@@ -1855,24 +1855,24 @@ def main() -> int:
     if bot_clients_started:
         start_bot_stream_clients(config)
 
-    # === 仅 Web 服务模式：不自动执行分析 ===
+    # === 웹 서비스 전용 모드: 자동 분석 안 함 ===
     if args.serve_only:
-        logger.info("模式: 仅 Web 服务")
-        logger.info(f"Web 服务运行中: http://{args.host}:{args.port}")
-        logger.info("通过 /api/v1/analysis/analyze 接口触发分析")
-        logger.info(f"API 文档: http://{args.host}:{args.port}/docs")
-        logger.info("按 Ctrl+C 退出...")
+        logger.info("모드: 웹 서비스 전용")
+        logger.info(f"웹 서비스 실행 중: http://{args.host}:{args.port}")
+        logger.info("/api/v1/analysis/analyze API로 분석을 시작하세요")
+        logger.info(f"API 문서: http://{args.host}:{args.port}/docs")
+        logger.info("끝내려면 Ctrl+C를 누르세요...")
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            logger.info("\n用户中断，程序退出")
+            logger.info("\n사용자가 중단해 프로그램을 종료합니다")
         return 0
 
     try:
-        # 模式0: 回测
+        # 모드 0: 백테스트
         if getattr(args, 'backtest', False):
-            logger.info("模式: 回测")
+            logger.info("모드: 백테스트")
             from src.services.backtest_service import BacktestService
 
             service = BacktestService()
@@ -1882,24 +1882,24 @@ def main() -> int:
                 eval_window_days=getattr(args, 'backtest_days', None),
             )
             logger.info(
-                f"回测完成: processed={stats.get('processed')} saved={stats.get('saved')} "
+                f"백테스트 완료: processed={stats.get('processed')} saved={stats.get('saved')} "
                 f"completed={stats.get('completed')} insufficient={stats.get('insufficient')} errors={stats.get('errors')}"
             )
             return 0
 
-        # 模式0.5: ETF 轮动（规则化，不调用 LLM）
+        # 모드 0.5: ETF 로테이션(규칙 기반, LLM 호출 없음)
         if getattr(args, 'etf_rotation', False):
-            logger.info("模式: ETF 轮动")
+            logger.info("모드: ETF 로테이션")
             from src.services.etf_rotation_service import run_etf_rotation
 
             report = run_etf_rotation(config, send_notification=not args.no_notify)
             logger.info(
-                "ETF 轮动完成: as_of=%s target=%s failed=%s",
+                "ETF 로테이션 완료: as_of=%s target=%s failed=%s",
                 f"{report.as_of:%Y-%m-%d}", report.target_weights, list(report.failed_codes),
             )
             return 0
 
-        # 模式1: 仅大盘复盘
+        # 모드 1: 시장 전체 리뷰만
         if args.market_review:
             from src.core.market_review import run_market_review
             from src.core.market_review_runtime import build_market_review_runtime
@@ -1916,10 +1916,10 @@ def main() -> int:
                     getattr(config, 'market_review_region', 'cn') or 'cn', open_markets
                 )
                 if effective_region == '':
-                    logger.info("今日大盘复盘相关市场均为非交易日，跳过执行。可使用 --force-run 强制执行。")
+                    logger.info("오늘은 시장 리뷰 대상 시장이 모두 휴장일이라 건너뜁니다. --force-run으로 강제 실행할 수 있습니다.")
                     return 0
 
-            logger.info("模式: 仅大盘复盘")
+            logger.info("모드: 시장 전체 리뷰만")
             notifier, analyzer, search_service = build_market_review_runtime(config)
 
             market_review_result = _run_market_review_with_shared_lock(
@@ -1934,25 +1934,25 @@ def main() -> int:
             )
             return 0 if market_review_result else 1
 
-        # 模式2: 定时任务模式
+        # 모드 2: 예약 실행 모드
         if args.schedule or config.schedule_enabled:
             if start_serve:
-                # 模式2 + Web 服务：此路径来自 --schedule/--webui/--serve 与
-                # config.schedule_enabled 的组合（均已入 guard），由 API runtime
-                # scheduler 接管；--serve-only 已在上面 serve_only 分支返回。
-                logger.info("模式: Web/API runtime scheduler")
-                logger.info(f"Web 服务运行中: http://{args.host}:{args.port}")
-                logger.info("Web/API runtime scheduler 已接管定时任务，保存设置会作用于当前进程")
-                logger.info("按 Ctrl+C 退出...")
+                # 모드 2 + 웹 서비스: --schedule/--webui/--serve와
+                # config.schedule_enabled 조합에서 오는 경로(모두 guard에 포함)로, API runtime
+                # scheduler가 맡는다. --serve-only는 위 serve_only 분기에서 이미 반환됨.
+                logger.info("모드: Web/API runtime scheduler")
+                logger.info(f"웹 서비스 실행 중: http://{args.host}:{args.port}")
+                logger.info("Web/API runtime scheduler가 예약 실행을 맡았습니다. 설정을 저장하면 지금 실행 중인 프로세스에 바로 반영됩니다")
+                logger.info("끝내려면 Ctrl+C를 누르세요...")
                 try:
                     while True:
                         time.sleep(1)
                 except KeyboardInterrupt:
-                    logger.info("\n用户中断，程序退出")
+                    logger.info("\n사용자가 중단해 프로그램을 종료합니다")
                 return 0
 
-            logger.info("模式: 定时任务")
-            logger.info(f"每日执行时间: {config.schedule_time}")
+            logger.info("모드: 예약 실행")
+            logger.info(f"매일 실행 시각: {config.schedule_time}")
 
             # Determine whether to run immediately:
             # Command line arg --no-run-immediately overrides config if present.
@@ -1961,7 +1961,7 @@ def main() -> int:
             if getattr(args, 'no_run_immediately', False):
                 should_run_immediately = False
 
-            logger.info(f"启动时立即执行: {should_run_immediately}")
+            logger.info(f"시작하자마자 실행: {should_run_immediately}")
 
             from src.scheduler import run_with_schedule
             scheduled_stock_codes = _resolve_scheduled_stock_codes(args.stocks or None)
@@ -2004,7 +2004,7 @@ def main() -> int:
                     )
                     if fail_open_reason is not None:
                         logger.info(
-                            "启动立即执行去重检查 fail-open(%s)，照常执行分析",
+                            "시작 직후 실행 중복 확인 fail-open(%s), 분석은 평소대로 실행",
                             fail_open_reason,
                         )
                     else:
@@ -2076,7 +2076,7 @@ def main() -> int:
             run_with_schedule(**schedule_kwargs)
             return 0
 
-        # 模式3: 正常单次运行
+        # 모드 3: 일반 1회 실행
         if config.run_immediately:
             try:
                 analysis_ok = _run_analysis_with_runtime_scheduler_lock(
@@ -2092,7 +2092,7 @@ def main() -> int:
             else:
                 if analysis_ok is False:
                     if start_serve:
-                        logger.error("启动时分析执行失败，Web/API 服务继续运行。")
+                        logger.error("시작 시 분석 실행에 실패했지만 Web/API 서비스는 계속 실행합니다.")
                     elif _LAST_ANALYSIS_FAILURE_REASON in {
                         "no_report",
                         "empty_stock_list",
@@ -2100,14 +2100,14 @@ def main() -> int:
                     }:
                         return 1
         else:
-            logger.info("配置为不立即运行分析 (RUN_IMMEDIATELY=false)")
+            logger.info("설정상 분석을 바로 실행하지 않음 (RUN_IMMEDIATELY=false)")
 
-        logger.info("\n程序执行完成")
+        logger.info("\n프로그램 실행 완료")
 
-        # 如果启用了服务且是非定时任务模式，保持程序运行
+        # 서비스가 켜져 있고 예약 실행 모드가 아니면 프로그램을 계속 띄워 둠
         keep_running = start_serve and not (args.schedule or config.schedule_enabled)
         if keep_running:
-            logger.info("API 服务运行中 (按 Ctrl+C 退出)...")
+            logger.info("API 서비스 실행 중 (끝내려면 Ctrl+C)...")
             try:
                 while True:
                     time.sleep(1)
@@ -2117,11 +2117,11 @@ def main() -> int:
         return 0
 
     except KeyboardInterrupt:
-        logger.info("\n用户中断，程序退出")
+        logger.info("\n사용자가 중단해 프로그램을 종료합니다")
         return 130
 
     except Exception as e:
-        logger.exception(f"程序执行失败: {e}")
+        logger.exception(f"프로그램 실행 실패: {e}")
         return 1
 
 

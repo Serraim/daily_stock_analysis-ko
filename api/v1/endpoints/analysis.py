@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票分析接口
+종목 분석 API
 ===================================
 
-职责：
-1. 提供 POST /api/v1/analysis/analyze 触发分析接口
-2. 提供 GET /api/v1/analysis/status/{task_id} 查询任务状态接口
-3. 提供 GET /api/v1/analysis/tasks 获取任务列表接口
-4. 提供 GET /api/v1/analysis/tasks/stream SSE 实时推送接口
+역할:
+1. POST /api/v1/analysis/analyze 분석 실행 API 제공
+2. GET /api/v1/analysis/status/{task_id} 작업 상태 조회 API 제공
+3. GET /api/v1/analysis/tasks 작업 목록 조회 API 제공
+4. GET /api/v1/analysis/tasks/stream SSE 실시간 알림 API 제공
 
-特性：
-- 异步任务队列：分析任务异步执行，不阻塞请求
-- 防重复提交：相同股票代码正在分析时返回 409
-- SSE 实时推送：任务状态变化实时通知前端
+특징:
+- 비동기 작업 큐: 분석을 비동기로 실행해 요청을 막지 않음
+- 중복 제출 방지: 같은 종목을 분석 중이면 409 반환
+- SSE 실시간 알림: 작업 상태가 바뀌면 바로 프런트엔드에 알림
 """
 
 import asyncio
@@ -132,11 +132,11 @@ def _task_asset_type(task: Any) -> Optional[str]:
         return None
     if raw in {"stock", "index"}:
         return raw
-    # 任何真实字符串只要不精确等于字面量域（含空串、纯空白、大小写或带
-    # 空格形态）都必须记录 warning 后降级，避免静默掩盖漂移；仅非字符串
-    # 代理（如 MagicMock 子对象）保持静默 None。
+    # 실제 문자열이 허용 값과 정확히 같지 않으면 (빈 문자열, 공백만, 대소문자나
+    # 공백이 섞인 형태 포함) 반드시 warning을 남기고 None으로 낮춤. 어긋남을 조용히 덮지 않기 위함. 문자열이 아닌
+    # 대체 객체(MagicMock 하위 객체 등)만 조용히 None 처리.
     logger.warning(
-        "task asset_type 超出字面量域，降级为 None: task_id=%s asset_type=%r",
+        "task asset_type 이 허용 값이 아니라서 None으로 처리: task_id=%s asset_type=%r",
         getattr(task, "task_id", None),
         raw,
     )
@@ -323,53 +323,53 @@ def _resolve_analysis_input(raw_value: str):
 
 
 # ============================================================
-# POST /analyze - 触发股票分析
+# POST /analyze - 종목 분석 실행
 # ============================================================
 
 @router.post(
     "/analyze",
     response_model=AnalysisResultResponse,
     responses={
-        200: {"description": "分析完成（同步模式）", "model": AnalysisResultResponse},
+        200: {"description": "분석 완료 (동기 모드)", "model": AnalysisResultResponse},
         202: {
-            "description": "分析任务已接受（异步模式）",
+            "description": "분석 작업 접수됨 (비동기 모드)",
             "model": Union[TaskAccepted, BatchTaskAcceptedResponse],
         },
-        400: {"description": "请求参数错误", "model": ErrorResponse},
-        409: {"description": "股票正在分析中，拒绝重复提交", "model": DuplicateTaskErrorResponse},
-        500: {"description": "分析失败", "model": ErrorResponse},
+        400: {"description": "요청 파라미터 오류", "model": ErrorResponse},
+        409: {"description": "이미 분석 중인 종목이라 중복 제출 거부", "model": DuplicateTaskErrorResponse},
+        500: {"description": "분석 실패", "model": ErrorResponse},
     },
-    summary="触发股票分析",
-    description="启动 AI 智能分析任务，支持同步和异步模式。异步模式下相同股票代码不允许重复提交。"
+    summary="종목 분석 실행",
+    description="AI 분석 작업을 시작합니다. 동기/비동기 모드를 지원하며, 비동기 모드에서는 같은 종목을 중복 제출할 수 없습니다."
 )
 def trigger_analysis(
         request: AnalyzeRequest,
         config: Config = Depends(get_config_dep)
 ) -> Union[AnalysisResultResponse, JSONResponse]:
     """
-    触发股票分析
+    종목 분석 실행
     
-    启动 AI 智能分析任务，支持单只或多只股票批量分析
+    AI 분석 작업 시작. 종목 하나 또는 여러 종목 일괄 분석 지원
     
-    流程：
-    1. 校验请求参数
-    2. 异步模式：检查重复 -> 提交任务队列 -> 返回 202
-    3. 同步模式：直接执行分析 -> 返回 200
+    흐름:
+    1. 요청 파라미터 검사
+    2. 비동기 모드: 중복 확인 -> 작업 큐에 등록 -> 202 반환
+    3. 동기 모드: 바로 분석 실행 -> 200 반환
     
     Args:
-        request: 分析请求参数
-        config: 配置依赖
+        request: 분석 요청 파라미터
+        config: 설정 의존성
         
     Returns:
-        AnalysisResultResponse: 分析结果（同步模式）
-        TaskAccepted | BatchTaskAcceptedResponse: 任务已接受（异步模式，返回 202）
+        AnalysisResultResponse: 분석 결과 (동기 모드)
+        TaskAccepted | BatchTaskAcceptedResponse: 작업 접수됨 (비동기 모드, 202 반환)
         
     Raises:
-        HTTPException: 400 - 请求参数错误
-        HTTPException: 409 - 股票正在分析中
-        HTTPException: 500 - 分析失败
+        HTTPException: 400 - 요청 파라미터 오류
+        HTTPException: 409 - 이미 분석 중인 종목
+        HTTPException: 500 - 분석 실패
     """
-    # 校验请求参数
+    # 요청 파라미터 검사
     stock_codes = []
     if request.stock_code:
         stock_codes.append(request.stock_code)
@@ -407,9 +407,9 @@ def trigger_analysis(
         if target is not None and target.asset_type == ParseStatus.UNSUPPORTED:
             rejected_entries.append((code, target))
             continue
-        # 去重键按 asset_type 分支：INDEX 用 canonical_id（指数与同码股票不折叠、
-        # CSI alias 收敛），STOCK 保持 normalize_stock_code 既有语义
-        # （'600519' 与 '600519.SH' 合并）。
+        # 중복 제거 키는 asset_type 에 따라 다름: INDEX 는 canonical_id 사용 (지수와 같은 코드의 종목을 합치지 않고,
+        # CSI alias 는 하나로 모음), STOCK 은 기존 normalize_stock_code 동작 유지
+        # ('600519' 와 '600519.SH' 를 합침).
         if target is not None and target.asset_type == ParseStatus.INDEX:
             norm = target.canonical_id
         else:
@@ -424,10 +424,10 @@ def trigger_analysis(
     if not stock_codes:
         if not rejected_entries:
             raise api_error(400, "validation_error", "股票代码不能为空或仅包含空白字符")
-        # 全部目标都被拒绝（单请求或批量全拒）：无任务被接受时返回 202 会误导
-        # 客户端，一律明确 400；部分被拒则走下方 rejected 语义。
+        # 모든 대상이 거부됨 (단건 또는 일괄 전부 거부): 접수된 작업이 없는데 202를 주면
+        # 클라이언트가 오해하므로 항상 400. 일부만 거부되면 아래 rejected 처리로 감.
         code, target = rejected_entries[0]
-        reason = target.unsupported_reason or f"不支持的目标: {code}"
+        reason = target.unsupported_reason or f"지원하지 않는 대상: {code}"
         raise api_error(400, "validation_error", reason)
 
     # Sync mode only supports single-stock analysis.
@@ -436,13 +436,13 @@ def trigger_analysis(
             raise api_error(
                 400,
                 "validation_error",
-                "同步模式仅支持单只股票分析，请使用 async_mode=true 进行批量分析",
+                "동기 모드는 종목 하나만 분석할 수 있어요. 여러 종목은 async_mode=true 로 요청하세요",
             )
         if rejected_entries:
-            # 同步模式不支持 rejected 语义：只要存在被拒绝目标（含全部被拒绝）
-            # 就以第一个未登记目标的明确校验错误返回 4xx。
+            # 동기 모드는 rejected 처리를 지원하지 않음: 거부된 대상이 하나라도 있으면 (전부 거부 포함)
+            # 첫 번째 미등록 대상의 검사 오류로 4xx 반환.
             code, target = rejected_entries[0]
-            reason = target.unsupported_reason or f"不支持的目标: {code}"
+            reason = target.unsupported_reason or f"지원하지 않는 대상: {code}"
             raise api_error(400, "validation_error", reason)
         return _handle_sync_analysis(stock_codes[0], request, analysis_target=unique_targets[0] if unique_targets else None)
 
@@ -501,8 +501,8 @@ def _handle_async_analysis_batch(
         submit_kwargs["report_language"] = report_language
     if skills is not None:
         submit_kwargs["skills"] = skills
-    # 仅当存在非 None 的结构化 target（如指数）时才传递，保持纯股票请求
-    # 的既有 kwargs 契约不变。
+    # None 이 아닌 구조화 target (지수 등) 이 있을 때만 넘김. 일반 종목 요청의
+    # 기존 kwargs 형식은 그대로 유지.
     if analysis_targets is not None and any(t is not None for t in analysis_targets):
         submit_kwargs["analysis_targets"] = analysis_targets
 
@@ -514,7 +514,7 @@ def _handle_async_analysis_batch(
             trace_id=_get_task_trace_id(task),
             stock_code=task.stock_code,
             status="pending",
-            message=f"分析任务已加入队列: {task.stock_code}",
+            message=f"분석 작업을 큐에 넣었어요: {task.stock_code}",
             analysis_phase=task.analysis_phase,
             asset_type=_task_asset_type(task),
         )
@@ -531,12 +531,12 @@ def _handle_async_analysis_batch(
     rejected = [
         RejectedTaskItem(
             stock_code=code,
-            message=(target.unsupported_reason or f"不支持的目标: {code}"),
+            message=(target.unsupported_reason or f"지원하지 않는 대상: {code}"),
         )
         for code, target in (rejected_entries or [])
     ]
     
-    # 单只股票且被拒绝：保持 409 兼容性
+    # 종목 하나가 거부된 경우: 기존과 같이 409 유지
     if is_single and duplicates:
         dup = duplicates[0]
         error_response = DuplicateTaskErrorResponse(
@@ -550,7 +550,7 @@ def _handle_async_analysis_batch(
             content=error_response.model_dump()
         )
     
-    # 单只股票成功（且无 rejected）：保持原有响应格式兼容性
+    # 종목 하나 성공 (rejected 없음): 기존 응답 형식 유지
     if is_single and accepted and not rejected:
         task_accepted = TaskAccepted(
             task_id=accepted[0].task_id,
@@ -564,12 +564,12 @@ def _handle_async_analysis_batch(
             content=task_accepted.model_dump()
         )
     
-    # 批量：返回汇总结果（rejected 仅 async 批量返回）
+    # 일괄: 요약 결과 반환 (rejected 는 async 일괄에서만 반환)
     rejected_count = len(rejected)
     if rejected_count:
-        message = f"已提交 {len(accepted)} 个任务，{len(duplicates)} 个重复跳过，{rejected_count} 个被拒绝"
+        message = f"작업 {len(accepted)}개 제출, 중복 {len(duplicates)}개 건너뜀, {rejected_count}개 거부됨"
     else:
-        message = f"已提交 {len(accepted)} 个任务，{len(duplicates)} 个重复跳过"
+        message = f"작업 {len(accepted)}개 제출, 중복 {len(duplicates)}개 건너뜀"
     batch_response = BatchTaskAcceptedResponse(
         accepted=accepted,
         duplicates=duplicates,
@@ -588,9 +588,9 @@ def _handle_sync_analysis(
     analysis_target: Optional[Any] = None,
 ) -> AnalysisResultResponse:
     """
-    处理同步分析请求
+    동기 분석 요청 처리
     
-    直接执行分析，等待完成后返回结果
+    바로 분석을 실행하고, 끝나면 결과 반환
     """
     import uuid
     from src.services.analysis_service import AnalysisService
@@ -612,10 +612,10 @@ def _handle_sync_analysis(
         )
 
         if result is None:
-            error_message = service.last_error or f"分析股票 {stock_code} 失败"
+            error_message = service.last_error or f"종목 {stock_code} 분석 실패"
             raise api_error(500, "analysis_failed", error_message)
 
-        # 构建报告结构
+        # 리포트 구조 만들기
         report_data = result.get("report", {})
         context_snapshot, fundamental_snapshot, raw_result_snapshot = _load_sync_fundamental_sources(
             query_id=query_id,
@@ -644,12 +644,12 @@ def _handle_sync_analysis(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"分析失败: {e}", exc_info=True)
-        raise api_error(500, "internal_error", f"分析过程发生错误: {str(e)}")
+        logger.error(f"분석 실패: {e}", exc_info=True)
+        raise api_error(500, "internal_error", f"분석 중 오류 발생: {str(e)}")
 
 
 # ============================================================
-# POST /market-review - 触发大盘复盘
+# POST /market-review - 시장 리뷰 실행
 # ============================================================
 
 @router.post(
@@ -657,12 +657,12 @@ def _handle_sync_analysis(
     response_model=MarketReviewAccepted,
     status_code=202,
     responses={
-        202: {"description": "大盘复盘任务已接受", "model": MarketReviewAccepted},
-        409: {"description": "大盘复盘正在执行", "model": ErrorResponse},
-        500: {"description": "提交失败", "model": ErrorResponse},
+        202: {"description": "시장 리뷰 작업 접수됨", "model": MarketReviewAccepted},
+        409: {"description": "시장 리뷰 실행 중", "model": ErrorResponse},
+        500: {"description": "제출 실패", "model": ErrorResponse},
     },
-    summary="触发大盘复盘",
-    description="提交一个后台大盘复盘任务，复用 CLI 的大盘复盘运行时装配并保存报告。该人工触发入口不按交易日检查跳过；接口内部仅提供进程内/单机防重，如多实例（多 Worker/多容器）部署，需结合外部幂等机制避免重复触发。",
+    summary="시장 리뷰 실행",
+    description="백그라운드 시장 리뷰 작업을 하나 제출합니다. CLI 의 시장 리뷰 실행 구성을 그대로 쓰고 리포트를 저장합니다. 수동 실행이라 거래일 여부로 건너뛰지 않습니다. 중복 방지는 프로세스 안/단일 서버 범위에서만 되므로, 여러 인스턴스(Worker/컨테이너 여러 개)로 배포하면 외부 멱등 처리로 중복 실행을 막아야 합니다.",
 )
 def trigger_market_review(
     request: Optional[MarketReviewRequest] = Body(None),
@@ -678,7 +678,7 @@ def trigger_market_review(
 
     lock_token = _try_acquire_market_review_lock(runtime_config)
     if lock_token is None:
-        raise api_error(409, "duplicate_market_review", "大盘复盘正在执行中，请稍后再试")
+        raise api_error(409, "duplicate_market_review", "시장 리뷰가 이미 실행 중이에요. 잠시 후 다시 시도하세요")
 
     try:
         task_id = uuid.uuid4().hex
@@ -709,7 +709,7 @@ def trigger_market_review(
 
     return MarketReviewAccepted(
         status="accepted",
-        message="大盘复盘任务已提交，完成后会保存报告并按配置推送通知",
+        message="시장 리뷰 작업을 제출했어요. 끝나면 리포트를 저장하고 설정에 따라 알림을 보냅니다",
         send_notification=request.send_notification,
         region=effective_region,
         task_id=task.task_id,
@@ -718,49 +718,49 @@ def trigger_market_review(
 
 
 # ============================================================
-# GET /tasks - 获取任务列表
+# GET /tasks - 작업 목록 조회
 # ============================================================
 
 @router.get(
     "/tasks",
     response_model=TaskListResponse,
     responses={
-        200: {"description": "任务列表"},
+        200: {"description": "작업 목록"},
     },
-    summary="获取分析任务列表",
-    description="获取当前所有分析任务，可按状态筛选"
+    summary="분석 작업 목록 조회",
+    description="현재 모든 분석 작업 조회. 상태로 거를 수 있음"
 )
 def get_task_list(
     status: Optional[str] = Query(
         None,
-        description="筛选状态：pending, processing, completed, failed, cancel_requested, cancelled（支持逗号分隔多个）"
+        description="거를 상태: pending, processing, completed, failed, cancel_requested, cancelled(쉼표로 여러 개 지정 가능)"
     ),
-    limit: int = Query(20, description="返回数量限制", ge=1, le=100),
+    limit: int = Query(20, description="최대 반환 개수", ge=1, le=100),
 ) -> TaskListResponse:
     """
-    获取分析任务列表
+    분석 작업 목록 조회
     
     Args:
-        status: 状态筛选（可选）
-        limit: 返回数量限制
+        status: 상태 필터 (선택)
+        limit: 최대 반환 개수
         
     Returns:
-        TaskListResponse: 任务列表响应
+        TaskListResponse: 작업 목록 응답
     """
     task_queue = get_task_queue()
     
-    # 获取所有任务
+    # 모든 작업 가져오기
     all_tasks = task_queue.list_all_tasks(limit=limit)
     
-    # 状态筛选
+    # 상태로 거르기
     if status:
         status_list = [s.strip().lower() for s in status.split(",")]
         all_tasks = [t for t in all_tasks if t.status.value in status_list]
     
-    # 统计信息
+    # 통계
     stats = task_queue.get_task_stats()
     
-    # 转换为 Schema
+    # Schema 로 변환
     task_infos = [
         TaskInfo(
             task_id=t.task_id,
@@ -794,56 +794,56 @@ def get_task_list(
 
 
 # ============================================================
-# GET /tasks/stream - SSE 实时推送
+# GET /tasks/stream - SSE 실시간 알림
 # ============================================================
 
 @router.get(
     "/tasks/stream",
     responses={
-        200: {"description": "SSE 事件流", "content": {"text/event-stream": {}}},
+        200: {"description": "SSE 이벤트 스트림", "content": {"text/event-stream": {}}},
     },
-    summary="任务状态 SSE 流",
-    description="通过 Server-Sent Events 实时推送任务状态变化"
+    summary="작업 상태 SSE 스트림",
+    description="Server-Sent Events 로 작업 상태 변화를 실시간 전송"
 )
 async def task_stream():
     """
-    SSE 任务状态流
+    SSE 작업 상태 스트림
     
-    事件类型：
-    - connected: 连接成功
-    - task_created: 新任务创建
-    - task_started: 任务开始执行
-    - task_progress: 任务阶段进度更新
-    - task_completed: 任务完成
-    - task_failed: 任务失败
-    - heartbeat: 心跳（每 30 秒）
+    이벤트 종류:
+    - connected: 연결 성공
+    - task_created: 새 작업 생성
+    - task_started: 작업 실행 시작
+    - task_progress: 작업 단계 진행 상황 갱신
+    - task_completed: 작업 완료
+    - task_failed: 작업 실패
+    - heartbeat: 하트비트 (30초마다)
     
     Returns:
-        StreamingResponse: SSE 事件流
+        StreamingResponse: SSE 이벤트 스트림
     """
     async def event_generator():
         task_queue = get_task_queue()
         event_queue: asyncio.Queue = asyncio.Queue()
         
-        # 发送连接成功事件
+        # 연결 성공 이벤트 보내기
         yield _format_sse_event("connected", {"message": "Connected to task stream"})
         
-        # 发送当前进行中的任务
+        # 현재 진행 중인 작업 보내기
         pending_tasks = task_queue.list_pending_tasks()
         for task in pending_tasks:
             yield _format_sse_event("task_created", task.to_dict())
         
-        # 订阅任务事件
+        # 작업 이벤트 구독
         task_queue.subscribe(event_queue)
         
         try:
             while True:
                 try:
-                    # 等待事件，超时发送心跳
+                    # 이벤트를 기다리다 시간 초과면 하트비트 전송
                     event = await asyncio.wait_for(event_queue.get(), timeout=30)
                     yield _format_sse_event(event["type"], event["data"])
                 except asyncio.TimeoutError:
-                    # 心跳
+                    # 하트비트
                     yield _format_sse_event("heartbeat", {
                         "timestamp": datetime.now().isoformat()
                     })
@@ -859,21 +859,21 @@ async def task_stream():
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
+            "X-Accel-Buffering": "no",  # Nginx 버퍼링 끄기
         }
     )
 
 
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     """
-    格式化 SSE 事件
+    SSE 이벤트 포맷
     
     Args:
-        event_type: 事件类型
-        data: 事件数据
+        event_type: 이벤트 종류
+        data: 이벤트 데이터
         
     Returns:
-        SSE 格式字符串
+        SSE 형식 문자열
     """
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -910,16 +910,16 @@ def _load_history_run_flow_by_query_id(
     "/tasks/{task_id}/flow",
     response_model=RunFlowSnapshot,
     responses={
-        200: {"description": "任务运行流快照"},
-        404: {"description": "任务不存在", "model": ErrorResponse},
-        500: {"description": "服务器错误", "model": ErrorResponse},
+        200: {"description": "작업 실행 흐름 스냅샷"},
+        404: {"description": "작업 없음", "model": ErrorResponse},
+        500: {"description": "서버 오류", "model": ErrorResponse},
     },
-    summary="获取分析任务运行流",
-    description="根据 task_id 查询任务数据流/信息流快照；活跃任务缺少诊断时返回骨架流。",
+    summary="분석 작업 실행 흐름 조회",
+    description="task_id 로 작업의 데이터/정보 흐름 스냅샷을 조회합니다. 진행 중인 작업에 진단 정보가 없으면 기본 뼈대 흐름을 반환합니다.",
 )
 def get_task_run_flow(task_id: str) -> RunFlowSnapshot:
     """
-    查询分析任务运行流。
+    분석 작업 실행 흐름 조회.
 
     Active tasks are served from the in-memory task queue. Completed tasks try
     to hydrate from persisted history diagnostics using the same task_id/query_id.
@@ -950,10 +950,10 @@ def get_task_run_flow(task_id: str) -> RunFlowSnapshot:
         if history_snapshot is not None:
             return history_snapshot
     except Exception as e:
-        logger.error(f"查询任务运行流失败: {e}", exc_info=True)
-        raise api_error(500, "internal_error", f"查询任务运行流失败: {str(e)}")
+        logger.error(f"작업 실행 흐름 조회 실패: {e}", exc_info=True)
+        raise api_error(500, "internal_error", f"작업 실행 흐름 조회 실패: {str(e)}")
 
-    raise api_error(404, "not_found", f"任务 {task_id} 不存在或已过期")
+    raise api_error(404, "not_found", f"작업 {task_id} 이(가) 없거나 만료됐어요")
 
 
 def _safe_task_flow_text(value: Any, *, max_length: int) -> Optional[str]:
@@ -1154,35 +1154,35 @@ def _build_task_analysis_result(task: Any) -> AnalysisResultResponse:
 
 
 # ============================================================
-# GET /status/{task_id} - 查询单个任务状态
+# GET /status/{task_id} - 작업 하나의 상태 조회
 # ============================================================
 
 @router.get(
     "/status/{task_id}",
     response_model=TaskStatus,
     responses={
-        200: {"description": "任务状态"},
-        404: {"description": "任务不存在", "model": ErrorResponse},
+        200: {"description": "작업 상태"},
+        404: {"description": "작업 없음", "model": ErrorResponse},
     },
-    summary="查询分析任务状态",
-    description="根据 task_id 查询单个任务的状态"
+    summary="분석 작업 상태 조회",
+    description="task_id 로 작업 하나의 상태 조회"
 )
 def get_analysis_status(task_id: str) -> TaskStatus:
     """
-    查询分析任务状态
+    분석 작업 상태 조회
     
-    优先从任务队列查询，如果不存在则从数据库查询历史记录
+    먼저 작업 큐에서 찾고, 없으면 DB 의 분석 기록에서 찾음
     
     Args:
-        task_id: 任务 ID
+        task_id: 작업 ID
         
     Returns:
-        TaskStatus: 任务状态信息
+        TaskStatus: 작업 상태 정보
         
     Raises:
-        HTTPException: 404 - 任务不存在
+        HTTPException: 404 - 작업 없음
     """
-    # 1. 先从任务队列查询
+    # 1. 먼저 작업 큐에서 조회
     task_queue = get_task_queue()
     task = task_queue.get_task(task_id)
     
@@ -1204,7 +1204,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
                     result = _build_task_analysis_result(task)
                 except Exception:
                     logger.warning(
-                        "解析任务结果失败，回退为空返回: task_id=%s",
+                        "작업 결과 해석 실패, 빈 결과로 대체: task_id=%s",
                         task.task_id,
                     )
 
@@ -1225,7 +1225,7 @@ def get_analysis_status(task_id: str) -> TaskStatus:
             skills=getattr(task, "skills", None),
         )
     
-    # 2. 从数据库查询已完成的记录
+    # 2. DB 에서 완료된 기록 조회
     try:
         from src.storage import DatabaseManager
         db = DatabaseManager.get_instance()
@@ -1409,15 +1409,15 @@ def get_analysis_status(task_id: str) -> TaskStatus:
             )
 
     except Exception as e:
-        logger.error(f"查询任务状态失败: {e}", exc_info=True)
-        raise api_error(500, "internal_error", f"查询任务状态失败: {str(e)}")
+        logger.error(f"작업 상태 조회 실패: {e}", exc_info=True)
+        raise api_error(500, "internal_error", f"작업 상태 조회 실패: {str(e)}")
 
-    # 3. 任务不存在
-    raise api_error(404, "not_found", f"任务 {task_id} 不存在或已过期")
+    # 3. 작업 없음
+    raise api_error(404, "not_found", f"작업 {task_id} 이(가) 없거나 만료됐어요")
 
 
 # ============================================================
-# 辅助函数
+# 보조 함수
 # ============================================================
 
 def _load_sync_fundamental_sources(
@@ -1472,19 +1472,19 @@ def _build_analysis_report(
         fallback_raw_result_payload: Optional[Any] = None,
 ) -> AnalysisReport:
     """
-    构建符合 API 规范的分析报告
+    API 규격에 맞는 분석 리포트 만들기
     
     Args:
-        report_data: 原始报告数据
-        query_id: 查询 ID
-        stock_code: 股票代码
-        stock_name: 股票名称
-        context_snapshot: 上下文快照（可选）
-        fallback_fundamental_payload: 基本面快照 payload（可选）
-        fallback_raw_result_payload: 原始分析结果 payload（可选）
+        report_data: 원본 리포트 데이터
+        query_id: 조회 ID
+        stock_code: 종목 코드
+        stock_name: 종목명
+        context_snapshot: 컨텍스트 스냅샷 (선택)
+        fallback_fundamental_payload: 기본 지표 스냅샷 payload (선택)
+        fallback_raw_result_payload: 원본 분석 결과 payload (선택)
         
     Returns:
-        AnalysisReport: 结构化的分析报告
+        AnalysisReport: 구조화된 분석 리포트
     """
     meta_data = report_data.get("meta", {})
     summary_data = report_data.get("summary", {})

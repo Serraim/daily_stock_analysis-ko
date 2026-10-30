@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-平台适配器模块
+플랫폼 어댑터 모듈
 ===================================
 
-包含各平台的 Webhook 处理和消息解析逻辑。
+플랫폼별 Webhook 처리와 메시지 해석 로직이 들어 있습니다.
 
-支持两种接入模式：
-1. Webhook 模式：需要公网 IP，配置回调 URL
-2. Stream 模式：无需公网 IP，通过 WebSocket 长连接（钉钉、飞书支持）
+두 가지 연결 방식을 지원합니다:
+1. Webhook 방식: 공인 IP가 필요하고 콜백 URL을 설정해야 함
+2. Stream 방식: 공인 IP 없이 WebSocket 상시 연결 사용(DingTalk, Feishu 지원)
 """
 
 from bot.platforms.base import BotPlatform
 from bot.platforms.dingtalk import DingtalkPlatform
 
-# 所有可用平台（Webhook 模式）
+# 사용 가능한 모든 플랫폼(Webhook 방식)
 ALL_PLATFORMS = {
     'dingtalk': DingtalkPlatform,
 }
 
-# 钉钉 Stream 模式（可选）
+# DingTalk Stream 방식(선택)
 try:
     from bot.platforms.dingtalk_stream import (
         DingtalkStreamClient,
@@ -35,7 +35,7 @@ except ImportError:
     get_dingtalk_stream_client = lambda: None
     start_dingtalk_stream_background = lambda: False
 
-# 飞书 Stream 模式（可选）
+# Feishu Stream 방식(선택)
 try:
     from bot.platforms.feishu_stream import (
         FeishuStreamClient,
@@ -57,13 +57,13 @@ __all__ = [
     'BotPlatform',
     'DingtalkPlatform',
     'ALL_PLATFORMS',
-    # 钉钉 Stream 模式
+    # DingTalk Stream 방식
     'DingtalkStreamClient',
     'DingtalkStreamHandler',
     'get_dingtalk_stream_client',
     'start_dingtalk_stream_background',
     'DINGTALK_STREAM_AVAILABLE',
-    # 飞书 Stream 模式
+    # Feishu Stream 방식
     'FeishuStreamClient',
     'FeishuStreamHandler',
     'FeishuReplyClient',

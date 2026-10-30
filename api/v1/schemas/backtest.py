@@ -13,27 +13,27 @@ from src.schemas.decision_action import DecisionAction
 
 
 class BacktestRunRequest(BaseModel):
-    code: Optional[str] = Field(None, description="仅回测指定股票")
-    force: bool = Field(False, description="强制重新计算")
-    eval_window_days: Optional[int] = Field(None, ge=1, le=120, description="评估窗口（交易日数）")
-    min_age_days: Optional[int] = Field(None, ge=0, le=365, description="分析记录最小天龄（0=不限）")
-    analysis_date_from: Optional[date] = Field(None, description="分析日期起始（含）")
-    analysis_date_to: Optional[date] = Field(None, description="分析日期结束（含）")
-    limit: int = Field(200, ge=1, le=2000, description="最多处理的分析记录数")
+    code: Optional[str] = Field(None, description="지정한 종목만 백테스트")
+    force: bool = Field(False, description="강제로 다시 계산")
+    eval_window_days: Optional[int] = Field(None, ge=1, le=120, description="평가 기간 (거래일 수)")
+    min_age_days: Optional[int] = Field(None, ge=0, le=365, description="분석 기록 최소 경과 일수 (0=제한 없음)")
+    analysis_date_from: Optional[date] = Field(None, description="분석일 시작 (포함)")
+    analysis_date_to: Optional[date] = Field(None, description="분석일 끝 (포함)")
+    limit: int = Field(200, ge=1, le=2000, description="처리할 분석 기록 최대 수")
 
 
 class BacktestRunResponse(BaseModel):
-    processed: int = Field(..., description="候选记录数")
-    saved: int = Field(..., description="写入回测结果数")
-    completed: int = Field(..., description="完成回测数")
-    insufficient: int = Field(..., description="数据不足数")
-    errors: int = Field(..., description="错误数")
+    processed: int = Field(..., description="후보 기록 수")
+    saved: int = Field(..., description="기록한 백테스트 결과 수")
+    completed: int = Field(..., description="백테스트 완료 수")
+    insufficient: int = Field(..., description="데이터 부족 수")
+    errors: int = Field(..., description="오류 수")
     applied_eval_window_days: Optional[int] = Field(
         ...,
-        description="实际生效的评估窗口（交易日数）",
+        description="실제로 적용된 평가 기간 (거래일 수)",
     )
-    message: Optional[str] = Field(None, description="空结果或降级时的诊断说明")
-    diagnostics: Dict[str, Any] = Field(default_factory=dict, description="回测筛选与诊断信息")
+    message: Optional[str] = Field(None, description="결과가 비었거나 일부만 처리됐을 때의 진단 설명")
+    diagnostics: Dict[str, Any] = Field(default_factory=dict, description="백테스트 필터·진단 정보")
 
 
 class BacktestResultItem(BaseModel):

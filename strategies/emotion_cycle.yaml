@@ -1,4 +1,4 @@
-# Sentiment Cycle Strategy / 情绪周期
+# Sentiment Cycle Strategy / 심리 사이클
 # Uses market sentiment, turnover rate and volume pattern to time entries against crowd behavior.
 
 name: emotion_cycle

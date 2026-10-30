@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-平台适配器基类
+플랫폼 어댑터 기본 클래스
 ===================================
 
-定义平台适配器的抽象基类，各平台必须继承此类。
+플랫폼 어댑터의 추상 기본 클래스를 정의합니다. 각 플랫폼은 이 클래스를 상속해야 합니다.
 """
 
 from abc import ABC, abstractmethod
@@ -15,29 +15,29 @@ from bot.models import BotMessage, BotResponse, WebhookResponse
 
 class BotPlatform(ABC):
     """
-    平台适配器抽象基类
+    플랫폼 어댑터 추상 기본 클래스
     
-    负责：
-    1. 验证 Webhook 请求签名
-    2. 解析平台消息为统一格式
-    3. 将响应转换为平台格式
+    역할:
+    1. Webhook 요청 서명 검증
+    2. 플랫폼 메시지를 공통 형식으로 해석
+    3. 응답을 플랫폼 형식으로 변환
     
-    使用示例：
+    사용 예:
         class MyPlatform(BotPlatform):
             @property
             def platform_name(self) -> str:
                 return "myplatform"
             
             def verify_request(self, headers, body) -> bool:
-                # 验证签名逻辑
+                # 서명 검증 로직
                 return True
             
             def parse_message(self, data) -> Optional[BotMessage]:
-                # 解析消息逻辑
+                # 메시지 해석 로직
                 return BotMessage(...)
             
             def format_response(self, response, message) -> WebhookResponse:
-                # 格式化响应逻辑
+                # 응답 서식 로직
                 return WebhookResponse.success({"text": response.text})
     """
     
@@ -45,41 +45,41 @@ class BotPlatform(ABC):
     @abstractmethod
     def platform_name(self) -> str:
         """
-        平台标识名称
+        플랫폼 식별 이름
         
-        用于路由匹配和日志标识，如 "feishu", "dingtalk"
+        라우팅 매칭과 로그 표시에 씀. 예: "feishu", "dingtalk"
         """
         pass
     
     @abstractmethod
     def verify_request(self, headers: Dict[str, str], body: bytes) -> bool:
         """
-        验证请求签名
+        요청 서명 검증
         
-        各平台有不同的签名验证机制，需要单独实现。
+        플랫폼마다 서명 검증 방식이 달라 따로 구현해야 합니다.
         
         Args:
-            headers: HTTP 请求头
-            body: 请求体原始字节
+            headers: HTTP 요청 헤더
+            body: 요청 본문 원본 바이트
             
         Returns:
-            签名是否有效
+            서명이 유효한지 여부
         """
         pass
     
     @abstractmethod
     def parse_message(self, data: Dict[str, Any]) -> Optional[BotMessage]:
         """
-        解析平台消息为统一格式
+        플랫폼 메시지를 공통 형식으로 해석
         
-        将平台特定的消息格式转换为 BotMessage。
-        如果不是需要处理的消息类型（如事件回调），返回 None。
+        플랫폼별 메시지 형식을 BotMessage로 바꿉니다.
+        처리할 메시지 유형이 아니면(예: 이벤트 콜백) None을 반환합니다.
         
         Args:
-            data: 解析后的 JSON 数据
+            data: 해석된 JSON 데이터
             
         Returns:
-            BotMessage 对象，或 None（不需要处理）
+            BotMessage 객체 또는 None(처리 불필요)
         """
         pass
     
@@ -90,14 +90,14 @@ class BotPlatform(ABC):
         message: BotMessage
     ) -> WebhookResponse:
         """
-        将统一响应转换为平台格式
+        공통 응답을 플랫폼 형식으로 변환
         
         Args:
-            response: 统一响应对象
-            message: 原始消息对象（用于获取回复目标等信息）
+            response: 공통 응답 객체
+            message: 원본 메시지 객체(답장 대상 등 정보 확인용)
             
         Returns:
-            WebhookResponse 对象
+            WebhookResponse 객체
         """
         pass
     
@@ -119,16 +119,16 @@ class BotPlatform(ABC):
 
     def handle_challenge(self, data: Dict[str, Any]) -> Optional[WebhookResponse]:
         """
-        处理平台验证请求
+        플랫폼 검증 요청 처리
         
-        部分平台在配置 Webhook 时会发送验证请求，需要返回特定响应。
-        子类可重写此方法。
+        일부 플랫폼은 Webhook 설정 때 검증 요청을 보내므로 정해진 응답을 돌려줘야 합니다.
+        하위 클래스에서 재정의할 수 있습니다.
         
         Args:
-            data: 请求数据
+            data: 요청 데이터
             
         Returns:
-            验证响应，或 None（不是验证请求）
+            검증 응답 또는 None(검증 요청이 아님)
         """
         return None
     
@@ -139,31 +139,31 @@ class BotPlatform(ABC):
         data: Dict[str, Any]
     ) -> Tuple[Optional[BotMessage], Optional[WebhookResponse]]:
         """
-        处理 Webhook 请求
+        Webhook 요청 처리
         
-        这是主入口方法，协调验证、解析等流程。
+        주 입구 메서드로, 검증과 해석 등 흐름을 조율합니다.
         
         Args:
-            headers: HTTP 请求头
-            body: 请求体原始字节
-            data: 解析后的 JSON 数据
+            headers: HTTP 요청 헤더
+            body: 요청 본문 원본 바이트
+            data: 해석된 JSON 데이터
             
         Returns:
-            (BotMessage, WebhookResponse) 元组
-            - 如果是验证请求：(None, challenge_response)
-            - 如果是普通消息：(message, None) - 响应将在命令处理后生成
-            - 如果验证失败或无需处理：(None, error_response 或 None)
+            (BotMessage, WebhookResponse) 튜플
+            - 검증 요청이면:(None, challenge_response)
+            - 일반 메시지면: (message, None) - 응답은 명령 처리 후 생성
+            - 검증 실패 또는 처리 불필요면: (None, error_response 또는 None)
         """
-        # 1. 检查是否是验证请求
+        # 1. 검증 요청인지 확인
         challenge_response = self.handle_challenge(data)
         if challenge_response:
             return None, challenge_response
         
-        # 2. 验证请求签名
+        # 2. 요청 서명 검증
         if not self.verify_request(headers, body):
             return None, WebhookResponse.error("Invalid signature", 403)
         
-        # 3. 解析消息
+        # 3. 메시지 해석
         message = self.parse_message(data)
         
         return message, None

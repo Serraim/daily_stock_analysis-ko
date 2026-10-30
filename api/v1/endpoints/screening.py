@@ -106,7 +106,7 @@ def _screening_task_not_found(task_id: str) -> HTTPException:
     return api_error(
         404,
         "screening_screen_task_not_found",
-        f"选股任务 {task_id} 不存在或已过期",
+        f"종목 발굴 작업 {task_id} 이(가) 없거나 만료됐어요",
     )
 
 
@@ -221,7 +221,7 @@ def screening_start_screen_task(
         task_queue.update_task_progress(
             task_id,
             98,
-            f"选股已完成，正在整理 {result.get('candidate_count', 0)} 条候选",
+            f"종목 발굴 완료, 후보 {result.get('candidate_count', 0)}개 정리 중",
         )
         return result
 
@@ -230,7 +230,7 @@ def screening_start_screen_task(
         stock_code="screening_screen",
         stock_name=f"{request.strategy} / {request.market}",
         report_type="screening_screen",
-        message="选股任务已提交",
+        message="종목 발굴 작업을 제출했어요",
         task_id=task_id,
         trace_id=task_id,
     )
@@ -238,7 +238,7 @@ def screening_start_screen_task(
         task_id=task.task_id,
         trace_id=task.trace_id or task.task_id,
         status=task.status.value if isinstance(task.status, QueueTaskStatus) else str(task.status),
-        message=task.message or "选股任务已提交",
+        message=task.message or "종목 발굴 작업을 제출했어요",
         strategy=request.strategy,
         market=request.market,
         max_results=request.max_results,

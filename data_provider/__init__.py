@@ -1,35 +1,35 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-数据源策略层 - 包初始化
+데이터 소스 전략 계층 - 패키지 초기화
 ===================================
 
-本包实现策略模式管理多个数据源，实现：
-1. 统一的数据获取接口
-2. 自动故障切换
-3. 防封禁流控策略
+이 패키지는 전략 패턴으로 여러 데이터 소스를 관리하며, 다음을 제공합니다:
+1. 통일된 데이터 조회 인터페이스
+2. 장애 시 자동 전환
+3. 차단 방지용 요청 속도 제어
 
-数据源优先级（动态调整）：
-【配置了 TUSHARE_TOKEN 时】
-1. TushareFetcher (Priority 0) - 🔥 最高优先级（动态提升）
-2. EfinanceFetcher (Priority 0) - 同优先级
-3. AkshareFetcher (Priority 1) - 来自 akshare 库
-4. PytdxFetcher (Priority 2) - 来自 pytdx 库（通达信）
-5. BaostockFetcher (Priority 3) - 来自 baostock 库
-6. YfinanceFetcher (Priority 4) - 来自 yfinance 库
-7. TencentFetcher (Priority 5) - 腾讯直连日 K 最终兜底
+데이터 소스 우선순위 (동적으로 조정):
+[TUSHARE_TOKEN을 설정한 경우]
+1. TushareFetcher (Priority 0) - 🔥 최우선 (동적으로 상향)
+2. EfinanceFetcher (Priority 0) - 같은 우선순위
+3. AkshareFetcher (Priority 1) - akshare 라이브러리
+4. PytdxFetcher (Priority 2) - pytdx 라이브러리 (통다신)
+5. BaostockFetcher (Priority 3) - baostock 라이브러리
+6. YfinanceFetcher (Priority 4) - yfinance 라이브러리
+7. TencentFetcher (Priority 5) - 텐센트 직접 연결 일봉, 최후의 대비책
 
-【未配置 TUSHARE_TOKEN 时】
-1. EfinanceFetcher (Priority 0) - 最高优先级，来自 efinance 库
-2. AkshareFetcher (Priority 1) - 来自 akshare 库
-3. PytdxFetcher (Priority 2) - 来自 pytdx 库（通达信）
-4. TushareFetcher (Priority 2) - 来自 tushare 库（不可用）
-5. BaostockFetcher (Priority 3) - 来自 baostock 库
-6. YfinanceFetcher (Priority 4) - 来自 yfinance 库
-7. TencentFetcher (Priority 5) - 腾讯直连日 K 最终兜底
-8. LongbridgeFetcher (Priority 5) - 长桥 OpenAPI（美股/港股兜底，与 Tencent 市场不重叠）
+[TUSHARE_TOKEN을 설정하지 않은 경우]
+1. EfinanceFetcher (Priority 0) - 최우선, efinance 라이브러리
+2. AkshareFetcher (Priority 1) - akshare 라이브러리
+3. PytdxFetcher (Priority 2) - pytdx 라이브러리 (통다신)
+4. TushareFetcher (Priority 2) - tushare 라이브러리 (사용 불가)
+5. BaostockFetcher (Priority 3) - baostock 라이브러리
+6. YfinanceFetcher (Priority 4) - yfinance 라이브러리
+7. TencentFetcher (Priority 5) - 텐센트 직접 연결 일봉, 최후의 대비책
+8. LongbridgeFetcher (Priority 5) - 롱브리지 OpenAPI (미국·홍콩 주식 대비책, Tencent와 시장이 겹치지 않음)
 
-提示：优先级数字越小越优先，同优先级按初始化顺序排列
+참고: 우선순위 숫자가 작을수록 먼저 쓰며, 같은 우선순위는 초기화 순서대로 씁니다
 """
 
 from .base import BaseFetcher, DataFetcherManager

@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-PytdxFetcher - 通达信数据源 (Priority 2)
+PytdxFetcher - 통달신(TDX) 데이터 소스 (Priority 2)
 ===================================
 
-数据来源：通达信行情服务器（pytdx 库）
-特点：免费、无需 Token、直连行情服务器
-优点：实时数据、稳定、无配额限制
+데이터 출처: 통달신 시세 서버(pytdx 라이브러리)
+특징: 무료, Token 불필요, 시세 서버에 직접 연결
+장점: 실시간 데이터, 안정적, 사용량 제한 없음
 
-关键策略：
-1. 多服务器自动切换
-2. 连接超时自动重连
-3. 失败后指数退避重试
+핵심 전략:
+1. 여러 서버 사이 자동 전환
+2. 연결 시간 초과 시 자동 재연결
+3. 실패하면 점점 간격을 늘려 재시도
 """
 
 import logging
@@ -47,12 +47,12 @@ _PYTDX_CONNECTION_COOLDOWN_SECONDS = 15.0
 
 def _parse_hosts_from_env() -> Optional[List[Tuple[str, int]]]:
     """
-    从环境变量构建通达信服务器列表。
+    환경 변수로 통달신 서버 목록을 만듦.
 
-    优先级：
-    1. PYTDX_SERVERS：逗号分隔 "ip:port,ip:port"（如 "192.168.1.1:7709,10.0.0.1:7709"）
-    2. PYTDX_HOST + PYTDX_PORT：单个服务器
-    3. 均未配置时返回 None（调用方使用 DEFAULT_HOSTS）
+    우선순위:
+    1. PYTDX_SERVERS: 쉼표로 구분 "ip:port,ip:port"(예: "192.168.1.1:7709,10.0.0.1:7709")
+    2. PYTDX_HOST + PYTDX_PORT: 서버 하나
+    3. 둘 다 없으면 None 반환(호출하는 쪽이 DEFAULT_HOSTS 사용)
     """
     servers = os.getenv("PYTDX_SERVERS", "").strip()
     if servers:
@@ -85,11 +85,11 @@ def _parse_hosts_from_env() -> Optional[List[Tuple[str, int]]]:
 
 def _is_us_code(stock_code: str) -> bool:
     """
-    判断代码是否为美股
+    미국 주식 코드인지 판단
     
-    美股代码规则：
-    - 1-5个大写字母，如 'AAPL', 'TSLA'
-    - 可能包含 '.'，如 'BRK.B'
+    미국 주식 코드 규칙:
+    - 대문자 1-5개, 예: 'AAPL', 'TSLA'
+    - '.'이 들어갈 수 있음, 예: 'BRK.B'
     """
     code = stock_code.strip().upper()
     return bool(re.match(r'^[A-Z]{1,5}(\.[A-Z])?$', code))
@@ -97,48 +97,48 @@ def _is_us_code(stock_code: str) -> bool:
 
 class PytdxFetcher(BaseFetcher):
     """
-    通达信数据源实现
+    통달신 데이터 소스 구현
     
-    优先级：2（与 Tushare 同级）
-    数据来源：通达信行情服务器
+    우선순위: 2(Tushare와 같은 등급)
+    데이터 출처: 통달신 시세 서버
     
-    关键策略：
-    - 自动选择最优服务器
-    - 连接失败自动切换服务器
-    - 失败后指数退避重试
+    핵심 전략:
+    - 가장 좋은 서버 자동 선택
+    - 연결 실패 시 서버 자동 전환
+    - 실패하면 점점 간격을 늘려 재시도
     
-    Pytdx 特点：
-    - 免费、无需注册
-    - 直连行情服务器
-    - 支持实时行情和历史数据
-    - 支持股票名称查询
+    Pytdx 특징:
+    - 무료, 가입 불필요
+    - 시세 서버에 직접 연결
+    - 실시간 시세와 과거 데이터 지원
+    - 종목 이름 조회 지원
     """
     
     name = "PytdxFetcher"
     priority = int(os.getenv("PYTDX_PRIORITY", "2"))
     
-    # 默认通达信行情服务器列表
+    # 기본 통달신 시세 서버 목록
     DEFAULT_HOSTS = [
-        ("119.147.212.81", 7709),  # 深圳
-        ("112.74.214.43", 7727),   # 深圳
-        ("221.231.141.60", 7709),  # 上海
-        ("101.227.73.20", 7709),   # 上海
-        ("101.227.77.254", 7709),  # 上海
-        ("14.215.128.18", 7709),   # 广州
-        ("59.173.18.140", 7709),   # 武汉
-        ("180.153.39.51", 7709),   # 杭州
+        ("119.147.212.81", 7709),  # 선전
+        ("112.74.214.43", 7727),   # 선전
+        ("221.231.141.60", 7709),  # 상하이
+        ("101.227.73.20", 7709),   # 상하이
+        ("101.227.77.254", 7709),  # 상하이
+        ("14.215.128.18", 7709),   # 광저우
+        ("59.173.18.140", 7709),   # 우한
+        ("180.153.39.51", 7709),   # 항저우
     ]
     # Pytdx get_security_list returns at most 1000 items per page
     SECURITY_LIST_PAGE_SIZE = 1000
     
     def __init__(self, hosts: Optional[List[Tuple[str, int]]] = None):
         """
-        初始化 PytdxFetcher
+        PytdxFetcher 초기화
 
         Args:
-            hosts: 服务器列表 [(host, port), ...]。若未传入，优先使用环境变量
-                   PYTDX_SERVERS（ip:port,ip:port）或 PYTDX_HOST+PYTDX_PORT，
-                   否则使用内置 DEFAULT_HOSTS。
+            hosts: 서버 목록 [(host, port), ...]. 넘기지 않으면 환경 변수
+                   PYTDX_SERVERS(ip:port,ip:port)나 PYTDX_HOST+PYTDX_PORT를 먼저 쓰고,
+                   없으면 내장 DEFAULT_HOSTS 사용.
         """
         if hosts is not None:
             self._hosts = hosts
@@ -148,8 +148,8 @@ class PytdxFetcher(BaseFetcher):
         self._api = None
         self._connected = False
         self._current_host_idx = 0
-        self._stock_list_cache = None  # 股票列表缓存
-        self._stock_name_cache = {}    # 股票名称缓存 {code: name}
+        self._stock_list_cache = None  # 종목 목록 캐시
+        self._stock_name_cache = {}    # 종목 이름 캐시 {code: name}
         self._unavailable_until = 0.0
         self._last_unavailable_reason = ""
 
@@ -160,7 +160,7 @@ class PytdxFetcher(BaseFetcher):
         self._unavailable_until = time.time() + _PYTDX_CONNECTION_COOLDOWN_SECONDS
         self._last_unavailable_reason = str(reason or "").strip()
         logger.info(
-            "Pytdx 连接失败，进入冷却 %.0fs: %s",
+            "Pytdx 연결 실패, %.0fs 동안 대기: %s",
             _PYTDX_CONNECTION_COOLDOWN_SECONDS,
             self._last_unavailable_reason or "unknown",
         )
@@ -170,30 +170,30 @@ class PytdxFetcher(BaseFetcher):
     
     def _get_pytdx(self):
         """
-        延迟加载 pytdx 模块
+        pytdx 모듈 지연 로딩
         
-        只在首次使用时导入，避免未安装时报错
+        처음 쓸 때만 import해서, 설치 안 됐을 때 오류가 나지 않게 함
         """
         try:
             from pytdx.hq import TdxHq_API
             return TdxHq_API
         except ImportError:
-            logger.warning("pytdx 未安装，请运行: pip install pytdx")
+            logger.warning("pytdx가 설치되지 않음, 다음을 실행하세요: pip install pytdx")
             return None
     
     @contextmanager
     def _pytdx_session(self) -> Generator:
         """
-        Pytdx 连接上下文管理器
+        Pytdx 연결 컨텍스트 매니저
         
-        确保：
-        1. 进入上下文时自动连接
-        2. 退出上下文时自动断开
-        3. 异常时也能正确断开
+        보장하는 것:
+        1. 컨텍스트에 들어갈 때 자동 연결
+        2. 컨텍스트를 나갈 때 자동 연결 해제
+        3. 예외가 나도 제대로 연결 해제
         
-        使用示例：
+        사용 예:
             with self._pytdx_session() as api:
-                # 在这里执行数据查询
+                # 여기서 데이터 조회 실행
         """
         if self._is_in_connection_cooldown():
             raise DataSourceUnavailableError(
@@ -202,13 +202,13 @@ class PytdxFetcher(BaseFetcher):
 
         TdxHq_API = self._get_pytdx()
         if TdxHq_API is None:
-            raise DataFetchError("pytdx 库未安装")
+            raise DataFetchError("pytdx 라이브러리가 설치되지 않음")
         
         api = TdxHq_API()
         connected = False
         
         try:
-            # 尝试连接服务器（自动选择最优）
+            # 서버 연결 시도(가장 좋은 서버 자동 선택)
             for i in range(len(self._hosts)):
                 host_idx = (self._current_host_idx + i) % len(self._hosts)
                 host, port = self._hosts[host_idx]
@@ -217,39 +217,39 @@ class PytdxFetcher(BaseFetcher):
                     if api.connect(host, port, time_out=5):
                         connected = True
                         self._current_host_idx = host_idx
-                        logger.debug(f"Pytdx 连接成功: {host}:{port}")
+                        logger.debug(f"Pytdx 연결 성공: {host}:{port}")
                         break
                 except Exception as e:
-                    logger.debug(f"Pytdx 连接 {host}:{port} 失败: {e}")
+                    logger.debug(f"Pytdx {host}:{port} 연결 실패: {e}")
                     continue
             
             if not connected:
-                self._mark_connection_cooldown("Pytdx 无法连接任何服务器")
-                raise DataFetchError("Pytdx 无法连接任何服务器")
+                self._mark_connection_cooldown("Pytdx 어떤 서버에도 연결할 수 없음")
+                raise DataFetchError("Pytdx 어떤 서버에도 연결할 수 없음")
             
             yield api
             
         finally:
-            # 确保断开连接
+            # 반드시 연결 해제
             try:
                 api.disconnect()
-                logger.debug("Pytdx 连接已断开")
+                logger.debug("Pytdx 연결 해제됨")
             except Exception as e:
-                logger.warning(f"Pytdx 断开连接时出错: {e}")
+                logger.warning(f"Pytdx 연결 해제 중 오류: {e}")
     
     def _get_market_code(self, stock_code: str) -> Tuple[int, str]:
         """
-        根据股票代码判断市场
+        종목 코드로 시장 판단
         
-        Pytdx 市场代码：
-        - 0: 深圳
-        - 1: 上海
+        Pytdx 시장 코드:
+        - 0: 선전
+        - 1: 상하이
         
         Args:
-            stock_code: 股票代码
+            stock_code: 종목 코드
             
         Returns:
-            (market, code) 元组
+            (market, code) 튜플
         """
         raw_code = stock_code.strip()
         upper = raw_code.upper()
@@ -272,13 +272,13 @@ class PytdxFetcher(BaseFetcher):
         if upper.startswith('SZ') or upper.endswith('.SZ'):
             return 0, code
         
-        # 根据代码前缀判断市场
-        # 上海：60xxxx, 68xxxx（科创板）
-        # 深圳：00xxxx, 30xxxx（创业板）, 002xxx（中小板）
+        # 코드 앞자리로 시장 판단
+        # 상하이: 60xxxx, 68xxxx(커촹반)
+        # 선전: 00xxxx, 30xxxx(창업판), 002xxx(중소판)
         if code.startswith(('60', '68')):
-            return 1, code  # 上海
+            return 1, code  # 상하이
         else:
-            return 0, code  # 深圳
+            return 0, code  # 선전
 
     def _build_stock_list_cache(self, api) -> None:
         """
@@ -309,60 +309,60 @@ class PytdxFetcher(BaseFetcher):
     )
     def _fetch_raw_data(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """
-        从通达信获取原始数据
+        통달신에서 원본 데이터 가져오기
         
-        使用 get_security_bars() 获取日线数据
+        get_security_bars()로 일봉 데이터 가져오기
         
-        流程：
-        1. 检查是否为美股（不支持）
-        2. 使用上下文管理器管理连接
-        3. 判断市场代码
-        4. 调用 API 获取 K 线数据
+        흐름:
+        1. 미국 주식인지 확인(지원 안 함)
+        2. 컨텍스트 매니저로 연결 관리
+        3. 시장 코드 판단
+        4. API 호출로 K선 데이터 가져오기
         """
-        # 美股不支持，抛出异常让 DataFetcherManager 切换到其他数据源
+        # 미국 주식은 지원 안 함. 예외를 던져 DataFetcherManager가 다른 데이터 소스로 바꾸게 함
         if _is_us_code(stock_code):
-            raise DataFetchError(f"PytdxFetcher 不支持美股 {stock_code}，请使用 AkshareFetcher 或 YfinanceFetcher")
+            raise DataFetchError(f"PytdxFetcher는 미국 주식 {stock_code}을(를) 지원하지 않음, AkshareFetcher나 YfinanceFetcher를 쓰세요")
 
-        # 港股不支持，抛出异常让 DataFetcherManager 切换到其他数据源
+        # 홍콩 주식은 지원 안 함. 예외를 던져 DataFetcherManager가 다른 데이터 소스로 바꾸게 함
         if _is_hk_market(stock_code):
-            raise DataFetchError(f"PytdxFetcher 不支持港股 {stock_code}，请使用 AkshareFetcher")
+            raise DataFetchError(f"PytdxFetcher는 홍콩 주식 {stock_code}을(를) 지원하지 않음, AkshareFetcher를 쓰세요")
 
-        # 北交所不支持，抛出异常让 DataFetcherManager 切换到其他数据源
+        # 베이징거래소는 지원 안 함. 예외를 던져 DataFetcherManager가 다른 데이터 소스로 바꾸게 함
         if is_bse_code(stock_code):
             raise DataFetchError(
-                f"PytdxFetcher 不支持北交所 {stock_code}，将自动切换其他数据源"
+                f"PytdxFetcher는 베이징거래소 {stock_code}을(를) 지원하지 않음, 다른 데이터 소스로 자동 전환"
             )
         
         market, code = self._get_market_code(stock_code)
         
-        # 计算需要获取的交易日数量（估算）
+        # 가져올 거래일 수 계산(추정)
         from datetime import datetime as dt
         start_dt = dt.strptime(start_date, '%Y-%m-%d')
         end_dt = dt.strptime(end_date, '%Y-%m-%d')
         days = (end_dt - start_dt).days
-        count = min(max(days * 5 // 7 + 10, 30), 800)  # 估算交易日，最大 800 条
+        count = min(max(days * 5 // 7 + 10, 30), 800)  # 거래일 추정, 최대 800건
         
-        logger.debug(f"调用 Pytdx get_security_bars(market={market}, code={code}, count={count})")
+        logger.debug(f"Pytdx 호출 get_security_bars(market={market}, code={code}, count={count})")
         
         with self._pytdx_session() as api:
             try:
-                # 获取日 K 线数据
-                # category: 9-日线, 0-5分钟, 1-15分钟, 2-30分钟, 3-1小时
+                # 일봉 K선 데이터 가져오기
+                # category: 9-일봉, 0-5분, 1-15분, 2-30분, 3-1시간
                 data = api.get_security_bars(
-                    category=9,  # 日线
+                    category=9,  # 일봉
                     market=market,
                     code=code,
-                    start=0,  # 从最新开始
+                    start=0,  # 최신부터 시작
                     count=count
                 )
                 
                 if data is None or len(data) == 0:
-                    raise DataFetchError(f"Pytdx 未查询到 {stock_code} 的数据")
+                    raise DataFetchError(f"Pytdx에서 {stock_code} 데이터를 찾지 못함")
                 
-                # 转换为 DataFrame
+                # DataFrame으로 변환
                 df = api.to_df(data)
                 
-                # 过滤日期范围
+                # 날짜 범위 필터링
                 df['datetime'] = pd.to_datetime(df['datetime'])
                 df = df[(df['datetime'] >= start_date) & (df['datetime'] <= end_date)]
                 
@@ -371,21 +371,21 @@ class PytdxFetcher(BaseFetcher):
             except Exception as e:
                 if isinstance(e, DataFetchError):
                     raise
-                raise DataFetchError(f"Pytdx 获取数据失败: {e}") from e
+                raise DataFetchError(f"Pytdx 데이터 받기 실패: {e}") from e
     
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
-        标准化 Pytdx 数据
+        Pytdx 데이터 표준화
         
-        Pytdx 返回的列名：
+        Pytdx가 돌려주는 열 이름:
         datetime, open, high, low, close, vol, amount
         
-        需要映射到标准列名：
+        표준 열 이름으로 매핑해야 함:
         date, open, high, low, close, volume, amount, pct_chg
         """
         df = df.copy()
         
-        # 列名映射
+        # 열 이름 매핑
         column_mapping = {
             'datetime': 'date',
             'vol': 'volume',
@@ -393,15 +393,15 @@ class PytdxFetcher(BaseFetcher):
         
         df = df.rename(columns=column_mapping)
         
-        # 计算涨跌幅（pytdx 不返回涨跌幅，需要自己计算）
+        # 등락률 계산(pytdx는 등락률을 주지 않아 직접 계산)
         if 'pct_chg' not in df.columns and 'close' in df.columns:
             df['pct_chg'] = df['close'].pct_change() * 100
             df['pct_chg'] = df['pct_chg'].fillna(0).round(2)
         
-        # 添加股票代码列
+        # 종목 코드 열 추가
         df['code'] = stock_code
         
-        # 只保留需要的列
+        # 필요한 열만 남김
         keep_cols = ['code'] + STANDARD_COLUMNS
         existing_cols = [col for col in keep_cols if col in df.columns]
         df = df[existing_cols]
@@ -410,19 +410,19 @@ class PytdxFetcher(BaseFetcher):
     
     def get_stock_name(self, stock_code: str) -> Optional[str]:
         """
-        获取股票名称
+        종목 이름 가져오기
         
         Args:
-            stock_code: 股票代码
+            stock_code: 종목 코드
             
         Returns:
-            股票名称，失败返回 None
+            종목 이름, 실패하면 None
         """
-        # 港股不支持（pytdx 不含港股数据）
+        # 홍콩 주식은 지원 안 함(pytdx에는 홍콩 주식 데이터가 없음)
         if _is_hk_market(stock_code):
             return None
 
-        # 先检查缓存
+        # 먼저 캐시 확인
         if stock_code in self._stock_name_cache:
             return self._stock_name_cache[stock_code]
         
@@ -430,17 +430,17 @@ class PytdxFetcher(BaseFetcher):
             market, code = self._get_market_code(stock_code)
             
             with self._pytdx_session() as api:
-                # 获取股票列表（缓存）
+                # 종목 목록 가져오기(캐시)
                 if self._stock_list_cache is None:
                     self._build_stock_list_cache(api)
                 
-                # 查找股票名称
+                # 종목 이름 찾기
                 name = self._stock_list_cache.get(code)
                 if name:
                     self._stock_name_cache[stock_code] = name
                     return name
                 
-                # 尝试使用 get_finance_info
+                # get_finance_info 사용 시도
                 finance_info = api.get_finance_info(market, code)
                 if finance_info and 'name' in finance_info:
                     name = finance_info['name']
@@ -448,23 +448,23 @@ class PytdxFetcher(BaseFetcher):
                     return name
                 
         except Exception as e:
-            logger.debug(f"Pytdx 获取股票名称失败 {stock_code}: {e}")
+            logger.debug(f"Pytdx 종목 이름 받기 실패 {stock_code}: {e}")
         
         return None
     
     def get_realtime_quote(self, stock_code: str) -> Optional[dict]:
         """
-        获取实时行情
+        실시간 시세 가져오기
         
         Args:
-            stock_code: 股票代码
+            stock_code: 종목 코드
             
         Returns:
-            实时行情数据字典，失败返回 None
+            실시간 시세 데이터 딕셔너리, 실패하면 None
         """
         if is_bse_code(stock_code):
             raise DataFetchError(
-                f"PytdxFetcher 不支持北交所 {stock_code}，将自动切换其他数据源"
+                f"PytdxFetcher는 베이징거래소 {stock_code}을(를) 지원하지 않음, 다른 데이터 소스로 자동 전환"
             )
         try:
             market, code = self._get_market_code(stock_code)
@@ -488,30 +488,30 @@ class PytdxFetcher(BaseFetcher):
                         'ask_prices': [quote.get(f'ask{i}', 0) for i in range(1, 6)],
                     }
         except Exception as e:
-            logger.warning(f"Pytdx 获取实时行情失败 {stock_code}: {e}")
+            logger.warning(f"Pytdx 실시간 시세 받기 실패 {stock_code}: {e}")
         
         return None
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # 테스트 코드
     logging.basicConfig(level=logging.DEBUG)
     
     fetcher = PytdxFetcher()
     
     try:
-        # 测试历史数据
-        df = fetcher.get_daily_data('600519')  # 茅台
-        print(f"获取成功，共 {len(df)} 条数据")
+        # 과거 데이터 테스트
+        df = fetcher.get_daily_data('600519')  # 마오타이
+        print(f"받기 성공, 총 {len(df)}건")
         print(df.tail())
         
-        # 测试股票名称
+        # 종목 이름 테스트
         name = fetcher.get_stock_name('600519')
-        print(f"股票名称: {name}")
+        print(f"종목 이름: {name}")
         
-        # 测试实时行情
+        # 실시간 시세 테스트
         quote = fetcher.get_realtime_quote('600519')
-        print(f"实时行情: {quote}")
+        print(f"실시간 시세: {quote}")
         
     except Exception as e:
-        print(f"获取失败: {e}")
+        print(f"받기 실패: {e}")

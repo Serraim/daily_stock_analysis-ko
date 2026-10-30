@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-API v1 模块初始化
+API v1 모듈 초기화
 ===================================
 
-职责：
-1. 延迟导出 v1 版本 API 的路由，避免 schema import 触发整棵 endpoint 导入树
+역할:
+1. v1 API 라우터를 필요할 때 내보냄. schema 를 import 할 때 endpoint 전체가 줄줄이 import 되지 않게 함
 """
 
 from typing import Any

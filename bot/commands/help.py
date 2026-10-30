@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-帮助命令
+도움말 명령
 ===================================
 
-显示可用命令列表和使用说明。
+사용 가능한 명령 목록과 사용법을 보여줍니다.
 """
 
 from typing import List
@@ -15,14 +15,14 @@ from bot.models import BotMessage, BotResponse
 
 class HelpCommand(BotCommand):
     """
-    帮助命令
+    도움말 명령
     
-    显示所有可用命令的列表和使用说明。
-    也可以查看特定命令的详细帮助。
+    사용 가능한 모든 명령의 목록과 사용법을 보여줍니다.
+    특정 명령의 자세한 도움말도 볼 수 있습니다.
     
-    用法：
-        /help         - 显示所有命令
-        /help analyze - 显示 analyze 命令的详细帮助
+    사용법:
+        /help         - 모든 명령 보기
+        /help analyze - analyze 명령 자세한 도움말 보기
     """
     
     @property
@@ -35,32 +35,32 @@ class HelpCommand(BotCommand):
     
     @property
     def description(self) -> str:
-        return "显示帮助信息"
+        return "도움말 보기"
     
     @property
     def usage(self) -> str:
-        return "/help [命令名]"
+        return "/help [명령이름]"
     
     def execute(self, message: BotMessage, args: List[str]) -> BotResponse:
-        """执行帮助命令"""
-        # 延迟导入避免循环依赖
+        """도움말 명령 실행"""
+        # 순환 import를 피하려고 늦게 import
         from bot.dispatcher import get_dispatcher
         
         dispatcher = get_dispatcher()
         
-        # 如果指定了命令名，显示该命令的详细帮助
+        # 명령 이름을 주면 그 명령의 자세한 도움말을 보여줌
         if args:
             cmd_name = args[0]
             command = dispatcher.get_command(cmd_name)
             
             if command is None:
-                return BotResponse.error_response(f"未知命令: {cmd_name}")
+                return BotResponse.error_response(f"알 수 없는 명령: {cmd_name}")
             
-            # 构建详细帮助
+            # 자세한 도움말 만들기
             help_text = self._format_command_help(command, dispatcher.command_prefix)
             return BotResponse.markdown_response(help_text)
         
-        # 显示所有命令列表
+        # 전체 명령 목록 보여주기
         commands = dispatcher.list_commands(include_hidden=False)
         prefix = dispatcher.command_prefix
         
@@ -68,19 +68,19 @@ class HelpCommand(BotCommand):
         return BotResponse.markdown_response(help_text)
     
     def _format_help_list(self, commands: List[BotCommand], prefix: str) -> str:
-        """格式化命令列表"""
+        """명령 목록 서식 만들기"""
         lines = [
-            "📚 **股票分析助手 - 命令帮助**",
+            "📚 **주식 분석 도우미 - 명령 도움말**",
             "",
-            "可用命令：",
+            "사용 가능한 명령:",
             "",
         ]
         
         for cmd in commands:
-            # 命令名和别名
+            # 명령 이름과 별칭
             aliases_str = ""
             if cmd.aliases:
-                # 过滤掉中文别名，只显示英文别名
+                # 중국어 별칭은 빼고 영어 별칭만 표시
                 en_aliases = [a for a in cmd.aliases if a.isascii()]
                 if en_aliases:
                     aliases_str = f" ({', '.join(prefix + a for a in en_aliases[:2])})"
@@ -91,37 +91,37 @@ class HelpCommand(BotCommand):
         lines.extend([
             "",
             "---",
-            f"💡 输入 {prefix}help <命令名> 查看详细用法",
+            f"💡 {prefix}help <명령이름>을 입력하면 자세한 사용법을 볼 수 있습니다",
             "",
-            "**示例：**",
+            "**예시:**",
             "",
             f"• {prefix}analyze 301023 - 奕帆传动",
             "",
-            f"• {prefix}market - 查看大盘复盘",
+            f"• {prefix}market - 시장 전체 복기 보기",
             "",
-            f"• {prefix}batch - 批量分析自选股",
+            f"• {prefix}batch - 관심 종목 일괄 분석",
         ])
         
         return "\n".join(lines)
     
     def _format_command_help(self, command: BotCommand, prefix: str) -> str:
-        """格式化单个命令的详细帮助"""
+        """명령 하나의 자세한 도움말 서식 만들기"""
         lines = [
             f"📖 **{prefix}{command.name}** - {command.description}",
             "",
-            f"**用法：** `{command.usage}`",
+            f"**사용법:** `{command.usage}`",
             "",
         ]
         
-        # 别名
+        # 별칭
         if command.aliases:
             aliases = [f"`{prefix}{a}`" if a.isascii() else f"`{a}`" for a in command.aliases]
-            lines.append(f"**别名：** {', '.join(aliases)}")
+            lines.append(f"**별칭:** {', '.join(aliases)}")
             lines.append("")
         
-        # 权限
+        # 권한
         if command.admin_only:
-            lines.append("⚠️ **需要管理员权限**")
+            lines.append("⚠️ **관리자 권한 필요**")
             lines.append("")
         
         return "\n".join(lines)

@@ -89,7 +89,7 @@ class AlphaVantageFetcher(BaseFetcher):
 
         df = pd.DataFrame(rows)
         df.index = pd.to_datetime(df['date'])
-        df.index.name = None  # 避免与 _normalize_data 重新添加的 'date' 列冲突
+        df.index.name = None  # _normalize_data가 다시 추가하는 'date' 컬럼과 충돌하지 않도록 함
         return df.drop(columns=['date'])
 
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:

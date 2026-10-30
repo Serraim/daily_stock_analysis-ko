@@ -1,4 +1,4 @@
-# Shrink Volume Pullback Strategy / 缩量回踩
+# Shrink Volume Pullback Strategy / 거래량 감소 눌림목
 # Volume shrinks during pullback to MA5/MA10, then price bounces.
 
 name: shrink_pullback

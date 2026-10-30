@@ -55,11 +55,11 @@ def _sync_static_index() -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="刷新股票自动补全索引")
+    parser = argparse.ArgumentParser(description="종목 자동완성 인덱스 새로 고치기")
     parser.add_argument(
         "--skip-fetch",
         action="store_true",
-        help="跳过 Tushare 抓取，仅用现有 data/stock_list_*.csv 重新生成索引",
+        help="Tushare에서 받지 않고, 기존 data/stock_list_*.csv만으로 인덱스를 다시 만듦",
     )
     args = parser.parse_args(argv)
 

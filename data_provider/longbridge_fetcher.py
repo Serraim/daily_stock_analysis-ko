@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-LongbridgeFetcher - 长桥兜底数据源 (Priority 5)
+LongbridgeFetcher - 롱브리지 최후 대체 데이터 소스 (Priority 5)
 ===================================
 
-数据来源：长桥 OpenAPI (https://open.longbridge.com)
-特点：覆盖美股 + 港股，可计算量比/换手率/PE 等 yfinance 缺失字段
-定位：美股/港股最后兜底数据源
+데이터 출처: 롱브리지 OpenAPI (https://open.longbridge.com)
+특징: 미국 + 홍콩 주식 지원, yfinance에 없는 거래량 비율/회전율/PE 등을 계산 가능
+역할: 미국/홍콩 주식의 마지막 대체 데이터 소스
 
-关键策略：
-1. 组合 quote + static_info 接口计算 turnover_rate / pe_ratio / total_mv
-2. 通过 history_candlesticks 计算 volume_ratio（近5日均量比）
-3. 懒加载 QuoteContext，首次调用时才建立连接
-4. static_info 进程内短缓存，减少重复请求（默认 24h，可调；见 LONGBRIDGE_STATIC_INFO_TTL_SECONDS）
+핵심 전략:
+1. quote + static_info API를 함께 써서 turnover_rate / pe_ratio / total_mv 계산
+2. history_candlesticks로 volume_ratio(최근 5일 평균 대비 거래량 비율) 계산
+3. QuoteContext는 지연 로딩, 처음 호출할 때 연결함
+4. static_info는 프로세스 안에서 잠시 캐시해 중복 요청을 줄임(기본 24h, 조정 가능. LONGBRIDGE_STATIC_INFO_TTL_SECONDS 참고)
 
-凭证：优先使用 `LONGBRIDGE_OAUTH_CLIENT_ID` + SDK token 缓存（OAuth 2.0）；
-Legacy API Key 三件套（`LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN`）仍兼容。
-可选：`LONGBRIDGE_STATIC_INFO_TTL_SECONDS`；SDK `language` 取自 `REPORT_LANGUAGE`，`log_path` 为 `{LOG_DIR}/longbridge_sdk.log`；
-`LONGBRIDGE_HTTP_URL` / `LONGBRIDGE_QUOTE_WS_URL` / `LONGBRIDGE_TRADE_WS_URL` / `LONGBRIDGE_REGION` （见官方文档默认值）。
+인증: 우선 `LONGBRIDGE_OAUTH_CLIENT_ID` + SDK token 캐시(OAuth 2.0)를 사용.
+Legacy API Key 3종（`LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN`）도 계속 지원.
+선택:`LONGBRIDGE_STATIC_INFO_TTL_SECONDS`. SDK `language`는 `REPORT_LANGUAGE`에서, `log_path`는 `{LOG_DIR}/longbridge_sdk.log`.
+`LONGBRIDGE_HTTP_URL` / `LONGBRIDGE_QUOTE_WS_URL` / `LONGBRIDGE_TRADE_WS_URL` / `LONGBRIDGE_REGION` (기본값은 공식 문서 참고).
 """
 
 import base64
@@ -107,7 +107,7 @@ def _sanitize_longbridge_env() -> None:
         val = os.environ.get(key)
         if val is not None and val.strip() == "":
             del os.environ[key]
-            logger.debug("[Longbridge] 删除空环境变量 %s", key)
+            logger.debug("[Longbridge] 빈 환경 변수 삭제 %s", key)
 
     # App default: quiet (false). Matches README / docs/full-guide / .env.example; SDK alone may default verbose.
     if "LONGBRIDGE_PRINT_QUOTE_PACKAGES" not in os.environ:
@@ -119,7 +119,7 @@ def _sanitize_longbridge_env() -> None:
             p = Path(log_dir).expanduser()
             p.mkdir(parents=True, exist_ok=True)
             os.environ["LONGBRIDGE_LOG_PATH"] = str(p / "longbridge_sdk.log")
-            logger.debug("[Longbridge] 设置 LONGBRIDGE_LOG_PATH=%s",
+            logger.debug("[Longbridge] LONGBRIDGE_LOG_PATH=%s 설정",
                          os.environ["LONGBRIDGE_LOG_PATH"])
         except Exception:
             pass
@@ -128,7 +128,7 @@ def _sanitize_longbridge_env() -> None:
     if region:
         if not os.environ.get("LONGPORT_REGION"):
             os.environ["LONGPORT_REGION"] = region
-            logger.debug("[Longbridge] 同步 LONGPORT_REGION=%s", region)
+            logger.debug("[Longbridge] LONGPORT_REGION=%s 동기화", region)
 
         urls = _REGION_URL_MAP.get(region, {})
         for env_name, default_url in (
@@ -138,7 +138,7 @@ def _sanitize_longbridge_env() -> None:
         ):
             if default_url and not os.environ.get(env_name):
                 os.environ[env_name] = default_url
-                logger.debug("[Longbridge] 根据 REGION=%s 设置 %s=%s",
+                logger.debug("[Longbridge] REGION=%s에 따라 %s=%s 설정",
                              region, env_name, default_url)
 
 
@@ -243,30 +243,30 @@ def _restore_oauth_token_cache_from_env(client_id: str) -> bool:
     try:
         payload = base64.b64decode("".join(raw.split()), validate=True)
     except (binascii.Error, ValueError) as exc:
-        logger.warning("[Longbridge] OAuth token cache base64 解码失败: %s", exc)
+        logger.warning("[Longbridge] OAuth token cache base64 디코딩 실패: %s", exc)
         return False
 
     if not payload:
-        logger.warning("[Longbridge] OAuth token cache base64 为空，跳过恢复")
+        logger.warning("[Longbridge] OAuth token cache base64가 비어 있어 복원 건너뜀")
         return False
 
     token_cache = _oauth_token_cache_path(client_id)
     if token_cache.exists():
         try:
             if token_cache.read_bytes() == payload:
-                logger.debug("[Longbridge] OAuth token 缓存已与 env secret 一致，跳过恢复: %s", token_cache)
+                logger.debug("[Longbridge] OAuth token 캐시가 env secret과 같아서 복원 건너뜀: %s", token_cache)
                 return False
         except OSError as exc:
-            logger.warning("[Longbridge] 读取现有 OAuth token 缓存失败，将尝试用 env secret 覆盖: %s", exc)
+            logger.warning("[Longbridge] 기존 OAuth token 캐시 읽기 실패, env secret으로 덮어쓰기 시도: %s", exc)
 
     try:
         token_cache.parent.mkdir(parents=True, exist_ok=True)
         token_cache.write_bytes(payload)
         token_cache.chmod(0o600)
-        logger.info("[Longbridge] 已从 LONGBRIDGE_OAUTH_TOKEN_CACHE_B64 恢复 OAuth token 缓存")
+        logger.info("[Longbridge] LONGBRIDGE_OAUTH_TOKEN_CACHE_B64에서 OAuth token 캐시 복원 완료")
         return True
     except Exception as exc:
-        logger.warning("[Longbridge] 写入 OAuth token 缓存失败: %s", exc)
+        logger.warning("[Longbridge] OAuth token 캐시 쓰기 실패: %s", exc)
         return False
 
 
@@ -283,27 +283,27 @@ def _is_valid_oauth_cache_file(token_cache: Path) -> bool:
     try:
         raw = token_cache.read_bytes()
     except OSError as exc:
-        logger.warning("[Longbridge] 读取 OAuth token 缓存失败: %s", exc)
+        logger.warning("[Longbridge] OAuth token 캐시 읽기 실패: %s", exc)
         return False
 
     if not raw.strip():
-        logger.warning("[Longbridge] OAuth token 缓存为空文件: %s", token_cache)
+        logger.warning("[Longbridge] OAuth token 캐시가 빈 파일임: %s", token_cache)
         return False
 
     try:
         payload = raw.decode("utf-8").strip()
     except UnicodeDecodeError as exc:
-        logger.warning("[Longbridge] OAuth token 缓存不是 UTF-8 文本: %s", exc)
+        logger.warning("[Longbridge] OAuth token 캐시가 UTF-8 텍스트가 아님: %s", exc)
         return False
 
     try:
         data = json.loads(payload)
     except json.JSONDecodeError as exc:
-        logger.warning("[Longbridge] OAuth token 缓存不是合法 JSON: %s", exc)
+        logger.warning("[Longbridge] OAuth token 캐시가 올바른 JSON이 아님: %s", exc)
         return False
 
     if not isinstance(data, dict) or not data:
-        logger.warning("[Longbridge] OAuth token 缓存内容为空或格式不符合预期: %s", token_cache)
+        logger.warning("[Longbridge] OAuth token 캐시 내용이 비었거나 형식이 예상과 다름: %s", token_cache)
         return False
 
     return True
@@ -311,7 +311,7 @@ def _is_valid_oauth_cache_file(token_cache: Path) -> bool:
 
 def _oauth_reauth_not_supported(url: str) -> None:
     raise RuntimeError(
-        f"OAuth token 缓存已失效或缺失，当前为无头运行不支持打开授权页面，请重建 LONGBRIDGE_OAUTH_TOKEN_CACHE_B64: {url}"
+        f"OAuth token 캐시가 만료됐거나 없음. 지금은 화면 없이 실행 중이라 인증 페이지를 열 수 없으니 LONGBRIDGE_OAUTH_TOKEN_CACHE_B64를 다시 만드세요: {url}"
     )
 
 
@@ -362,11 +362,11 @@ def _is_us_code(stock_code: str) -> bool:
 
 def _is_hk_code(stock_code: str) -> bool:
     """
-    判定是否为港股代码，与 ``data_provider.base._is_hk_market`` 的市场契约一致：
-    支持 ``.HK`` 后缀、``HK00700`` 前缀形式，以及 4-5 位纯数字裸码（港股
-    普通股为 4 位如 ``0001`` 长和、``0941`` 中国移动；最多 5 位）。
+    홍콩 주식 코드인지 판정. ``data_provider.base._is_hk_market``의 시장 규칙과 같음:
+    ``.HK`` 접미사, ``HK00700`` 접두사 형태, 그리고 4-5자리 숫자만 있는 코드 지원(홍콩
+    보통주는 ``0001`` CK허치슨, ``0941`` 차이나모바일처럼 4자리. 최대 5자리).
 
-    Note: 4 位裸数字与 A 股不冲突——A 股 ETF/股票均为 6 位。
+    Note: 4자리 숫자 코드는 A주와 겹치지 않음 — A주 ETF/주식은 모두 6자리.
     """
     normalized = (stock_code or "").strip().upper()
     if normalized.startswith("HK"):
@@ -413,12 +413,12 @@ def _to_longbridge_symbol(stock_code: str) -> Optional[str]:
 
 class LongbridgeFetcher(BaseFetcher):
     """
-    长桥 OpenAPI 数据源实现
+    롱브리지 OpenAPI 데이터 소스 구현
 
-    优先级: 5（最低，作为美股/港股最后兜底）
-    数据来源: Longbridge OpenAPI
+    우선순위: 5(가장 낮음, 미국/홍콩 주식의 마지막 대체 수단)
+    데이터 출처: Longbridge OpenAPI
 
-    通过组合多个 API 计算 yfinance 缺失的指标:
+    여러 API를 조합해 yfinance에 없는 지표를 계산:
     - turnover_rate = volume / circulating_shares * 100
     - volume_ratio = today_volume / avg_5day_volume
     - pe_ratio = price / eps_ttm
@@ -456,7 +456,7 @@ class LongbridgeFetcher(BaseFetcher):
             return
         self._cooldown_until = time.time() + cooldown_seconds
         logger.warning(
-            "[Longbridge] 检测到连接异常，进入 %ss 冷却期以避免频繁重连: %s",
+            "[Longbridge] 연결 이상 감지, 잦은 재연결을 막으려고 %ss 동안 대기: %s",
             cooldown_seconds,
             exc,
         )
@@ -467,7 +467,7 @@ class LongbridgeFetcher(BaseFetcher):
             return False
         if self._cooldown_until > time.time():
             logger.debug(
-                "[Longbridge] %s 冷却中，暂时跳过请求，剩余 %.1fs",
+                "[Longbridge] %s 대기 중이라 요청을 잠시 건너뜀, 남은 시간 %.1fs",
                 capability or "request",
                 self._cooldown_until - time.time(),
             )
@@ -553,24 +553,24 @@ class LongbridgeFetcher(BaseFetcher):
                             if from_oauth is None:
                                 raise AttributeError("Config.from_oauth")
                             lb_config = from_oauth(oauth)
-                            logger.info("[Longbridge] Config.from_oauth() 创建成功")
+                            logger.info("[Longbridge] Config.from_oauth() 생성 성공")
                         except (ImportError, AttributeError):
                             oauth_error = _oauth_sdk_unavailable_error()
-                            logger.warning("[Longbridge] OAuth SDK 不可用: %s", oauth_error)
+                            logger.warning("[Longbridge] OAuth SDK 사용 불가: %s", oauth_error)
                         except Exception as exc:
                             oauth_error = exc
-                            logger.warning("[Longbridge] OAuth 初始化失败: %s", exc)
+                            logger.warning("[Longbridge] OAuth 초기화 실패: %s", exc)
                     elif token_cache.exists():
                         logger.warning(
-                            "[Longbridge] OAuth token 缓存内容异常，已拒绝交互式续期: %s。"
-                            "请先执行 scripts/generate_longbridge_oauth_token.py 重建缓存。",
+                            "[Longbridge] OAuth token 캐시 내용이 이상해서 대화형 갱신을 거부함: %s. "
+                            "먼저 scripts/generate_longbridge_oauth_token.py를 실행해 캐시를 다시 만드세요.",
                             token_cache,
                         )
                     else:
                         logger.warning(
-                            "[Longbridge] OAuth client 已配置，但 token 缓存不存在: %s。"
-                            "请先执行 scripts/generate_longbridge_oauth_token.py 生成缓存；"
-                            "GitHub Actions/Docker 可提供 LONGBRIDGE_OAUTH_TOKEN_CACHE_B64。",
+                            "[Longbridge] OAuth client는 설정됐지만 token 캐시가 없음: %s. "
+                            "먼저 scripts/generate_longbridge_oauth_token.py를 실행해 캐시를 만드세요. "
+                            "GitHub Actions/Docker에서는 LONGBRIDGE_OAUTH_TOKEN_CACHE_B64를 넣어도 됩니다.",
                             token_cache,
                         )
 
@@ -584,11 +584,11 @@ class LongbridgeFetcher(BaseFetcher):
                             continue
                         try:
                             lb_config = factory()
-                            logger.info("[Longbridge] Config.%s() 成功", factory_name)
+                            logger.info("[Longbridge] Config.%s() 성공", factory_name)
                             break
                         except Exception as e:
                             logger.debug(
-                                "[Longbridge] Config.%s() 失败: %s", factory_name, e
+                                "[Longbridge] Config.%s() 실패: %s", factory_name, e
                             )
 
                 if lb_config is None and has_legacy:
@@ -598,21 +598,21 @@ class LongbridgeFetcher(BaseFetcher):
                         access_token,
                         **extra_kw,
                     )
-                    logger.info("[Longbridge] Config.from_apikey() 创建成功")
+                    logger.info("[Longbridge] Config.from_apikey() 생성 성공")
                 elif lb_config is None:
                     reason = (
-                        f"OAuth 初始化失败: {oauth_error}"
+                        f"OAuth 초기화 실패: {oauth_error}"
                         if oauth_error
-                        else "未找到可用 OAuth token 缓存且未配置完整 Legacy 三件套"
+                        else "쓸 수 있는 OAuth token 캐시가 없고 Legacy 3종 설정도 완전하지 않음"
                     )
-                    logger.warning("[Longbridge] 未建立认证配置: %s", reason)
+                    logger.warning("[Longbridge] 인증 설정을 만들지 못함: %s", reason)
                     self._available = False
                     return None
 
                 # Diagnostic logging
                 region = os.getenv("LONGBRIDGE_REGION") or os.getenv("LONGPORT_REGION") or "(auto)"
                 logger.info(
-                    "[Longbridge] 配置: region=%s, http=%s, quote_ws=%s",
+                    "[Longbridge] 설정: region=%s, http=%s, quote_ws=%s",
                     region,
                     os.getenv("LONGBRIDGE_HTTP_URL", "(default)"),
                     os.getenv("LONGBRIDGE_QUOTE_WS_URL", "(default)"),
@@ -620,10 +620,10 @@ class LongbridgeFetcher(BaseFetcher):
 
                 self._config = lb_config
                 self._ctx = QuoteContext(lb_config)
-                logger.info("[Longbridge] QuoteContext 初始化成功")
+                logger.info("[Longbridge] QuoteContext 초기화 성공")
                 return self._ctx
             except Exception as e:
-                logger.warning("[Longbridge] QuoteContext 初始化失败: %s", e)
+                logger.warning("[Longbridge] QuoteContext 초기화 실패: %s", e)
                 self._available = False
                 return None
 
@@ -653,7 +653,7 @@ class LongbridgeFetcher(BaseFetcher):
                         self._static_cache[symbol] = (info, now)
                 return info
         except Exception as e:
-            logger.debug(f"[Longbridge] static_info({symbol}) 失败: {e}")
+            logger.debug(f"[Longbridge] static_info({symbol}) 실패: {e}")
             if self._is_connection_error(e):
                 self._mark_connection_cooldown(e)
         return None
@@ -701,11 +701,11 @@ class LongbridgeFetcher(BaseFetcher):
         try:
             from longbridge.openapi import Period, AdjustType
 
-            # history_candlesticks_by_offset 使用 keyword args 确保跨 SDK 版本兼容:
-            # 0.2.74 (Linux) 与 4.x (Windows/macOS/Python>=3.12) 的
-            # positional 签名存在差异 (0.2.74: forward, time, count; 4.x: forward, count, time)，
-            # keyword args 不受顺序影响。
-            # forward=False → 从 time 起向过去取; time 为基准时间; count 为根数。
+            # history_candlesticks_by_offset은 SDK 버전이 달라도 동작하도록 keyword args를 씀:
+            # 0.2.74 (Linux)와 4.x (Windows/macOS/Python>=3.12)는
+            # positional 인자 순서가 다름 (0.2.74: forward, time, count; 4.x: forward, count, time),
+            # keyword args는 순서와 상관없음.
+            # forward=False → time부터 과거 방향으로 가져옴; time은 기준 시각; count는 봉 개수.
             candles = ctx.history_candlesticks_by_offset(
                 symbol=symbol,
                 period=Period.Day,
@@ -733,7 +733,7 @@ class LongbridgeFetcher(BaseFetcher):
 
             return round(today_volume / avg_vol, 2)
         except Exception as e:
-            logger.debug(f"[Longbridge] 计算量比失败({symbol}): {e}")
+            logger.debug(f"[Longbridge] 거래량 비율 계산 실패({symbol}): {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -747,7 +747,7 @@ class LongbridgeFetcher(BaseFetcher):
 
         symbol = _to_longbridge_symbol(stock_code)
         if symbol is None:
-            logger.debug(f"[Longbridge] 无法转换代码: {stock_code}")
+            logger.debug(f"[Longbridge] 코드 변환 불가: {stock_code}")
             return None
 
         ctx = self._get_ctx()
@@ -760,7 +760,7 @@ class LongbridgeFetcher(BaseFetcher):
                 return None
             q = quotes[0]
         except Exception as e:
-            logger.info(f"[Longbridge] quote({symbol}) 失败: {e}")
+            logger.info(f"[Longbridge] quote({symbol}) 실패: {e}")
             if self._is_connection_error(e):
                 self._mark_connection_cooldown(e)
             return None
@@ -809,7 +809,7 @@ class LongbridgeFetcher(BaseFetcher):
                 turnover_rate = round(volume / shares_for_turnover * 100, 4)
             elif volume > 0:
                 logger.debug(
-                    "[Longbridge] %s 无法计算换手率: volume=%s circulating=%s total_shares=%s",
+                    "[Longbridge] %s 회전율 계산 불가: volume=%s circulating=%s total_shares=%s",
                     symbol,
                     volume,
                     circulating,
@@ -856,8 +856,8 @@ class LongbridgeFetcher(BaseFetcher):
         )
 
         logger.info(
-            f"[Longbridge] {symbol} 行情获取成功: "
-            f"价格={price}, 量比={volume_ratio}, 换手率={turnover_rate}"
+            f"[Longbridge] {symbol} 시세 받기 성공: "
+            f"가격={price}, 거래량 비율={volume_ratio}, 회전율={turnover_rate}"
         )
         return quote
 

@@ -1,42 +1,42 @@
 # -*- coding: utf-8 -*-
 """
 =============================================
-Bot 指数入口 transport-independent 在线 E2E smoke
+Bot 지수 입력 transport-independent 온라인 E2E smoke
 =============================================
 
-从真实 ``CommandDispatcher.dispatch_async -> AnalyzeCommand ->
-TaskService -> StockAnalysisPipeline`` 在线贯穿单标的分析，覆盖
-SH_ALIAS / REGISTERED_NAME / CSI_ALIAS 三条矩阵场景，不经过任何 webhook
-transport（不修 transport，不 mock 在线依赖，不 dry-run）。
+실제 ``CommandDispatcher.dispatch_async -> AnalyzeCommand ->
+TaskService -> StockAnalysisPipeline`` 전체를 온라인으로 거쳐 한 종목을 분석한다.
+SH_ALIAS / REGISTERED_NAME / CSI_ALIAS 세 가지 시나리오를 다루며, webhook
+transport는 전혀 거치지 않는다(transport 수정 없음, 온라인 의존성 mock 없음, dry-run 없음).
 
-运行方式（单 target 参数，--timeout 默认 900 秒）::
+실행 방법(target 인자 1개, --timeout 기본값 900초)::
 
     .venv\\Scripts\\python.exe scripts/smoke_bot_index_entry.py "SH.000016"
     .venv\\Scripts\\python.exe scripts/smoke_bot_index_entry.py "上证50"
     .venv\\Scripts\\python.exe scripts/smoke_bot_index_entry.py "930955.CSI"
     .venv\\Scripts\\python.exe scripts/smoke_bot_index_entry.py "SH.000016" --timeout 1800
 
-进程职责:
-- 父进程: 只负责 deadline、进程树清理和退出码；worker 继承控制台。
-- worker: 独立子进程（由父进程以内部 ``--worker`` flag 显式拉起，不依赖
-  任何环境变量），经真实 dispatcher 提交并在同一进程内轮询
-  ``TaskService``，输出单行 ``E2E_EVENT {json}`` 事件。
+프로세스 역할:
+- 부모 프로세스: deadline, 프로세스 트리 정리, 종료 코드만 담당. worker는 콘솔을 그대로 물려받는다.
+- worker: 별도 자식 프로세스(부모가 내부용 ``--worker`` flag로 직접 띄우며,
+  환경 변수에 의존하지 않음). 실제 dispatcher로 제출하고 같은 프로세스 안에서
+  ``TaskService``를 반복 확인하며, 한 줄짜리 ``E2E_EVENT {json}`` 이벤트를 출력한다.
 
-事件契约（单行 ``E2E_EVENT {json}``，phase=submitted|completed|failed|timeout，
-含 target，按阶段附加 task_id / stock_code / result / error）:
-- submitted : 任务已提交，附带 ``task_id`` / ``stock_code``。
-- completed : 任务完成且结构断言通过，附带 ``result``。
-- failed    : 任务失败或 completed 但结果不完整，附带 ``error``。
-- timeout   : worker 超过 deadline 被清理（父进程输出）。
+이벤트 형식(한 줄 ``E2E_EVENT {json}``, phase=submitted|completed|failed|timeout,
+target 포함, 단계별로 task_id / stock_code / result / error 추가):
+- submitted : 작업 제출됨, ``task_id`` / ``stock_code`` 포함.
+- completed : 작업 완료 및 구조 검사 통과, ``result`` 포함.
+- failed    : 작업 실패, 또는 completed지만 결과가 불완전함, ``error`` 포함.
+- timeout   : worker가 deadline을 넘겨 정리됨(부모 프로세스가 출력).
 
-退出码: 0 = 成功；1 = 失败（结构断言或 failed 事件）；124 = 超时。
+종료 코드: 0 = 성공, 1 = 실패(구조 검사 또는 failed 이벤트), 124 = 시간 초과.
 
-超时清理: Windows 使用 ``taskkill /T /F`` 结束整个进程树；POSIX 向进程组
-发送 SIGKILL。超时只清理进程树，不回滚 DB / 报告 / 通知等既有副作用。
+시간 초과 정리: Windows는 ``taskkill /T /F``로 프로세스 트리 전체를 끝내고, POSIX는 프로세스 그룹에
+SIGKILL을 보낸다. 시간 초과 시 프로세스 트리만 정리하며, 이미 생긴 DB / 보고서 / 알림 등은 되돌리지 않는다.
 
-Ctrl-C 中止: 父进程在轮询窗口收到 Ctrl-C 时同样先清理进程树——清理成功
-透传中断，清理失败输出含清理错误的 ``failed`` 事件并退出 1，绝不静默
-吞掉清理失败。
+Ctrl-C 중단: 부모 프로세스가 대기 중 Ctrl-C를 받으면 똑같이 프로세스 트리부터 정리한다. 정리에 성공하면
+중단을 그대로 전달하고, 실패하면 정리 오류를 담은 ``failed`` 이벤트를 출력하고 1로 종료한다.
+정리 실패를 조용히 넘기는 일은 절대 없다.
 """
 
 from __future__ import annotations
@@ -59,9 +59,9 @@ from scripts.check_env import _reconfigure_output_stream  # noqa: E402
 
 EVENT_PREFIX = "E2E_EVENT "
 
-# 矩阵输入 -> (canonical code, registered display name) 的权威映射。
-# worker 的期望 code/name 只从这里取值，绝不信任响应或任务结果自报的身份，
-# 防止 dispatcher 路由错误时仍假通过。
+# 시나리오 입력 -> (canonical code, registered display name)의 기준 매핑.
+# worker가 기대하는 code/name은 여기서만 가져온다. 응답이나 작업 결과가 스스로 밝힌 값은 믿지 않으며,
+# dispatcher가 잘못 연결했는데도 통과한 것처럼 보이는 일을 막는다.
 EXPECTED_OUTCOMES = {
     "SH.000016": ("sh000016", "上证50"),
     "上证50": ("sh000016", "上证50"),
@@ -143,8 +143,8 @@ def _terminate_process_tree(proc, platform_name: str) -> Optional[str]:
         if killpg is not None:
             killpg(proc.pid, kill_signal)
         else:
-            # 无进程组原语：直接 kill 只能证明 worker 本身被杀，不能证明
-            # 后代已清理，不得返回 None 声称树清理已确认。
+            # 프로세스 그룹 기능이 없음: 바로 kill하면 worker 자신이 죽은 것만 알 수 있고
+            # 자식들까지 정리됐는지는 알 수 없으므로, None을 반환해 트리 정리가 확인됐다고 하면 안 된다.
             proc.kill()
             return (
                 "process-group kill unavailable; direct worker kill "
@@ -332,8 +332,8 @@ def _run_worker_inner(target: str, expected_code: str) -> int:
 
     response = asyncio.run(dispatcher.dispatch_async(message))
 
-    # 权威期望只来自矩阵映射，绝不信任 ``extra.stock_code`` 或任务结果自报
-    # 身份：dispatcher 路由错误（提交了错误 code/name）时仍会失败。
+    # 기대값은 시나리오 매핑에서만 가져온다. ``extra.stock_code``나 작업 결과가 스스로 밝힌
+    # 값은 믿지 않으므로, dispatcher가 잘못 연결하면(틀린 code/name 제출) 실패로 처리된다.
     response_code = response.extra.get("stock_code")
     response_task_id = response.extra.get("task_id")
     if response_task_id and response_code == expected_code:
@@ -345,9 +345,9 @@ def _run_worker_inner(target: str, expected_code: str) -> int:
             stock_code=expected_code,
         )
     elif response_task_id:
-        # 有任务 identity 但 code 与矩阵期望不符：提交了错误的标的，输出
-        # 明确的 mismatch 错误（含期望值与实际值）与结构化实际 code，
-        # 而不是成功响应文本。
+        # 작업 identity는 있지만 code가 기대값과 다름: 틀린 종목이 제출된 것이므로,
+        # 성공 응답 문구 대신 분명한 mismatch 오류(기대값과 실제값 포함)와
+        # 구조화된 실제 code를 출력한다.
         _emit_event(
             "failed",
             target,
@@ -414,11 +414,11 @@ def _run_parent(target: str, timeout: int) -> int:
         except subprocess.TimeoutExpired:
             exit_code = None
         except KeyboardInterrupt:
-            # 用户主动中止：清理 worker 进程树。清理失败不得静默吞掉——
-            # 与 timeout 分支一致，输出结构化 failed 事件并返回 1，避免
-            # 用户误以为进程树已清理而 worker 后代仍在跑真实副作用。
+            # 사용자가 직접 중단함: worker 프로세스 트리를 정리한다. 정리 실패를 조용히 넘기면 안 된다.
+            # timeout 분기와 똑같이 구조화된 failed 이벤트를 출력하고 1을 반환해,
+            # 트리가 정리된 줄 알았는데 worker 자식이 계속 실제 작업을 하는 일을 막는다.
             if proc.poll() is not None:
-                # worker 已自行退出：无需清理，直接透传中断。
+                # worker가 이미 스스로 종료함: 정리할 것 없이 중단을 그대로 전달.
                 raise
             cleanup_error = _cleanup_process_tree(
                 proc, "nt" if os.name == "nt" else "posix"
@@ -432,8 +432,8 @@ def _run_parent(target: str, timeout: int) -> int:
                 return 1
             raise
         if exit_code is not None:
-            # 文档化运行时契约只暴露 0 / 1 / 124：worker 的任意其他退出码
-            # 归一化为 1，避免泄漏任意崩溃码。
+            # 문서에 적힌 종료 코드는 0 / 1 / 124뿐이다. worker의 다른 종료 코드는
+            # 모두 1로 바꿔, 아무 크래시 코드나 밖으로 새지 않게 한다.
             if exit_code in (0, 1, 124):
                 return exit_code
             return 1
@@ -442,7 +442,7 @@ def _run_parent(target: str, timeout: int) -> int:
                 proc, "nt" if os.name == "nt" else "posix"
             )
             if cleanup_error is not None:
-                # 清理失败不得静默声称成功：输出结构化 failed 事件并返回 1。
+                # 정리에 실패했는데 성공이라고 하면 안 됨: 구조화된 failed 이벤트를 출력하고 1을 반환.
                 _emit_event(
                     "failed",
                     target,
@@ -456,16 +456,16 @@ def _run_parent(target: str, timeout: int) -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Bot 指数入口 transport-independent 在线 E2E smoke："
-            "从真实 dispatcher 贯穿 Pipeline，单标的在线分析。"
+            "Bot 지수 입력 transport-independent 온라인 E2E smoke: "
+            "실제 dispatcher에서 Pipeline까지 거쳐 한 종목을 온라인으로 분석."
         )
     )
-    parser.add_argument("target", help="矩阵输入：SH.000016 / 上证50 / 930955.CSI")
+    parser.add_argument("target", help="시나리오 입력: SH.000016 / 上证50 / 930955.CSI")
     parser.add_argument(
         "--timeout",
         type=int,
         default=900,
-        help="worker 超时秒数（默认 900 秒；超时清理进程树，不回滚副作用）",
+        help="worker 제한 시간(초, 기본값 900초). 시간이 넘으면 프로세스 트리를 정리하며, 이미 생긴 결과는 되돌리지 않음",
     )
     parser.add_argument(
         "--worker",
@@ -476,27 +476,27 @@ def main(argv=None) -> int:
 
     target = (args.target or "").strip()
     if not target:
-        print("ERROR: target 不能为空", file=sys.stderr)
+        print("ERROR: target이 비어 있으면 안 됩니다", file=sys.stderr)
         return 2
 
-    # 权威 target 校验必须先于任何角色分支：不支持的 target 不得构造
-    # dispatcher、不得提交、不得 spawn 子进程（参数/输入错误，非零返回）。
+    # target 검사는 역할 분기보다 먼저 해야 한다. 지원하지 않는 target이면
+    # dispatcher를 만들지도, 제출하지도, 자식 프로세스를 띄우지도 않는다(인자/입력 오류, 0이 아닌 값 반환).
     try:
         _resolve_expected(target)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    # ``--timeout`` 必须为正：非正超时在 spawn/提交之前即拒绝（输入错误）。
+    # ``--timeout``은 양수여야 한다. 양수가 아니면 spawn/제출 전에 바로 거절(입력 오류).
     if args.timeout <= 0:
-        print(f"ERROR: --timeout 必须为正整数，got {args.timeout}", file=sys.stderr)
+        print(f"ERROR: --timeout은 양의 정수여야 합니다, got {args.timeout}", file=sys.stderr)
         return 2
 
     _reconfigure_output_stream(sys.stdout)
     _reconfigure_output_stream(sys.stderr)
 
-    # 角色选择只由显式 ``--worker`` flag 决定（父进程拉起子进程时显式传入），
-    # 不依赖任何环境变量，避免外部预置环境变量绕过父进程的硬超时。
+    # 역할은 명시적인 ``--worker`` flag로만 정한다(부모가 자식 프로세스를 띄울 때 직접 넘김).
+    # 환경 변수에는 의존하지 않아, 밖에서 미리 넣은 환경 변수로 부모의 강제 시간 제한을 우회하지 못하게 한다.
     if args.worker:
         return _run_worker(target)
     return _run_parent(target, args.timeout)

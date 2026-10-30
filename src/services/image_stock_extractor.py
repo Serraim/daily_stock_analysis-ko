@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-图片股票代码提取 (Vision LLM)
+이미지에서 종목 코드 추출 (Vision LLM)
 ===================================
 
-从截图/图片中提取股票代码，使用 Vision LLM。
-优先级：Gemini -> Anthropic -> OpenAI（首个可用）。
+스크린샷/이미지에서 Vision LLM으로 종목 코드를 추출한다.
+우선순위: Gemini -> Anthropic -> OpenAI(먼저 쓸 수 있는 것).
 """
 
 from __future__ import annotations
@@ -76,17 +76,17 @@ _IMAGE_SIGNATURES = {
 def _verify_image_magic_bytes(image_bytes: bytes, mime_type: str) -> None:
     """Verify actual file content matches declared MIME type (rejects forged Content-Type)."""
     if len(image_bytes) < 12:
-        raise ValueError("图片文件过小或损坏")
+        raise ValueError("이미지 파일이 너무 작거나 손상되었습니다")
     if mime_type not in _IMAGE_SIGNATURES:
-        raise ValueError(f"无法验证类型: {mime_type}")
+        raise ValueError(f"형식을 확인할 수 없습니다: {mime_type}")
     if mime_type == "image/webp":
         if image_bytes[:4] != b"RIFF" or image_bytes[8:12] != b"WEBP":
-            raise ValueError("文件内容与声明的类型 image/webp 不匹配，可能被篡改")
+            raise ValueError("파일 내용이 선언된 형식 image/webp와 맞지 않습니다. 변조되었을 수 있습니다")
         return
     for sig in _IMAGE_SIGNATURES[mime_type]:
         if image_bytes.startswith(sig):
             return
-    raise ValueError(f"文件内容与声明的类型 {mime_type} 不匹配，可能被篡改")
+    raise ValueError(f"파일 내용이 선언된 형식 {mime_type}와 맞지 않습니다. 변조되었을 수 있습니다")
 
 
 def _normalize_code(raw: str) -> Optional[str]:
@@ -100,7 +100,7 @@ def _normalize_code(raw: str) -> Optional[str]:
     # US stocks: 1-5 letters, optionally with . (e.g. BRK.B)
     if re.match(r"^[A-Z]{1,5}(\.[A-Z])?$", s):
         return s
-    # 尝试去除 SH/SZ 后缀
+    # SH/SZ 접미사 제거 시도
     for suffix in (".SH", ".SZ", ".SS"):
         if s.endswith(suffix):
             base = s[: -len(suffix)].strip()
@@ -110,11 +110,11 @@ def _normalize_code(raw: str) -> Optional[str]:
 
 
 def _parse_codes_from_text(text: str) -> List[str]:
-    """从 LLM 响应文本解析股票代码（legacy format）。"""
+    """LLM 응답 텍스트에서 종목 코드를 파싱한다(legacy format)."""
     seen: set[str] = set()
     result: List[str] = []
 
-    # 优先尝试 JSON 数组；只移除开头的 markdown 围栏，避免 find("```") 误删结尾导致清空
+    # JSON 배열을 먼저 시도. 맨 앞 markdown 펜스만 제거해, find("```")가 끝부분을 잘못 지워 내용이 비는 일을 막는다
     cleaned = text.strip()
     for start in ("```json", "```"):
         if cleaned.startswith(start):
@@ -137,7 +137,7 @@ def _parse_codes_from_text(text: str) -> List[str]:
     except json.JSONDecodeError:
         pass
 
-    # 兜底：查找 5-6 位数字及美股代码
+    # 대체 경로: 5-6자리 숫자와 미국 종목 코드 찾기
     for m in re.finditer(r"\b([0-9]{5,6}|[A-Z]{1,5}(\.[A-Z])?)\b", text, re.IGNORECASE):
         c = _normalize_code(m.group(1))
         if c and c not in seen and c not in _FAKE_CODES:
@@ -204,7 +204,7 @@ def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
     # Fallback: legacy format (codes only)
     codes = _parse_codes_from_text(text)
     if not codes:
-        logger.info("[ImageExtractor] 无法解析为结构化 items，且 legacy code 提取为空")
+        logger.info("[ImageExtractor] 구조화된 items로 파싱할 수 없고, legacy code 추출 결과도 비어 있음")
     return [(c, None, "medium") for c in codes]
 
 
@@ -275,7 +275,7 @@ def _call_litellm_vision(image_b64: str, mime_type: str, api_key: Optional[str] 
     if not model:
         raise ValueError("未配置 Vision API。请设置 LITELLM_MODEL 或相关 API Key。")
     if route_has_hermes(getattr(cfg, "llm_model_list", []) or [], model):
-        raise ValueError("Hermes Vision 未验证：VISION_MODEL 不能选择包含 Hermes deployment 的 route。")
+        raise ValueError("Hermes Vision 미검증: VISION_MODEL에 Hermes deployment가 포함된 route를 고를 수 없습니다.")
 
     deployments = _matching_vision_deployments(model, cfg)
     keys = _get_api_keys_for_model(model, cfg)
@@ -347,20 +347,20 @@ def extract_stock_codes_from_image(
     mime_type: str,
 ) -> Tuple[List[Tuple[str, Optional[str], str]], str]:
     """
-    从图片中提取股票代码及名称（使用 Vision LLM）。
+    이미지에서 종목 코드와 이름을 추출한다(Vision LLM 사용).
 
-    优先级：Gemini -> Anthropic -> OpenAI（首个可用）。
-    支持多 Key 轮询与重试（最多 3 次，指数退避）。
+    우선순위: Gemini -> Anthropic -> OpenAI(먼저 쓸 수 있는 것).
+    여러 Key 순환과 재시도 지원(최대 3번, 지수 백오프).
 
     Args:
-        image_bytes: 原始图片字节
-        mime_type: MIME 类型（如 image/jpeg, image/png）
+        image_bytes: 원본 이미지 바이트
+        mime_type: MIME 유형(예: image/jpeg, image/png)
 
     Returns:
-        (items, raw_text) - items 为 [(code, name?, confidence), ...]，raw_text 为原始 LLM 响应。
+        (items, raw_text) - items는 [(code, name?, confidence), ...], raw_text는 LLM 원본 응답.
 
     Raises:
-        ValueError: 图片无效、未配置 Vision API 或提取失败时。
+        ValueError: 이미지가 잘못됐거나, Vision API가 설정되지 않았거나, 추출에 실패했을 때.
     """
     mime_type = (mime_type or "image/jpeg").strip().lower().split(";")[0].strip()
     if mime_type not in ALLOWED_MIME:
@@ -386,7 +386,7 @@ def extract_stock_codes_from_image(
             logger.debug("[ImageExtractor] raw LLM response:\n%s", raw)
             items = _parse_items_from_text(raw)
             logger.info(
-                f"[ImageExtractor] {model} 提取 {len(items)} 个: "
+                f"[ImageExtractor] {model}에서 {len(items)}개 추출: "
                 f"{[(i[0], i[1]) for i in items[:5]]}{'...' if len(items) > 5 else ''}"
             )
             return items, raw
@@ -394,7 +394,7 @@ def extract_stock_codes_from_image(
             last_error = e
             if attempt < 2:
                 delay = 2 ** attempt
-                logger.warning(f"[ImageExtractor] 尝试 {attempt + 1}/3 失败，{delay}s 后重试: {e}")
+                logger.warning(f"[ImageExtractor] 시도 {attempt + 1}/3 실패, {delay}s 후 재시도: {e}")
                 time.sleep(delay)
 
     raise ValueError(

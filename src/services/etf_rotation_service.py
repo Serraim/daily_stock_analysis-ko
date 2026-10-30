@@ -87,7 +87,7 @@ def _close_series(code: str, df: Optional[pd.DataFrame], end_day: date) -> pd.Se
     closes = closes[~closes.index.duplicated(keep="last")].sort_index()
     kept = closes.loc[: pd.Timestamp(end_day)]
     if len(kept) < len(closes):
-        logger.info("[ETF轮动] %s 丢弃 %s 之后的 %d 根未收盘 K 线", code, end_day, len(closes) - len(kept))
+        logger.info("[ETF로테이션] %s: %s 이후의 장 마감 전 K선 %d개 버림", code, end_day, len(closes) - len(kept))
     if not kept.notna().any():
         raise ValueError("no valid close prices")
     return kept
@@ -145,10 +145,10 @@ def load_closes(
             series[code] = close_series
         except Exception as exc:  # fetch errors and malformed frames alike
             failed[code] = str(exc) or type(exc).__name__
-            logger.warning("[ETF轮动] %s 日线不可用: %s", code, failed[code])
+            logger.warning("[ETF로테이션] %s 일봉 사용 불가: %s", code, failed[code])
             continue
         sources[code] = source
-        logger.info("[ETF轮动] %s 获取 %d 条日线 (来源: %s)", code, len(series[code]), source)
+        logger.info("[ETF로테이션] %s 일봉 %d개 가져옴 (출처: %s)", code, len(series[code]), source)
 
     frame = pd.DataFrame(series).sort_index() if series else pd.DataFrame()
     if not frame.empty:
@@ -206,7 +206,7 @@ def _resolve_names(fetcher_manager, codes: Sequence[str]) -> Dict[str, str]:
         try:
             name = fetcher_manager.get_stock_name(code, allow_realtime=False)
         except Exception as exc:
-            logger.debug("[ETF轮动] %s 名称获取失败: %s", code, exc)
+            logger.debug("[ETF로테이션] %s 이름 가져오기 실패: %s", code, exc)
             name = None
         names[code] = name or code
     return names
@@ -415,25 +415,25 @@ def _deliver(report: RotationReport, send_notification: bool, notifier) -> None:
 
             notifier = NotificationService()
     except Exception as exc:
-        logger.warning("[ETF轮动] 通知服务初始化失败，报告未保存也未推送: %s\n%s", exc, report.markdown)
+        logger.warning("[ETF로테이션] 알림 서비스 초기화 실패, 리포트를 저장하지도 보내지도 않음: %s\n%s", exc, report.markdown)
         return
 
     filename = f"etf_rotation_{report.as_of:%Y%m%d}.md"
     try:
         path = notifier.save_report_to_file(report.markdown, filename)
-        logger.info("[ETF轮动] 报告已保存: %s", path)
+        logger.info("[ETF로테이션] 리포트 저장됨: %s", path)
     except Exception as exc:
-        logger.warning("[ETF轮动] 报告保存失败: %s\n%s", exc, report.markdown)
+        logger.warning("[ETF로테이션] 리포트 저장 실패: %s\n%s", exc, report.markdown)
 
     if not send_notification:
         return
     try:
         if not notifier.is_available():
-            logger.info("[ETF轮动] 未配置通知渠道，跳过推送")
+            logger.info("[ETF로테이션] 알림 채널이 설정되지 않아 전송 건너뜀")
         elif not notifier.send(report.markdown, route_type="report"):
-            logger.warning("[ETF轮动] 通知推送失败")
+            logger.warning("[ETF로테이션] 알림 전송 실패")
     except Exception as exc:
-        logger.warning("[ETF轮动] 通知推送异常: %s", exc)
+        logger.warning("[ETF로테이션] 알림 전송 오류: %s", exc)
 
 
 def run_etf_rotation(
@@ -453,7 +453,7 @@ def run_etf_rotation(
 
     pool = [c for c in config.etf_rotation_pool if c]
     if not pool:
-        raise ValueError("ETF_ROTATION_POOL 为空，请至少配置一只 ETF")
+        raise ValueError("ETF_ROTATION_POOL이 비어 있습니다. ETF를 하나 이상 설정하세요")
     safe_asset = config.etf_rotation_safe_asset or None
     params = params_from_config(config)
 
@@ -471,12 +471,12 @@ def run_etf_rotation(
     loaded = load_closes(fetcher_manager, codes, config.etf_rotation_backtest_years, end=end_day)
     risk = [c for c in pool if c in loaded.closes.columns]
     if not risk:
-        raise RuntimeError(f"ETF 轮动池全部数据获取失败: {loaded.failed}")
+        raise RuntimeError(f"ETF 로테이션 풀의 데이터를 모두 가져오지 못했습니다: {loaded.failed}")
 
     names = _resolve_names(fetcher_manager, codes)
     warnings = data_quality_warnings(loaded)
     for warning in warnings:
-        logger.warning("[ETF轮动] %s", warning)
+        logger.warning("[ETF로테이션] %s", warning)
     report = replace(
         build_report(loaded.closes, risk, safe_asset, params, names, warnings, next_session=next_session),
         failed_codes=dict(loaded.failed),

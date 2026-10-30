@@ -119,8 +119,8 @@ def _handle_search_stock_news(stock_code: str, stock_name: str) -> dict:
     response = service.search_stock_news(query_code, query_name, max_results=5)
 
     if not response.success:
-        # 检索已发起但失败：Agent 这一轮没有拿到新闻证据，必须记 0 而不是不记，
-        # 否则报告会把「搜过但失败」误报成「未配置搜索渠道」。
+        # 검색은 했지만 실패: Agent가 이번에 뉴스 근거를 얻지 못했으니 기록을 생략하지 말고 0으로 남겨야 한다.
+        # 안 그러면 리포트가 "검색했지만 실패"를 "검색 채널 미설정"으로 잘못 보고한다.
         record_news_evidence(0)
         return {
             "query": response.query,
@@ -197,14 +197,14 @@ def _handle_search_comprehensive_intel(stock_code: str, stock_name: str) -> dict
     )
 
     if not intel_results:
-        # 多维检索已发起但整体没有结果，同样必须记 0（见 _handle_search_stock_news）。
+        # 여러 항목 검색을 했지만 결과가 전혀 없을 때도 0으로 기록해야 한다(_handle_search_stock_news 참고).
         record_news_evidence(0)
         return {"error": "Comprehensive intel search returned no results"}
 
     # Format into readable report
     report = service.format_intel_report(intel_results, query_name)
 
-    # 本次真正交给 Agent 的证据条数，按维度累计后一次性记录。
+    # 이번에 실제로 Agent에게 넘긴 근거 건수. 항목별로 누적한 뒤 한 번에 기록한다.
     evidence_count = 0
 
     # Also return structured data

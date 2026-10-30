@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票数据服务层
+종목 데이터 서비스 계층
 ===================================
 
-职责：
-1. 封装股票数据获取逻辑
-2. 提供实时行情和历史数据接口
+역할:
+1. 종목 데이터 가져오기 로직 캡슐화
+2. 실시간 시세와 과거 데이터 인터페이스 제공
 """
 
 import logging
@@ -20,38 +20,38 @@ logger = logging.getLogger(__name__)
 
 class StockService:
     """
-    股票数据服务
+    종목 데이터 서비스
     
-    封装股票数据获取的业务逻辑
+    종목 데이터 가져오기 업무 로직을 캡슐화한다
     """
     
     def __init__(self):
-        """初始化股票数据服务"""
+        """종목 데이터 서비스 초기화"""
         self.repo = StockRepository()
     
     def get_realtime_quote(self, stock_code: str) -> Optional[Dict[str, Any]]:
         """
-        获取股票实时行情
+        종목 실시간 시세 가져오기
         
         Args:
-            stock_code: 股票代码
+            stock_code: 종목 코드
             
         Returns:
-            实时行情数据字典
+            실시간 시세 데이터 딕셔너리
         """
         try:
-            # 调用数据获取器获取实时行情
+            # 데이터 가져오기 도구로 실시간 시세 조회
             from data_provider.base import DataFetcherManager
             
             manager = DataFetcherManager()
             quote = manager.get_realtime_quote(stock_code)
             
             if quote is None:
-                logger.warning(f"获取 {stock_code} 实时行情失败")
+                logger.warning(f"종목 {stock_code} 실시간 시세 가져오기 실패")
                 return None
             
-            # UnifiedRealtimeQuote 是 dataclass，使用 getattr 安全访问字段
-            # 字段映射: UnifiedRealtimeQuote -> API 响应
+            # UnifiedRealtimeQuote는 dataclass이므로 getattr로 안전하게 필드에 접근
+            # 필드 매핑: UnifiedRealtimeQuote -> API 응답
             # - code -> stock_code
             # - name -> stock_name
             # - price -> current_price
@@ -79,10 +79,10 @@ class StockService:
             }
             
         except ImportError:
-            logger.warning("DataFetcherManager 未找到，使用占位数据")
+            logger.warning("DataFetcherManager를 찾지 못해 임시 데이터 사용")
             return self._get_placeholder_quote(stock_code)
         except Exception as e:
-            logger.error(f"获取实时行情失败: {e}", exc_info=True)
+            logger.error(f"실시간 시세 가져오기 실패: {e}", exc_info=True)
             return None
     
     def get_history_data(
@@ -92,41 +92,41 @@ class StockService:
         days: int = 30
     ) -> Dict[str, Any]:
         """
-        获取股票历史行情
+        종목 과거 시세 가져오기
         
         Args:
-            stock_code: 股票代码
-            period: K 线周期 (daily/weekly/monthly)
-            days: 获取天数
+            stock_code: 종목 코드
+            period: K선 주기 (daily/weekly/monthly)
+            days: 가져올 일수
             
         Returns:
-            历史行情数据字典
+            과거 시세 데이터 딕셔너리
             
         Raises:
-            ValueError: 当 period 不是 daily 时抛出（weekly/monthly 暂未实现）
+            ValueError: period가 daily가 아닐 때 발생(weekly/monthly는 아직 구현 안 됨)
         """
-        # 验证 period 参数，只支持 daily
+        # period 인자 검증, daily만 지원
         if period != "daily":
             raise ValueError(
-                f"暂不支持 '{period}' 周期，目前仅支持 'daily'。"
-                "weekly/monthly 聚合功能将在后续版本实现。"
+                f"'{period}' 주기는 아직 지원하지 않습니다. 현재는 'daily'만 지원합니다. "
+                "weekly/monthly 집계 기능은 이후 버전에서 구현할 예정입니다."
             )
         
         try:
-            # 调用数据获取器获取历史数据
+            # 데이터 가져오기 도구로 과거 데이터 조회
             from data_provider.base import DataFetcherManager
             
             manager = DataFetcherManager()
             df, source = manager.get_daily_data(stock_code, days=days)
             
             if df is None or df.empty:
-                logger.warning(f"获取 {stock_code} 历史数据失败")
+                logger.warning(f"종목 {stock_code} 과거 데이터 가져오기 실패")
                 return {"stock_code": stock_code, "period": period, "data": []}
             
-            # 获取股票名称
+            # 종목명 가져오기
             stock_name = manager.get_stock_name(stock_code)
             
-            # 转换为响应格式
+            # 응답 형식으로 변환
             data = []
             for _, row in df.iterrows():
                 date_val = row.get("date")
@@ -154,21 +154,21 @@ class StockService:
             }
             
         except ImportError:
-            logger.warning("DataFetcherManager 未找到，返回空数据")
+            logger.warning("DataFetcherManager를 찾지 못해 빈 데이터 반환")
             return {"stock_code": stock_code, "period": period, "data": []}
         except Exception as e:
-            logger.error(f"获取历史数据失败: {e}", exc_info=True)
+            logger.error(f"과거 데이터 가져오기 실패: {e}", exc_info=True)
             return {"stock_code": stock_code, "period": period, "data": []}
     
     def _get_placeholder_quote(self, stock_code: str) -> Dict[str, Any]:
         """
-        获取占位行情数据（用于测试）
+        임시 시세 데이터 가져오기(테스트용)
         
         Args:
-            stock_code: 股票代码
+            stock_code: 종목 코드
             
         Returns:
-            占位行情数据
+            임시 시세 데이터
         """
         return {
             "stock_code": stock_code,

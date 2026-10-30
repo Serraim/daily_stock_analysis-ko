@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-统一导入解析管道
+통합 가져오기 파싱 파이프라인
 ===================================
 
 Parse CSV/Excel/clipboard text into stock items (code, name, confidence).
@@ -119,7 +119,7 @@ def _parse_dataframe(df: pd.DataFrame) -> List[Tuple[Optional[str], Optional[str
         if not code and name_val:
             code = resolve_name_to_code(name_val)
             if not code:
-                logger.debug(f"[ImportParser] 名称解析失败: {name_val}")
+                logger.debug(f"[ImportParser] 이름 변환 실패: {name_val}")
 
         result.append((code, name_val if name_val else None, "medium"))
     return result
@@ -145,7 +145,7 @@ def parse_import_from_bytes(data: bytes, filename: Optional[str] = None) -> List
     ext = ""
     if filename:
         ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    logger.debug(f"[ImportParser] 开始解析文件: filename={filename or '-'}, ext={ext or '-'}, bytes={len(data)}")
+    logger.debug(f"[ImportParser] 파일 파싱 시작: filename={filename or '-'}, ext={ext or '-'}, bytes={len(data)}")
 
     looks_like_zip = len(data) >= 4 and data[:4] == b"PK\x03\x04"
 
@@ -170,9 +170,9 @@ def parse_import_from_bytes(data: bytes, filename: Optional[str] = None) -> List
                     "请确认：(1) 文件为 .xlsx 格式；(2) 工作表不为空；(3) 文件未损坏。"
                     "若为 .xls 格式，请另存为 .xlsx 后重试。"
                 )
-                raise ValueError(f"Excel 解析失败: {e}。{hint}") from e
+                raise ValueError(f"Excel 파싱 실패: {e}. {hint}") from e
             # For extension-only mismatch (e.g. csv named .xlsx), fallback to text parsing.
-            logger.warning(f"扩展名为 .xlsx 但未解析为 Excel，将回退文本解析: {e}")
+            logger.warning(f"확장자는 .xlsx인데 Excel로 파싱되지 않아 텍스트 파싱으로 대체: {e}")
 
     # .xls not supported
     if ext == ".xls":
@@ -186,7 +186,7 @@ def parse_import_from_bytes(data: bytes, filename: Optional[str] = None) -> List
         except UnicodeDecodeError:
             continue
     else:
-        raise ValueError("无法识别文件编码，请使用 UTF-8 或 GBK")
+        raise ValueError("파일 인코딩을 알 수 없습니다. UTF-8 또는 GBK를 사용하세요")
 
     # Single-column (one value per line): bypass pandas to avoid sep=None inference issues
     # e.g. "00700\n600519" or "code\n00700" - pandas with sep=None can produce wrong results
@@ -247,6 +247,6 @@ def parse_import_from_text(text: str) -> List[Tuple[Optional[str], Optional[str]
     if len(text.encode("utf-8")) > MAX_TEXT_BYTES:
         raise ValueError(f"文本超过 {MAX_TEXT_BYTES // 1024}KB 限制")
 
-    logger.debug(f"[ImportParser] 开始解析粘贴文本: bytes={len(text.encode('utf-8'))}")
+    logger.debug(f"[ImportParser] 붙여넣은 텍스트 파싱 시작: bytes={len(text.encode('utf-8'))}")
     data = text.encode("utf-8")
     return parse_import_from_bytes(data, filename="paste.txt")

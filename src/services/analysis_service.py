@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-分析服务层
+분석 서비스 계층
 ===================================
 
-职责：
-1. 封装股票分析逻辑
-2. 调用 analyzer 和 pipeline 执行分析
-3. 保存分析结果到数据库
+역할:
+1. 종목 분석 로직 캡슐화
+2. analyzer와 pipeline을 호출해 분석 실행
+3. 분석 결과를 데이터베이스에 저장
 """
 
 import logging
@@ -64,13 +64,13 @@ def asset_type_from_canonical_code(code: Any) -> Optional[str]:
 
 class AnalysisService:
     """
-    分析服务
+    분석 서비스
     
-    封装股票分析相关的业务逻辑
+    종목 분석 관련 업무 로직을 캡슐화한다
     """
     
     def __init__(self):
-        """初始化分析服务"""
+        """분석 서비스 초기화"""
         self.repo = AnalysisRepository()
         self.last_error: Optional[str] = None
     
@@ -91,32 +91,32 @@ class AnalysisService:
         analysis_target: Optional[Any] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        执行股票分析
+        종목 분석 실행
         
         Args:
-            stock_code: 股票代码
-            report_type: 报告类型 (simple/detailed)
-            force_refresh: 是否强制刷新
-            query_id: 查询 ID（可选）
-            send_notification: 是否发送通知（API 触发默认发送）
-            analysis_phase: 请求的分析阶段覆盖（auto/premarket/intraday/postmarket）
-            analysis_target: 可选的结构化分析目标（指数目标贯穿到 pipeline，
-                否则指数会退化为股票语义）
+            stock_code: 종목 코드
+            report_type: 리포트 유형 (simple/detailed)
+            force_refresh: 강제 새로고침 여부
+            query_id: 조회 ID(선택)
+            send_notification: 알림 전송 여부(API 호출 시 기본 전송)
+            analysis_phase: 요청한 분석 단계 덮어쓰기(auto/premarket/intraday/postmarket)
+            analysis_target: 선택적 구조화 분석 대상(지수 대상을 pipeline까지 전달,
+                그렇지 않으면 지수가 종목처럼 취급됨)
             
         Returns:
-            分析结果字典，包含:
-            - stock_code: 股票代码
-            - stock_name: 股票名称
-            - report: 分析报告
+            분석 결과 딕셔너리, 포함 항목:
+            - stock_code: 종목 코드
+            - stock_name: 종목명
+            - report: 분석 리포트
         """
         try:
             self.last_error = None
-            # 导入分析相关模块
+            # 분석 관련 모듈 불러오기
             from src.config import get_config
             from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
             
-            # 生成 query_id
+            # query_id 생성
             if query_id is None:
                 query_id = uuid.uuid4().hex
             effective_trace_id = trace_id or query_id
@@ -129,14 +129,14 @@ class AnalysisService:
                     trigger_source=query_source or "api",
                 )
             
-            # 获取配置
+            # 설정 가져오기
             config = get_config()
             normalized_report_language = normalize_report_language(report_language, default="")
             if normalized_report_language:
                 config = copy.copy(config)
                 config.report_language = normalized_report_language
             
-            # 创建分析流水线
+            # 분석 파이프라인 생성
             pipeline = StockAnalysisPipeline(
                 config=config,
                 query_id=query_id,
@@ -148,10 +148,10 @@ class AnalysisService:
                 portfolio_context=portfolio_context,
             )
             
-            # 确定报告类型 (API: simple/detailed/full/brief -> ReportType)
+            # 리포트 유형 결정 (API: simple/detailed/full/brief -> ReportType)
             rt = ReportType.from_str(report_type)
             
-            # 执行分析
+            # 분석 실행
             result = pipeline.process_single_stock(
                 code=stock_code,
                 skip_analysis=False,
@@ -161,21 +161,21 @@ class AnalysisService:
             )
             
             if result is None:
-                logger.warning(f"分析股票 {stock_code} 返回空结果")
+                logger.warning(f"종목 {stock_code} 분석 결과가 비어 있음")
                 self.last_error = self.last_error or f"分析股票 {stock_code} 返回空结果"
                 return None
 
             if not getattr(result, "success", True):
                 self.last_error = getattr(result, "error_message", None) or f"分析股票 {stock_code} 失败"
-                logger.warning(f"分析股票 {stock_code} 未成功完成: {self.last_error}")
+                logger.warning(f"종목 {stock_code} 분석이 끝나지 못함: {self.last_error}")
                 return None
             
-            # 构建响应
+            # 응답 만들기
             return self._build_analysis_response(result, query_id, report_type=rt.value)
             
         except Exception as e:
             self.last_error = str(e)
-            logger.error(f"分析股票 {stock_code} 失败: {e}", exc_info=True)
+            logger.error(f"종목 {stock_code} 분석 실패: {e}", exc_info=True)
             return None
         finally:
             reset_run_diagnostic_context(locals().get("diag_token"))
@@ -187,22 +187,22 @@ class AnalysisService:
         report_type: str = "detailed",
     ) -> Dict[str, Any]:
         """
-        构建分析响应
+        분석 응답 만들기
         
         Args:
-            result: AnalysisResult 对象
-            query_id: 查询 ID
-            report_type: 归一化后的报告类型
+            result: AnalysisResult 객체
+            query_id: 조회 ID
+            report_type: 정규화된 리포트 유형
             
         Returns:
-            格式化的响应字典
+            정리된 응답 딕셔너리
         """
-        # 获取狙击点位
+        # 매매 가격대 가져오기
         sniper_points = {}
         if hasattr(result, 'get_sniper_points'):
             sniper_points = result.get_sniper_points() or {}
         
-        # 计算情绪标签
+        # 심리 라벨 계산
         report_language = normalize_report_language(getattr(result, "report_language", "zh"))
         sentiment_label = get_sentiment_label(result.sentiment_score, report_language)
         stock_name = get_localized_stock_name(getattr(result, "name", None), result.code, report_language)
@@ -236,7 +236,7 @@ class AnalysisService:
             stock_code=result.code,
         )
         
-        # 构建报告结构
+        # 리포트 구조 만들기
         report = {
             "meta": {
                 "query_id": query_id,

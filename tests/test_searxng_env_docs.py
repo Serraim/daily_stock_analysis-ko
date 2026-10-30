@@ -7,12 +7,12 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 def test_env_example_documents_searxng_actions_variable_mapping() -> None:
     env_example = (ROOT_DIR / ".env.example").read_text(encoding="utf-8")
 
-    start = env_example.index("# SearXNG 实例地址")
+    start = env_example.index("# SearXNG 서버 주소")
     end = env_example.index("SEARXNG_PUBLIC_INSTANCES_ENABLED=", start)
     searxng_block = env_example[start:end]
 
     assert "GitHub Actions" in searxng_block
-    assert "Variables 优先" in searxng_block
+    assert "Variables 를 먼저" in searxng_block
     assert "Secrets" in searxng_block
     assert "需配置为 Secret" not in searxng_block
 
@@ -98,8 +98,8 @@ def test_workflow_reports_disabled_when_variable_unset() -> None:
         ROOT_DIR / ".github" / "workflows" / "00-daily-analysis.yml"
     ).read_text(encoding="utf-8")
 
-    assert "默认开启" not in workflow
-    assert "默认关闭" in workflow
+    assert "기본값 켜짐" not in workflow
+    assert "기본값 꺼짐" in workflow
 
 
 def test_docs_describe_public_searxng_discovery_as_opt_in() -> None:
@@ -121,7 +121,7 @@ def test_docs_describe_public_searxng_discovery_as_opt_in() -> None:
         assert base_url_lines
         assert public_toggle_lines
         assert all("留空时默认自动发现公共实例" not in line for line in base_url_lines)
-        assert all("默认 `false`" in line for line in public_toggle_lines)
+        assert all(any(k in line for k in ("默认 `false`", "기본 `false`", "기본값 `false`")) for line in public_toggle_lines)
 
     english_guide = (ROOT_DIR / "docs" / "full-guide_EN.md").read_text(
         encoding="utf-8"

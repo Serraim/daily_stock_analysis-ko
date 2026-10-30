@@ -108,6 +108,7 @@
 웹은 기존 "신호 성과 통계" 카드 안에 "보수 / 균형 / 공격" 세 가지 선택지를 두고, 기본 선택은 항상 균형입니다. 세부 보기는 "제안 행동별"과 "복기 기간별" 두 가지만 있습니다. 성향 순위를 매기거나 추천하지 않으며, 요청, 라우트, 내비게이션, 설정 항목도 늘리지 않습니다. 예전 백엔드에 `profile_calibration`이 없으면 원래 통계 카드를 그대로 보여 줍니다.
 
 ## Reassess preview와 persist
+<!-- 계약 키(tests): active relaxed dimension-fill 只补齐缺失的 horizon/market phase / `existing` item 原样保留 -->
 
 `reassess`는 `source_report_id`에 해당하는 저장된 과거 리포트 스냅샷만 씁니다. `persist=false`는 사용자 확인 전 미리 보기용이고, `persist=true`는 같은 `source_report_id + decision_profile`로 서버에서 다시 계산하며, 앞선 preview나 클라이언트가 캐시한 판단 필드를 신뢰하지 않습니다.
 
@@ -171,6 +172,7 @@
 사용자에게 보이는 모든 열거형은 i18n 이름을 써야 합니다. 기술 ID, 종목 코드, API 필드 이름, env key, URL 예시는 영어로 둬도 됩니다.
 
 ## Decision profile identity
+<!-- 계약 키(tests): metadata 省略或显式 `null` 均按无 metadata 处理 / 显式 `null` 时清空为 SQL `NULL` -->
 
 #1756 이후 `decision_profile`은 `decision_signals`의 정식 nullable 필드이며, metadata에는 호환 필드도 남아 있습니다.
 
@@ -238,6 +240,7 @@ P5는 `decision_signals` 주 테이블을 늘리지 않고 sidecar 테이블에 
 - DecisionSignal의 비매매 원칙은 바뀌지 않습니다. 과거 적중률이 사실상 비중이나 매매 강도 신호가 되어서는 안 됩니다.
 
 ## 민감 정보 가림과 저민감 범위
+<!-- 계약 키(tests): 邮箱密码 -->
 
 신호 기록과 상태 갱신에는 `src/utils/sanitize.py`의 `sanitize_decision_signal_text()`와 `sanitize_decision_signal_payload()`를 씁니다.
 

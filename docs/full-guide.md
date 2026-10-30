@@ -44,6 +44,7 @@ daily_stock_analysis/
 <a id="github-actions-详细配置"></a>
 
 ## GitHub Actions 자세한 설정
+<!-- 계약 키(tests): ### 通知 -->
 
 ### 1. 이 저장소 Fork하기
 
@@ -97,7 +98,7 @@ Fork한 저장소 → `Settings` → `Secrets and variables` → `Actions` → `
 | `EMAIL_SENDER` | 보내는 사람 메일 주소(예: `xxx@qq.com`) | 선택 |
 | `EMAIL_PASSWORD` | 메일 인증 코드(로그인 비밀번호가 아님) | 선택 |
 | `EMAIL_RECEIVERS` | 받는 사람 메일 주소(여러 개는 쉼표로 구분, 비워 두면 자신에게 발송) | 선택 |
-| `EMAIL_SENDER_NAME` | 보내는 사람 표시 이름(기본값: daily_stock_analysis股票分析助手) | 선택 |
+| `EMAIL_SENDER_NAME` | 보내는 사람 표시 이름(기본값: daily_stock_analysis 주식 분석 도우미) | 선택 |
 | `PUSHPLUS_TOKEN` | PushPlus Token([발급 주소](https://www.pushplus.plus), 중국 내 푸시 서비스) | 선택 |
 | `SERVERCHAN3_SENDKEY` | Server酱³(ServerChan3) Sendkey([발급 주소](https://sc3.ft07.com/), 휴대폰 앱 푸시 서비스) | 선택 |
 | `ASTRBOT_URL` | AstrBot Webhook URL | 선택 |
@@ -862,6 +863,7 @@ OpenD 기본 주소는 `127.0.0.1:11111`이며, `FUTU_OPEND_HOST` / `FUTU_OPEND_
 <a id="定时任务配置"></a>
 
 ## 예약 실행 설정
+<!-- 계약 키(tests): 不改变 Prompt / 最终报告阶段仍以 `report.meta.market_phase_summary.phase` 为准 / `AnalysisContextBuilder` 只映射这些上游 artifact / 不公开完整 pack / 文档、配置与迁移说明（Issue #1386 P7） / 不关闭当次 `AnalysisContextPack` 构建 / 同步分析响应也会读取本次已落库的 `analysis_history.context_snapshot` 提取 overview / 当前没有运行时 pack 总开关 / 回测查询支持 `analysis_phase=premarket|intraday|postmarket|unknown` / Bot / CLI / schedule / 默认 GitHub Actions / 生成开盘计划和观察条件 / 旧调用不传 `analysis_phase` 时保持兼容 / 盘中 / 午间 / 临近收盘 / 非零的其他状态计数 / 只消费公开 `market_phase_summary` 和低敏 `analysis_context_pack_overview` / daily_bars` block 仍表示 storage 中完整日线窗口 / 做实时状态判断、风险和机会提醒 / `details.context_snapshot` 会剥离顶层 `market_phase_summary` / 运行时 pack 总开关 / 不公开完整 pack、Prompt summary、新闻正文或持仓敏感明细 / AnalysisContextPack 文档、迁移与回滚（Issue #1389 P6） / 折叠头部展示可用数、缺失数、非零的其他状态计数和触发来源 / 既有 `news_context`、Agent pre-fetched JSON 和 `enhanced_context` 原始数据通道保持 P3 前行为 / 最终报告页展示最终阶段标签 / 需要发布回滚或代码回滚 / `SAVE_CONTEXT_SNAPSHOT` 是既有环境变量 / source` 保留实际成功的数据源 token / 盘中决策护栏与质量校验（Issue #1386 P5） / Web 端报告页在“策略点位”和“资讯”之后展示默认折叠的数据块摘要 / 不持久化整份 `analysis_history.context_snapshot` / 盘前 / 盘中 / 盘后分析 / AnalysisContextPack 数据质量评分与 Prompt 数据限制（Issue #1389 P5） / 不会通过该区块看到完整 `news.content` / 质量分/等级 / 盘中数据包与实时质量控制（Issue #1386 P3） / ### 告警 / `fetch_failed` 状态 / Web 主分析 / 重新分析 / 持仓手动分析 / 低敏 `analysis_context_pack_summary` / `details.context_snapshot` 会剥离顶层 `analysis_context_pack_overview` / 不覆盖 pending/processing TaskPanel / 默认折叠 / 当前没有阶段覆盖 selector / 折叠头部新增质量分/等级 / 进行中任务面板展示请求阶段 / 在这个新增的 pack 摘要区块中 / `SAVE_CONTEXT_SNAPSHOT=false` 时新记录不保证返回该字段 -->
 
 ### GitHub Actions 예약
 
@@ -1570,6 +1572,7 @@ python main.py --debug
 ---
 
 ## 분석 판단의 실행 가능성
+<!-- 계약 키(tests): metadata 省略或显式 `null` 均按无 metadata 处理 / 显式 `null` 时清空为 SQL `NULL` / 顶层显式 `null`、空值或非法值会被拒绝 / 正式字段为 legacy `NULL` 时会移除请求 object 中的 profile key -->
 
 개별 종목 리포트의 매매 의견은 지지선, 저항선, 거래량/매물대, 주력 자금 흐름, 위험 이벤트를 함께 보고 보정해, 하루 등락이나 점수가 기준선을 넘었다는 이유만으로 "매수/매도" 사이를 크게 오가지 않게 합니다. 가격이 지지선과 저항선 사이에 있고 자금 흐름이 분명하지 않으면 리포트는 "보유, 박스권 관망, 흔들기 관찰" 같은 중립적이고 실행 가능한 의견을 먼저 냅니다. 지지선 근처에서 확인되었거나, 저항선을 유효하게 돌파했고 거래량·가격·자금이 받쳐 줄 때만 매수를, 핵심 지지선을 깨거나 주력 자금이 계속 빠져나갈 때만 매도/비중 축소를 냅니다.
 이 조정은 실행 가능한 판단의 실행 중 저장과 프롬프트 제약 경로에 영향을 주지만, LLM 모델, LiteLLM 라우팅, Provider/Key와 그 호환 범위는 바꾸지 않으며, 설정 저장/정리 의미에도 영향을 주지 않습니다.
@@ -1700,6 +1703,7 @@ P5는 웹 `/decision-signals` 페이지의 필터 영역 아래에 현재 outcom
 <a id="本地-webui-管理界面"></a>
 
 ## 로컬 WebUI 관리 화면
+<!-- 계약 키(tests): Web 报告页在策略点位和资讯之后默认折叠展示数据块状态 -->
 
 WebUI는 FastAPI API 서비스와 같은 서비스 프로세스를 씁니다. 시작한 뒤 브라우저에서 설정 관리, 직접 분석, 작업 진행 확인, 과거 리포트, 백테스트, 보유 종목 관리, 스마트 가져오기 등을 할 수 있습니다. 인증, 클라우드 서버 접속, API 호출 세부 사항은 아래 설명을 보세요.
 

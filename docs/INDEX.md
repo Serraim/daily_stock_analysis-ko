@@ -40,6 +40,7 @@
 | [Tushare 종목 목록 가이드](TUSHARE_STOCK_LIST_GUIDE.md) | Tushare 종목 목록 관련 설정과 사용법 |
 
 ## 기능별 안내
+<!-- 계약 키(tests): 源码锚点 / P1/P2 内部契约、P3 Prompt 摘要消费、P4 历史/API/Web 低敏可见性、P5 数据质量评分、P6 迁移回滚 / [分析上下文包契约、运行态消费与可见性](analysis-context-pack.md) / #1386 阶段感知分析、迁移与回滚入口 / 字段质量状态 -->
 
 | 문서 | 내용 |
 | --- | --- |

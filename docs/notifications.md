@@ -40,6 +40,7 @@ Discord로 긴 리포트를 보낼 때는 기존 분할 발송 경로를 재사�
 - Feishu App Bot 발송 경로는 `requirements.txt`에 이미 있는 `lark-oapi>=1.0.0`을 재사용하므로 새 의존성이 아닙니다. 표준 소스 설치, Docker, GitHub Actions daily workflow, 데스크톱 빌드 과정은 모두 `pip install -r requirements.txt`로 설치합니다. 공식 근거: [Feishu message create OpenAPI](https://open.feishu.cn/document/server-docs/im-v1/message/create), [lark-oapi PyPI](https://pypi.org/project/lark-oapi/), [SDK repo](https://github.com/larksuite/oapi-sdk-python). App Bot 파일 업로드는 같은 SDK의 `im.v1.file.create` API를 쓰며, 공식 문서는 [Feishu file create OpenAPI](https://open.feishu.cn/document/server-docs/im-v1/file/create)입니다.
 
 ## 리포트 렌더링과 분할
+<!-- 계약 키(tests): 专用 renderer -->
 
 현재 기본 알림 리포트의 진입점, 내용 출처, 전체 레이아웃은 그대로입니다. 이번 단계에서는 알림 렌더링의 기술 방향만 정리했습니다. 채널별 기능 프로필, 발송 전 메시지 구조, 구조를 인식하는 분할 기능을 갖춰, 앞으로 채널을 늘릴 때 sender마다 비슷한 로직을 계속 쌓지 않게 합니다.
 
@@ -53,6 +54,7 @@ Discord로 긴 리포트를 보낼 때는 기존 분할 발송 경로를 재사�
 관련 섹터 렌더링은 리포트 본문을 만드는 단계에서 처리합니다. 업종/테마 등락 순위 신호가 없으면 알림 리포트는 원래의 한 줄 형식을 씁니다. 예: `通信线缆及配套 / 通信设备 / 通信 / 江苏板块 / 科技风格`(통신 케이블 및 부품 / 통신 장비 / 통신 / 장쑤 섹터 / 기술주 스타일). 이때 "유형" 열은 따로 보여 주지 않습니다. `fundamental_context.boards.data` / `sector_rankings`나 `fundamental_context.concept_boards.data` / `concept_rankings`의 상승 주도/하락 주도 신호가 잡힐 때만 "섹터 / 유형 / 섹터 성과 / 섹터 등락률" 표로 보여 주며, "유형" 열은 "업종 섹터"인지 "테마 섹터"인지 표시합니다. 이 로직은 리포트 표시에만 영향을 주며 provider/model/Base URL, LiteLLM 라우팅, 모델 저장, 마이그레이션, 정리 로직을 바꾸지 않습니다.
 
 ## GitHub Actions 매핑
+<!-- 계약 키(tests): 不映射 -->
 
 저장소에 들어 있는 `.github/workflows/00-daily-analysis.yml`은 정해진 변수 이름만 명시적으로 가져옵니다. P0/P3/P4/P6에서 Body 템플릿, 보안 항목, PushPlus topic, 라우팅, 소음 줄이기, ntfy, Gotify 등 알림 key를 기본 workflow에 넣었습니다. 아래 표는 `scripts/generate_notification_actions_env_table.py`가 workflow의 `env:`와 알림 진단 메타데이터에서 만들어 내며, 손으로 쓴 대조표가 실제 Actions 매핑과 계속 어긋나는 일을 막습니다.
 
@@ -73,7 +75,7 @@ Discord로 긴 리포트를 보낼 때는 기존 분할 발송 경로를 재사�
 | `EMAIL_SENDER` | minimal | email | Variable or Secret | - |
 | `EMAIL_PASSWORD` | minimal | email | Secret | - |
 | `EMAIL_RECEIVERS` | advanced | email | Variable or Secret | - |
-| `EMAIL_SENDER_NAME` | advanced | email | Variable or Secret | `daily_stock_analysis股票分析助手` |
+| `EMAIL_SENDER_NAME` | advanced | email | Variable or Secret | `daily_stock_analysis 주식 분석 도우미` |
 | `PUSHOVER_USER_KEY` | minimal | pushover | Secret | - |
 | `PUSHOVER_API_TOKEN` | minimal | pushover | Secret | - |
 | `NTFY_URL` | minimal | ntfy | Secret | - |
@@ -112,7 +114,6 @@ Discord로 긴 리포트를 보낼 때는 기존 분할 발송 경로를 재사�
 | `NOTIFICATION_DAILY_DIGEST_ENABLED` | advanced | noise | Variable or Secret | `false` |
 
 <!-- notification-actions-env-table:end -->
-(표의 `EMAIL_SENDER_NAME` 기본값 `daily_stock_analysis股票分析助手`는 "daily_stock_analysis 주식 분석 도우미"라는 뜻의 프로그램 기본 발신자 이름입니다.)
 
 기본 workflow는 여전히 `MARKDOWN_TO_IMAGE_CHANNELS`와 `MERGE_EMAIL_NOTIFICATION`을 매핑하지 않습니다. 이 둘은 채널 자격 증명이 아니라 발송 형태나 묶음 동작을 정하는 스위치이므로, Actions에서 같은 이름의 Secret/Variable을 자동으로 읽기 시작하면 동작이 예상치 않게 바뀔 수 있습니다.
 

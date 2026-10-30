@@ -41,6 +41,7 @@ Web은 유효한 환경 변수 규칙을 발견하면, 데이터베이스 목록
 - 현재 worker는 프로세스 내부 fingerprint로 조건이 계속 충족될 때 같은 알림이 반복 발송되지 않게 합니다. 이것은 경보 센터의 쿨다운 모델이 아니며, 프로세스 간이나 재시작 후에는 쿨다운 상태가 유지되지 않습니다.
 
 ## 데이터 계약
+<!-- 계약 키(tests): 完整 webhook URL / 邮箱密码 -->
 
 아래 계약은 이후 P1+ 단계의 API, worker, Web, 저장소 구현을 맞추기 위한 것입니다. P0는 필드와 의미 경계만 정의하며, 이 저장 엔터티들이 이미 존재한다는 뜻은 아닙니다.
 
@@ -282,6 +283,7 @@ P5에서 하지 않는 일:
 - DSL, 규칙 엔진, 새 데이터베이스 테이블, 분석 리포트 pipeline 안의 기술 지표 규칙 엔진은 도입하지 않습니다.
 
 ## P6 보유 종목과 관심 종목 연동
+<!-- 계약 키(tests): ### 持仓 -->
 <!-- 계약 키(tests): ## P6 持仓与自选股联动 | P6 scope/type 矩阵 | 父规则摘要 | legacy `AGENT_EVENT_ALERT_RULES_JSON` 不支持 watchlist、portfolio | sector 级集中度 | P6 PR -->
 
 P6는 기존 Alert API, Web 경보 센터, `src/services/alert_worker.py` 평가 경로에 `watchlist`, `portfolio_holdings`, `portfolio_account` 세 가지 대상 범위를 추가합니다. 규칙은 여전히 `alert_rules`에 저장되며, 발동, 성능 저하, 실패, 알림 결과, 저장형 쿨다운은 P2-P4의 `alert_triggers`, `alert_notifications`, `alert_cooldowns` 의미를 그대로 재사용합니다. 테이블이나 마이그레이션은 추가하지 않습니다.

@@ -1174,7 +1174,7 @@ class Config:
     
     # 이메일 설정(주소와 인증 코드만 있으면 SMTP 자동 인식)
     email_sender: Optional[str] = None  # 보내는 사람 이메일
-    email_sender_name: str = "daily_stock_analysis股票分析助手"  # 보내는 사람 표시 이름
+    email_sender_name: str = "daily_stock_analysis 주식 분석 도우미"  # 보내는 사람 표시 이름
     email_password: Optional[str] = None  # 이메일 비밀번호/인증 코드
     email_receivers: List[str] = field(default_factory=list)  # 받는 사람 목록(비워 두면 나에게 발송)
 
@@ -2180,7 +2180,7 @@ class Config:
             telegram_chat_id=os.getenv('TELEGRAM_CHAT_ID'),
             telegram_message_thread_id=os.getenv('TELEGRAM_MESSAGE_THREAD_ID'),
             email_sender=os.getenv('EMAIL_SENDER'),
-            email_sender_name=os.getenv('EMAIL_SENDER_NAME', 'daily_stock_analysis股票分析助手'),
+            email_sender_name=os.getenv('EMAIL_SENDER_NAME', 'daily_stock_analysis 주식 분석 도우미'),
             email_password=os.getenv('EMAIL_PASSWORD'),
             email_receivers=[r.strip() for r in os.getenv('EMAIL_RECEIVERS', '').split(',') if r.strip()],
             stock_email_groups=cls._parse_stock_email_groups(),

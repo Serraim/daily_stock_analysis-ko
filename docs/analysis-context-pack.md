@@ -98,6 +98,7 @@ P2 block 조립 경계:
 P2는 `portfolio`, `events`, `market_context`를 조립하지 않으며, `capital_flow`를 별도 block으로 나누지도 않습니다. 첫 버전은 이것을 fundamentals의 coverage/source chain metadata 안에만 남겨 둡니다. P2 당시에는 Prompt도 바꾸지 않았고, 일반 분석이나 Agent runtime이 pack을 소비하게 하지도 않았으며, history/task/report metadata에 쓰지 않았고, 완전한 pack을 API/Web/Bot/Desktop/알림에 노출하지도 않았습니다. P5는 기존 builder 위에 저민감 점수, `fetch_failed` 세분화, Prompt 한계 안내만 추가하며 fetcher는 추가하지 않습니다.
 
 ## P3 Runtime Consumption (런타임 소비)
+<!-- 계약 키(tests): 低敏 `analysis_context_pack_summary` -->
 <!-- 계약 키(tests): `StockAnalysisPipeline` 是 summary 的唯一生产者 | 基础信息 -> #1386 `market_phase_context` 渲染区块 -> `analysis_context_pack_summary` | `news.content`、`trend_result`、`chip`、`fundamental_context` 等原始 payload | 禁止写入 `ctx.data` | `news` block 为 `missing` 是当前 P3 的预期状态 | Agent 工具级 pack cache 复用 | P4 在此基础上新增低敏 overview | P5 继续复用 summary 消费路径 -->
 
 P3는 P2 `AnalysisContextBuilder` 다음 단계에서 런타임 소비를 연결하지만, 소비 범위는 민감도가 낮은 `analysis_context_pack_summary`로 제한합니다. `StockAnalysisPipeline`이 summary의 유일한 생산자입니다. 일반 분석 경로와 Agent 경로 안에서 `PipelineAnalysisArtifacts` -> `AnalysisContextBuilder.build()` -> `format_analysis_context_pack_prompt_section()`을 완료하며, 하위의 analyzer, single-agent, multi-agent는 summary 문자열만 받습니다. 완전한 pack을 스스로 만들지 않고, `AnalysisContextPack.to_safe_dict()`의 block item 원본 값도 읽지 않습니다.
@@ -124,6 +125,7 @@ P3 당시에는 완전한 pack을 저장하지 않았고, API/Web/Bot/Desktop �
 결과 후처리에는 보수적인 시장 환경 가드레일이 추가됩니다. 요약이나 태그에 `high_risk`, `market_cooling`, `conservative`, `low_position_cap`이 있고 보수적/고위험 맥락이면, 모델이 낸 `buy` 결정("즉시 매수/추격 매수/공격적 비중 확대" 같은 매수 계열 제안 포함)은 관망 또는 소량 진입 후 확인 대기로 완화되고, 높은 확신도는 중간으로 낮아집니다. 이 가드레일은 해당 회차의 `AnalysisResult`와 dashboard 안의 저민감 한계 설명만 바꾸며, 데이터베이스 테이블이나 API 필드를 추가하지 않습니다. 롤백은 #1381 관련 서비스, Prompt 주입, guardrail 코드를 되돌리면 되며, 기존 시장 리뷰 이력 기록은 호환됩니다.
 
 ## P4 이력 기록, 작업 상태, Web 가시성
+<!-- 계약 키(tests): 折叠头部展示可用数、缺失数、非零的其他状态计数和触发来源 -->
 <!-- 계약 키(tests): ## P4 历史记录、任务状态与 Web 可见性 | 专用 renderer | 同步 `POST /api/v1/analysis/analyze` | overview 依赖已持久化的 `analysis_history.context_snapshot` | 不持久化整份 `analysis_history.context_snapshot` | 位置在策略点位和资讯之后、运行诊断之前 | 默认折叠 | 非零的其他状态计数 | 不覆盖 pending/processing TaskPanel | 不改通知摘要 | 质量分/等级 | `fetch_failed` 状态 -->
 
 P4는 P3에서 만든 `AnalysisContextPack`을 공개용 저민감 `analysis_context_pack_overview`로 투영합니다. 이 overview는 전용 renderer가 만들며, 공개 API가 `AnalysisContextPack.to_safe_dict()`나 완전한 pack dump를 바로 반환하는 것은 허용하지 않습니다. renderer는 허용 목록의 필드만 출력합니다: `pack_version`, `created_at`, `subject.code` / `stock_name` / `market`, 데이터 블록 `key` / `label` / `status` / `source` / `warnings` / `missing_reasons`, block status별 개수 `counts`, 최상위 `data_quality.warnings`, `metadata.trigger_source` / `metadata.news_result_count`. P5는 같은 overview에 저민감 `data_quality` 객체를 추가하며, 최상위 `warnings`를 중복하지 않습니다.

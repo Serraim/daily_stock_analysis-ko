@@ -55,8 +55,8 @@ def test_search_service_init_failure_logs_traceback_and_failure_state(caplog):
     ]
     assert len(init_failure_records) == 1
     assert init_failure_records[0].exc_info is not None
-    assert "搜索服务未启用（初始化失败或依赖缺失）" in caplog.text
-    assert "搜索服务未启用（未配置搜索能力）" not in caplog.text
+    assert "검색 서비스를 쓸 수 없어요 (시작 실패 또는 필요한 부품 없음)" in caplog.text
+    assert "검색 서비스를 쓸 수 없어요 (검색 키가 설정되지 않음)" not in caplog.text
 
 
 def test_social_sentiment_init_failure_logs_traceback(caplog):

@@ -3456,10 +3456,10 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="error",
                     message=(
-                        "未配置任何可用的 AI 模型接入。请至少配置 ANSPIRE_API_KEYS、"
-                        "AIHUBMIX_KEY、GEMINI_API_KEY、ANTHROPIC_API_KEY、"
-                        "OPENAI_API_KEY 或 DEEPSEEK_API_KEY 中的一个，或配置 "
-                        "LITELLM_CONFIG / LLM_CHANNELS 可用模型渠道。"
+                        "사용할 수 있는 AI 모델이 설정되지 않았어요. ANSPIRE_API_KEYS, "
+                        "AIHUBMIX_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, "
+                        "OPENAI_API_KEY, DEEPSEEK_API_KEY 중 하나를 넣거나 "
+                        "LITELLM_CONFIG / LLM_CHANNELS 로 모델 채널을 설정하세요."
                     ),
                     field="LITELLM_CONFIG",
                 ))
@@ -3618,7 +3618,7 @@ class Config:
         if not self.has_search_capability_enabled():
             issues.append(ConfigIssue(
                 severity="info",
-                message="未配置搜索引擎能力 (Bocha/MiniMax/Tavily/Brave/SerpAPI/SearXNG)，新闻搜索功能将不可用",
+                message="검색 엔진이 설정되지 않아 뉴스 검색을 쓸 수 없어요 (Bocha/MiniMax/Tavily/Brave/SerpAPI/SearXNG)",
                 field="BOCHA_API_KEYS",
             ))
 
@@ -3654,7 +3654,7 @@ class Config:
         if not has_notification:
             issues.append(ConfigIssue(
                 severity="warning",
-                message="未配置通知渠道，将不发送推送通知",
+                message="알림 채널이 설정되지 않아 알림을 보내지 않아요",
                 field="WECHAT_WEBHOOK_URL",
             ))
 

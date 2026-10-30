@@ -314,7 +314,7 @@ class TestValidateStructuredLLM:
         """Empty llm_model_list must produce an error regardless of legacy keys."""
         cfg = _make_config(llm_model_list=[])
         issues = cfg.validate_structured()
-        assert any(i.severity == "error" and "AI 模型" in i.message for i in issues)
+        assert any(i.severity == "error" and "AI 모델" in i.message for i in issues)
 
     def test_validate_missing_all_llm_keys_reports_error(self):
         cfg = _make_config(
@@ -330,7 +330,7 @@ class TestValidateStructuredLLM:
         issues = cfg.validate_structured()
 
         error = next(i for i in issues if i.severity == "error" and i.field == "LITELLM_CONFIG")
-        assert "未配置任何可用的 AI 模型接入" in error.message
+        assert "사용할 수 있는 AI 모델이 설정되지 않았어요" in error.message
         assert "ANSPIRE_API_KEYS" in error.message
         assert "DEEPSEEK_API_KEY" in error.message
 
@@ -439,7 +439,7 @@ class TestValidateStructuredLLM:
         issues = cfg.validate_structured()
 
         assert not any(i.field == "LITELLM_MODEL" and "主模型" in i.message for i in issues)
-        assert not any(i.severity == "error" and "AI 模型" in i.message for i in issues)
+        assert not any(i.severity == "error" and "AI 모델" in i.message for i in issues)
 
     def test_direct_env_provider_model_without_model_list_no_error(self):
         """Direct LiteLLM env providers should count as configured for runtime."""
@@ -513,12 +513,12 @@ class TestValidateStructuredNotification:
         cfg = _make_config(wechat_webhook_url=None)
         issues = cfg.validate_structured()
         warn = [i for i in issues if i.severity == "warning"]
-        assert any("通知渠道" in i.message for i in warn)
+        assert any("알림 채널" in i.message for i in warn)
 
     def test_notification_configured_no_warning(self):
         cfg = _make_config(wechat_webhook_url="https://example.com/wh")
         issues = cfg.validate_structured()
-        assert not any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert not any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_dingtalk_webhook_counts_as_notification_channel(self):
         cfg = _make_config(
@@ -527,7 +527,7 @@ class TestValidateStructuredNotification:
         )
         issues = cfg.validate_structured()
 
-        assert not any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert not any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     @pytest.mark.parametrize(
         ("kwargs", "missing_field"),
@@ -590,28 +590,28 @@ class TestValidateStructuredNotification:
             astrbot_url="https://astrbot.example/webhook",
         )
         issues = cfg.validate_structured()
-        assert not any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert not any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_ntfy_url_without_topic_reports_error_and_does_not_count_as_channel(self):
         cfg = _make_config(wechat_webhook_url=None, ntfy_url="https://ntfy.sh")
         issues = cfg.validate_structured()
 
         assert any(i.severity == "error" and i.field == "NTFY_URL" for i in issues)
-        assert any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_ntfy_encoded_blank_topic_reports_error_and_does_not_count_as_channel(self):
         cfg = _make_config(wechat_webhook_url=None, ntfy_url="https://ntfy.sh/%20")
         issues = cfg.validate_structured()
 
         assert any(i.severity == "error" and i.field == "NTFY_URL" for i in issues)
-        assert any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_ntfy_topic_endpoint_counts_as_notification_channel(self):
         cfg = _make_config(wechat_webhook_url=None, ntfy_url="https://ntfy.sh/dsa-topic")
         issues = cfg.validate_structured()
 
         assert not any(i.field == "NTFY_URL" for i in issues)
-        assert not any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert not any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_gotify_url_and_token_count_as_notification_channel(self):
         cfg = _make_config(
@@ -622,7 +622,7 @@ class TestValidateStructuredNotification:
         issues = cfg.validate_structured()
 
         assert not any(i.field == "GOTIFY_URL" for i in issues)
-        assert not any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert not any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_gotify_blank_token_does_not_count_as_notification_channel(self):
         cfg = _make_config(
@@ -632,7 +632,7 @@ class TestValidateStructuredNotification:
         )
         issues = cfg.validate_structured()
 
-        assert any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
         assert any(i.severity == "warning" and i.field == "GOTIFY_TOKEN" for i in issues)
 
     def test_gotify_message_endpoint_reports_error_and_does_not_count_as_channel(self):
@@ -644,7 +644,7 @@ class TestValidateStructuredNotification:
         issues = cfg.validate_structured()
 
         assert any(i.severity == "error" and i.field == "GOTIFY_URL" for i in issues)
-        assert any(i.severity == "warning" and "通知渠道" in i.message for i in issues)
+        assert any(i.severity == "warning" and "알림 채널" in i.message for i in issues)
 
     def test_feishu_app_credentials_without_webhook_warns_mode_mismatch(self):
         cfg = _make_config(
@@ -711,8 +711,8 @@ class TestValidateStructuredNotification:
         cfg = _make_config(searxng_public_instances_enabled=False)
         issues = cfg.validate_structured()
         info = [i for i in issues if i.severity == "info"]
-        assert any("搜索引擎" in i.message for i in info)
-        search_issue = next(i for i in info if "搜索引擎" in i.message)
+        assert any("검색 엔진" in i.message for i in info)
+        search_issue = next(i for i in info if "검색 엔진" in i.message)
         assert search_issue.field == "BOCHA_API_KEYS"
 
     def test_searxng_configured_no_search_info(self):
@@ -720,14 +720,14 @@ class TestValidateStructuredNotification:
         cfg = _make_config(searxng_base_urls=["https://searx.example.org"])
         issues = cfg.validate_structured()
         info = [i for i in issues if i.severity == "info"]
-        assert not any("搜索引擎" in i.message and "未配置" in i.message for i in info)
+        assert not any("검색 엔진" in i.message and "설정되지 않아" in i.message for i in info)
 
     def test_public_searxng_enabled_no_search_info(self):
         """Public SearXNG mode also counts as search capability."""
         cfg = _make_config(searxng_public_instances_enabled=True)
         issues = cfg.validate_structured()
         info = [i for i in issues if i.severity == "info"]
-        assert not any("搜索引擎" in i.message and "未配置" in i.message for i in info)
+        assert not any("검색 엔진" in i.message and "설정되지 않아" in i.message for i in info)
 
 
 # ---------------------------------------------------------------------------
@@ -905,7 +905,7 @@ class TestValidateBackwardCompat:
     def test_empty_llm_model_list_message_in_validate(self):
         cfg = _make_config(llm_model_list=[])
         messages = cfg.validate()
-        assert any("AI 模型" in m for m in messages)
+        assert any("AI 모델" in m for m in messages)
 
     def test_messages_match_validate_structured(self):
         """validate() strings must be the message field of each ConfigIssue."""

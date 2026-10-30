@@ -329,11 +329,11 @@ class StockAnalysisPipeline:
         else:
             logger.info("매물대(筹码) 분포 분석 꺼짐")
         if self.search_service is None:
-            logger.warning("搜索服务未启用（初始化失败或依赖缺失）")
+            logger.warning("검색 서비스를 쓸 수 없어요 (시작 실패 또는 필요한 부품 없음)")
         elif self.search_service.is_available:
             logger.info("검색 서비스 사용")
         else:
-            logger.warning("搜索服务未启用（未配置搜索能力）")
+            logger.warning("검색 서비스를 쓸 수 없어요 (검색 키가 설정되지 않음)")
 
         # 소셜 여론 서비스 초기화 (미국 주식 전용, 선택)
         try:

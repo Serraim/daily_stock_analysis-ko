@@ -500,7 +500,7 @@ class BaseFetcher(ABC):
             start_date = start_dt.strftime('%Y-%m-%d')
 
         request_start = time.time()
-        logger.info(f"[{self.name}] 开始获取 {stock_code} 日线数据: 范围={start_date} ~ {end_date}")
+        logger.info(f"[{self.name}] {stock_code} 일봉 데이터 받기 시작: 기간={start_date} ~ {end_date}")
         
         try:
             # Step 1: 원본 데이터 조회
@@ -529,7 +529,7 @@ class BaseFetcher(ABC):
 
             elapsed = time.time() - request_start
             logger.info(
-                f"[{self.name}] {stock_code} 获取成功: 范围={start_date} ~ {end_date}, "
+                f"[{self.name}] {stock_code} 받기 성공: 기간={start_date} ~ {end_date}, "
                 f"rows={len(df)}, elapsed={elapsed:.2f}s"
             )
             return df
@@ -2030,7 +2030,7 @@ class DataFetcherManager:
                     try:
                         role = "우선" if src_name == source_order[0] else "대비"
                         logger.info(
-                            f"[数据源尝试 {attempt}/{total_fetchers}] [{fetcher.name}] "
+                            f"[데이터 소스 시도 {attempt}/{total_fetchers}] [{fetcher.name}] "
                             f"{market_label} {stock_code} {role} 경로..."
                         )
                         record_provider_run_started(
@@ -2058,7 +2058,7 @@ class DataFetcherManager:
                             )
                             elapsed = time.time() - request_start
                             logger.info(
-                                f"[数据源完成] {stock_code} 使用 [{fetcher.name}] 获取成功: "
+                                f"[데이터 소스 완료] {stock_code} [{fetcher.name}]에서 받기 성공: "
                                 f"rows={len(df)}, elapsed={elapsed:.2f}s"
                             )
                             self._record_daily_source_success(fetcher, market)
@@ -2111,7 +2111,7 @@ class DataFetcherManager:
             attempt_start = time.time()
             fallback_to = fetchers[attempt].name if attempt < total_fetchers else None
             try:
-                logger.info(f"[数据源尝试 {attempt}/{total_fetchers}] [{fetcher.name}] 获取 {stock_code}...")
+                logger.info(f"[데이터 소스 시도 {attempt}/{total_fetchers}] [{fetcher.name}] {stock_code} 받는 중...")
                 record_provider_run_started(
                     data_type="daily_data",
                     provider=fetcher.name,
@@ -2138,7 +2138,7 @@ class DataFetcherManager:
                     )
                     elapsed = time.time() - request_start
                     logger.info(
-                        f"[数据源完成] {stock_code} 使用 [{fetcher.name}] 获取成功: "
+                        f"[데이터 소스 완료] {stock_code} [{fetcher.name}]에서 받기 성공: "
                         f"rows={len(df)}, elapsed={elapsed:.2f}s"
                     )
                     self._record_daily_source_success(fetcher, market)

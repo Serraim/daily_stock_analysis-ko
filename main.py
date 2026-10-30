@@ -983,8 +983,8 @@ def run_full_analysis(
                 )
             else:
                 logger.info(
-                    "今日所有相关市场均为非交易日，跳过执行。"
-                    "可使用 --force-run 强制执行。"
+                    "오늘은 관련 시장이 모두 쉬는 날이라 실행을 건너뜁니다. "
+                    "쉬는 날에도 돌리려면 --force-run 을 붙이세요."
                 )
             return True
         if set(filtered_codes) != set(effective_codes):

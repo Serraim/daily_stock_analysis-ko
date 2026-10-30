@@ -1,28 +1,30 @@
-# 桌面端打包说明 (Electron + React UI)
+# 데스크톱 앱 패키징 안내 (Electron + React UI)
 
-本项目可打包为桌面应用，使用 Electron 作为桌面壳，`apps/dsa-web` 的 React UI 作为界面。
+이 프로젝트는 데스크톱 앱으로 패키징할 수 있습니다. 데스크톱 껍데기로는 Electron을, 화면으로는 `apps/dsa-web`의 React UI를 사용합니다.
 
-## 架构说明
+> 웹 UI는 현재 중국어와 영어만 지원합니다. 이 문서에서 화면 메뉴를 가리킬 때는 한국어 이름 뒤 괄호에 실제 화면에 표시되는 중국어/영어 이름을 함께 적었습니다.
 
-- React UI（Vite 构建）由本地 FastAPI 服务托管
-- Electron 启动时自动拉起后端服务，等待 `/api/health` 就绪后加载 UI
-- Windows 便携/安装模式下，用户配置文件 `.env` 和数据库放在 exe 同级目录；macOS 打包版使用 Electron 用户数据目录保存运行时配置
-- 桌面端会自动从本机 `8000-8100` 选择可用端口，并把实际选择的端口同步给内置后端；桌面端不依赖 `.env` 里的 `WEBUI_PORT` 来决定窗口连接地址，避免用户改端口后 Electron 仍等待旧端口导致启动超时
-- Desktop backend 默认随 `requirements.txt` 安装并冻结 `futu-api==10.8.6808`；Windows/macOS 构建脚本会在源码环境和 PyInstaller 产物中分别执行 `import futu`，防止发布包只安装但未携带 SDK。
-- 筹码分布依赖的 `py_mini_racer` 按构建环境实际安装版本完整收集 Python 模块、原生库和运行数据；不跨版本手工拼接 DLL、ICU 或 snapshot 文件。Windows/macOS 明确要求 `mini-racer>=0.13.2`，避免旧版冻结加载器从 bundle 根目录寻找原生库、与包目录收集布局不一致；Linux 继续沿用 AkShare 原有依赖。Windows/macOS 构建脚本会在源码环境和冻结后的后端中执行 `MiniRacer().eval('1 + 1')`，原生库缺失或版本不匹配会阻断打包。仅成功 `import py_mini_racer` 不足以验收；这一离线检查不代表在线东财接口一定可用。
-- 报告“分享”按钮使用 Electron 自带的隐藏 Chromium 窗口渲染本地后端输出的受限 HTML，并保存为 PNG；桌面安装包无需额外携带 `wkhtmltoimage`、`markdown-to-file` 或 Playwright 浏览器。
+## 구조 설명
 
-## 本地开发
+- React UI(Vite로 빌드)는 로컬 FastAPI 서버가 제공합니다.
+- Electron이 시작되면 백엔드 서버를 자동으로 띄우고, `/api/health`가 준비된 뒤 UI를 불러옵니다.
+- Windows 포터블/설치 모드에서는 사용자 설정 파일 `.env`와 데이터베이스가 exe와 같은 폴더에 놓입니다. macOS 패키지 버전은 실행 중 설정을 Electron 사용자 데이터 폴더에 저장합니다.
+- 데스크톱 앱은 이 컴퓨터의 `8000-8100` 범위에서 비어 있는 포트를 자동으로 고르고, 실제로 고른 포트를 내장 백엔드에 함께 넘깁니다. 창이 연결할 주소를 정할 때 `.env`의 `WEBUI_PORT`에 의존하지 않으므로, 사용자가 포트를 바꾼 뒤 Electron이 예전 포트를 계속 기다리다 시작 시간이 초과되는 문제를 막습니다.
+- 데스크톱 백엔드는 기본적으로 `requirements.txt`를 따라 `futu-api==10.8.6808`을 설치하고 고정(freeze)합니다. Windows/macOS 빌드 스크립트는 소스 환경과 PyInstaller 결과물에서 각각 `import futu`를 실행해, 배포 패키지에 SDK가 설치만 되고 실제로는 포함되지 않는 일을 막습니다.
+- 매물대(筹码分布, 가격대별 보유 물량 분포) 기능이 쓰는 `py_mini_racer`는 빌드 환경에 실제로 설치된 버전 기준으로 Python 모듈, 네이티브 라이브러리, 실행 데이터를 통째로 수집합니다. 버전이 다른 DLL, ICU, snapshot 파일을 손으로 끼워 맞추지 않습니다. Windows/macOS는 `mini-racer>=0.13.2`를 명시적으로 요구합니다. 구버전의 freeze 로더가 번들 루트 폴더에서 네이티브 라이브러리를 찾아, 패키지 폴더 기준으로 수집한 배치와 어긋나는 문제를 피하기 위해서입니다. Linux는 AkShare의 기존 의존성을 그대로 따릅니다. Windows/macOS 빌드 스크립트는 소스 환경과 freeze된 백엔드에서 `MiniRacer().eval('1 + 1')`을 실행하며, 네이티브 라이브러리가 없거나 버전이 맞지 않으면 패키징을 중단합니다. `import py_mini_racer`가 성공했다는 것만으로는 검수 통과로 보지 않습니다. 또한 이 오프라인 검사가 통과했다고 해서 온라인 동방재부(东财, 중국 금융 정보 사이트) 데이터 API가 반드시 동작한다는 뜻은 아닙니다.
+- 보고서의 "공유" 버튼은 Electron에 내장된 숨겨진 Chromium 창으로 로컬 백엔드가 만든 제한된 HTML을 렌더링해 PNG로 저장합니다. 따라서 데스크톱 설치 패키지에 `wkhtmltoimage`, `markdown-to-file`, Playwright 브라우저를 따로 넣을 필요가 없습니다.
 
-一键启动（开发模式）：
+## 로컬 개발
+
+한 번에 실행(개발 모드):
 
 ```bash
 powershell -ExecutionPolicy Bypass -File scripts\run-desktop.ps1
 ```
 
-或手动执行：
+또는 직접 실행합니다.
 
-1) 构建 React UI（输出到 `static/`）
+1) React UI 빌드(결과물은 `static/`에 생성)
 
 ```bash
 cd apps/dsa-web
@@ -30,7 +32,7 @@ npm install
 npm run build
 ```
 
-2) 启动 Electron 应用（自动拉起后端）
+2) Electron 앱 실행(백엔드는 자동으로 시작됨)
 
 ```bash
 cd apps/dsa-desktop
@@ -38,87 +40,88 @@ npm install
 npm run dev
 ```
 
-首次运行时会自动从 `.env.example` 复制生成 `.env`。
+처음 실행하면 `.env.example`을 복사해 `.env`를 자동으로 만듭니다.
 
-## 打包 (Windows)
+## 패키징 (Windows)
 
-### 前置条件
+### 사전 준비
 
 - Node.js 18+
 - Python 3.10+
-- 开启 Windows 开发者模式（electron-builder 需要创建符号链接）
-  - 设置 -> 隐私和安全性 -> 开发者选项 -> 开发者模式
+- Windows 개발자 모드 켜기(electron-builder가 심볼릭 링크를 만들어야 하기 때문)
+  - 설정 -> 개인 정보 및 보안 -> 개발자용 -> 개발자 모드
 
-### 一键打包
+### 한 번에 패키징
 
 ```bash
 powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 ```
 
-该脚本会依次执行：
-1. 构建 React UI
-2. 安装 Python 依赖
-3. PyInstaller 打包后端
-4. electron-builder 打包桌面应用
+이 스크립트는 다음을 차례로 실행합니다.
+1. React UI 빌드
+2. Python 의존성 설치
+3. PyInstaller로 백엔드 패키징
+4. electron-builder로 데스크톱 앱 패키징
 
-当前 Windows 安装包使用 NSIS 向导式安装流程，仅支持当前用户安装且已禁用管理员提权，安装时可手动选择目标目录（例如非 C 盘）。安装器通过 NSIS `.onVerifyInstDir` 回调在安装器层面阻止选择 `Program Files`、`Windows` 等系统保护目录——选择这些路径时"下一步"按钮会被自动禁用。安装完成后，桌面端仍会按现有逻辑在安装目录旁生成/读取 `.env`、`data/stock_analysis.db`（含 `data/stock_analysis.db-wal` / `data/stock_analysis.db-shm`）和 `logs/desktop.log`。推荐使用默认的 per-user 安装目录。如果不想安装，仍可继续分发 `win-unpacked` 免安装包。
+현재 Windows 설치 파일은 NSIS 마법사 방식의 설치 과정을 사용합니다. 현재 사용자 계정에만 설치할 수 있고 관리자 권한 상승은 꺼져 있으며, 설치할 때 대상 폴더를 직접 고를 수 있습니다(예: C 드라이브가 아닌 곳). 설치 프로그램은 NSIS `.onVerifyInstDir` 콜백으로 `Program Files`, `Windows` 같은 시스템 보호 폴더를 고르지 못하게 막습니다. 이런 경로를 고르면 "다음" 버튼이 자동으로 비활성화됩니다. 설치가 끝난 뒤에도 데스크톱 앱은 기존 방식대로 설치 폴더 옆에 `.env`, `data/stock_analysis.db`(`data/stock_analysis.db-wal` / `data/stock_analysis.db-shm` 포함), `logs/desktop.log`를 만들거나 읽습니다. 기본값인 사용자별(per-user) 설치 폴더를 권장합니다. 설치하고 싶지 않다면 지금처럼 `win-unpacked` 무설치 패키지를 배포해도 됩니다.
 
-## GitHub CI 自动打包并发布 Release
+## GitHub CI로 자동 패키징 및 Release 게시
 
-仓库已支持通过 GitHub Actions 自动构建桌面端并上传到 GitHub Releases：
+저장소는 GitHub Actions로 데스크톱 앱을 자동 빌드해 GitHub Releases에 올릴 수 있습니다.
 
-- 工作流：`.github/workflows/desktop-release.yml`
-- 触发方式：
-  - 推送语义化 tag（如 `v3.2.12`）后自动触发
-  - 在 Actions 页面手动触发并指定 `release_tag`
-- 产物：
-  - Windows 安装包：Release 附件和本地 `apps/dsa-desktop/dist/` 中统一为 `daily-stock-analysis-windows-installer-<tag>.exe`
-  - Windows 自动更新元数据：Release 附件会额外保留 `latest.yml` 和 `*.blockmap`，供安装版桌面端后台下载与校验更新；普通用户无需手动下载这些元数据。下载完成后用户确认“重启安装”时，桌面端会先停止内置后端、备份运行时文件，并以静默模式执行安装器。
-  - Windows 免安装包：`daily-stock-analysis-windows-noinstall-<tag>.zip`
-  - macOS Intel：`daily-stock-analysis-macos-x64-<tag>.dmg`
-  - macOS Apple Silicon：`daily-stock-analysis-macos-arm64-<tag>.dmg`
+- 워크플로: `.github/workflows/desktop-release.yml`
+- 실행 방법:
+  - 시맨틱 버전 tag(예: `v3.2.12`)를 push하면 자동 실행
+  - Actions 페이지에서 수동으로 실행하면서 `release_tag` 지정
+- 결과물:
+  - Windows 설치 파일: Release 첨부 파일과 로컬 `apps/dsa-desktop/dist/` 모두 `daily-stock-analysis-windows-installer-<tag>.exe`라는 이름으로 통일
+  - Windows 자동 업데이트 메타데이터: Release 첨부 파일에 `latest.yml`과 `*.blockmap`이 추가로 남습니다. 설치판 데스크톱 앱이 백그라운드에서 업데이트를 내려받고 검증하는 데 쓰므로, 일반 사용자는 이 메타데이터를 직접 받을 필요가 없습니다. 내려받기가 끝난 뒤 사용자가 "재시작 후 설치"를 확인하면, 데스크톱 앱은 먼저 내장 백엔드를 멈추고 실행 중 파일을 백업한 다음 설치 프로그램을 자동(silent) 모드로 실행합니다.
+  - Windows 무설치 패키지: `daily-stock-analysis-windows-noinstall-<tag>.zip`
+  - macOS Intel: `daily-stock-analysis-macos-x64-<tag>.dmg`
+  - macOS Apple Silicon: `daily-stock-analysis-macos-arm64-<tag>.dmg`
 
-### macOS 提示“应用已损坏，无法打开”
+<a id="macos-提示应用已损坏无法打开"></a>
+### macOS에서 "앱이 손상되어 열 수 없습니다"가 뜰 때
 
-当前 macOS DMG 尚未使用 Apple Developer 证书签名和公证。构建配置会显式生成 unsigned 应用，在 PyInstaller 产物首次执行前清理残缺签名，并通过 electron-builder `afterPack` hook 在 DMG 创建前再次清理完整 `.app`；CI 还会检查 Electron 原始 `.app` 和 DMG 挂载后的 `.app`，阻止再次发布带有 `code has no resources but signature indicates they must be present` 等损坏签名的产物。该处理只能缓解 v3.27.0 的残缺签名缺陷，**不会让应用获得 Apple 信任**。通过浏览器下载后，macOS Gatekeeper 仍可能提示“无法验证开发者”、阻止启动，或要求用户人工确认。
+현재 macOS DMG는 아직 Apple Developer 인증서로 서명하거나 공증(notarization)하지 않았습니다. 빌드 설정은 명시적으로 서명되지 않은(unsigned) 앱을 만들고, PyInstaller 결과물을 처음 실행하기 전에 불완전한 서명을 지우며, electron-builder `afterPack` hook으로 DMG를 만들기 직전에 완성된 `.app`을 다시 한번 정리합니다. CI는 Electron 원본 `.app`과 DMG를 마운트한 뒤의 `.app`도 검사해, `code has no resources but signature indicates they must be present` 같은 손상된 서명이 들어간 결과물이 다시 배포되지 않도록 막습니다. 이 처리는 v3.27.0의 불완전한 서명 결함을 줄여 줄 뿐, **앱이 Apple의 신뢰를 얻게 해 주지는 않습니다**. 브라우저로 내려받은 뒤에도 macOS Gatekeeper가 "개발자를 확인할 수 없습니다"라고 표시하거나, 실행을 막거나, 사용자의 직접 확인을 요구할 수 있습니다.
 
-请按以下顺序排查：
+다음 순서로 확인합니다.
 
-1. 只从项目的 [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases) 下载附件，并确认安装包架构与 Mac 一致：Apple 芯片（M1/M2/M3/M4 等）使用 `daily-stock-analysis-macos-arm64-<tag>.dmg`，Intel 芯片使用 `daily-stock-analysis-macos-x64-<tag>.dmg`。不要对第三方转载或来源不明的安装包绕过 Gatekeeper。
-2. 打开 DMG，将 `Daily Stock Analysis` 拖入“应用程序”后尝试启动一次。若被拦截，进入“系统设置 -> 隐私与安全性”，在安全性提示处确认应用名称，然后点击“仍要打开”，按系统提示再次确认。较旧 macOS 的对应入口为“系统偏好设置 -> 安全性与隐私 -> 通用”。
-3. 仅当安装包确认来自上述官方 Release、且“仍要打开”仍无法放行时，打开“终端”清除该应用的下载隔离属性，然后重新启动：
+1. 반드시 프로젝트의 [GitHub Releases](https://github.com/ZhuLinsen/daily_stock_analysis/releases)에서만 첨부 파일을 내려받고, 설치 파일의 아키텍처가 Mac과 맞는지 확인합니다. Apple 칩(M1/M2/M3/M4 등)은 `daily-stock-analysis-macos-arm64-<tag>.dmg`, Intel 칩은 `daily-stock-analysis-macos-x64-<tag>.dmg`를 사용합니다. 제3자가 다시 올렸거나 출처가 불분명한 설치 파일에 대해서는 Gatekeeper를 우회하지 마십시오.
+2. DMG를 열어 `Daily Stock Analysis`를 "응용 프로그램" 폴더로 끌어다 놓은 뒤 한 번 실행해 봅니다. 차단되면 "시스템 설정 -> 개인정보 보호 및 보안"으로 가서 보안 알림에 표시된 앱 이름을 확인한 다음 "그래도 열기"를 누르고, 시스템 안내에 따라 한 번 더 확인합니다. 이전 macOS에서는 "시스템 환경설정 -> 보안 및 개인 정보 보호 -> 일반"이 같은 위치입니다.
+3. 설치 파일이 위의 공식 Release에서 받은 것이 확실하고, "그래도 열기"로도 실행되지 않을 때에만 "터미널"을 열어 이 앱의 다운로드 격리(quarantine) 속성을 지운 뒤 다시 실행합니다.
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Daily Stock Analysis.app"
 open "/Applications/Daily Stock Analysis.app"
 ```
 
-如果应用不在 `/Applications`，请将命令中的路径替换为实际 `.app` 路径。不要对整个“应用程序”目录执行 `xattr`，也不要对来源不明的应用执行此命令。不同 macOS 版本可能仍拒绝 unsigned 应用，清除 quarantine 不保证能够放行。长期彻底消除该提示需要在发布流程中接入 Apple Developer 签名与 notarization（公证），不属于上述临时放行步骤。
+앱이 `/Applications`에 없다면 명령의 경로를 실제 `.app` 경로로 바꾸십시오. "응용 프로그램" 폴더 전체에 `xattr`를 실행하지 말고, 출처가 불분명한 앱에도 이 명령을 쓰지 마십시오. macOS 버전에 따라서는 그래도 서명되지 않은 앱을 거부할 수 있으며, quarantine 속성을 지운다고 해서 실행이 보장되지는 않습니다. 이 경고를 근본적으로 없애려면 배포 과정에 Apple Developer 서명과 공증(notarization)을 넣어야 하며, 이는 위의 임시 허용 절차와는 별개의 일입니다.
 
-维护者可用以下命令区分“预期的 unsigned 拒绝”和“不可发布的残缺签名”：
+관리자(메인테이너)는 다음 명령으로 "예상된 unsigned 거부"와 "배포하면 안 되는 불완전한 서명"을 구분할 수 있습니다.
 
 ```bash
 codesign -d "/Applications/Daily Stock Analysis.app"
 spctl --assess --type execute --verbose=4 "/Applications/Daily Stock Analysis.app"
 ```
 
-当前 unsigned 产物的 `codesign -d` 预期包含 `code object is not signed at all`，`spctl` 预期拒绝；如果输出 `code has no resources but signature indicates they must be present` 或其它签名损坏信息，应视为发布阻断。
+현재 unsigned 결과물이라면 `codesign -d` 출력에 `code object is not signed at all`이 포함되고 `spctl`은 거부하는 것이 정상입니다. `code has no resources but signature indicates they must be present` 또는 다른 서명 손상 메시지가 나오면 배포를 중단해야 합니다.
 
-建议发布流程：
+권장 배포 절차:
 
-1. 合并代码到 `main`
-2. 由自动打 tag 工作流生成版本（或手动创建 tag）
-3. `desktop-release` 工作流自动构建并把两个平台安装包附加到对应 GitHub Release
+1. 코드를 `main`에 병합
+2. 자동 tag 워크플로가 버전을 만듦(또는 직접 tag 생성)
+3. `desktop-release` 워크플로가 자동으로 빌드해 두 플랫폼의 설치 파일을 해당 GitHub Release에 첨부
 
-## 发版前可复现验证（桌面更新链路）
+## 배포 전 재현 가능한 검증(데스크톱 업데이트 경로)
 
-桌面端自动更新链路依赖 Windows NSIS 安装产物、`latest.yml` 与 `*.blockmap` 元数据。当前桌面 CI 不覆盖 `desktop-release` 打包产物可发布链路，提交前建议补充如下本地验证：
+데스크톱 자동 업데이트 경로는 Windows NSIS 설치 결과물과 `latest.yml`, `*.blockmap` 메타데이터에 의존합니다. 현재 데스크톱 CI는 `desktop-release` 패키징 결과물이 실제로 배포 가능한지까지는 확인하지 않으므로, 제출 전에 다음 로컬 검증을 추가로 해 두기를 권장합니다.
 
-说明：该清单专注于 Windows NSIS 安装版与 `electron-updater` 发布元数据。当前 Linux 环境无法直接产出 Windows 安装包和 updater 元数据（`latest.yml` / `*.blockmap`），此类链路需在 Windows 发布执行器或 Windows 本机环境复核。
+참고: 이 체크리스트는 Windows NSIS 설치판과 `electron-updater` 배포 메타데이터에 초점을 둡니다. 현재 Linux 환경에서는 Windows 설치 파일과 updater 메타데이터(`latest.yml` / `*.blockmap`)를 바로 만들 수 없으므로, 이 경로는 Windows 배포 실행 환경(runner)이나 Windows PC에서 다시 확인해야 합니다.
 
-若在非 Windows 环境无法完成上述验证，请在 PR 验收说明中明确补齐 Windows 发布链路复核人、复核时间窗及 `desktop-release` 产物检查结果（release/tag 与 `daily-stock-analysis-windows-installer-<tag>.exe`、`latest.yml`、`*.blockmap` 版本一致性与可下载性）。
+Windows가 아닌 환경에서 위 검증을 마칠 수 없다면, PR 검수 설명에 Windows 배포 경로를 다시 확인할 담당자, 확인 일정, `desktop-release` 결과물 점검 결과(release/tag와 `daily-stock-analysis-windows-installer-<tag>.exe`, `latest.yml`, `*.blockmap`의 버전 일치 여부와 내려받기 가능 여부)를 분명히 적어 주십시오.
 
-1. 先构建 Web 静态产物（桌面端主窗口与设置页入口依赖）
+1. 먼저 Web 정적 결과물을 빌드합니다(데스크톱 앱의 메인 창과 설정 페이지 진입이 여기에 의존합니다).
 
 ```bash
 cd apps/dsa-web
@@ -127,7 +130,7 @@ npm run lint
 npm run build
 ```
 
-2. 回到桌面端，补齐依赖、运行 preload 单测、再执行 Electron 打包
+2. 데스크톱 앱 폴더로 돌아가 의존성을 설치하고, preload 단위 테스트를 실행한 뒤 Electron 패키징을 실행합니다.
 
 ```bash
 cd ../dsa-desktop
@@ -136,22 +139,22 @@ npm test
 npm run build
 ```
 
-在 Windows 发布复核环境，还可额外执行：
+Windows 배포 확인 환경에서는 다음도 추가로 실행할 수 있습니다.
 
 ```powershell
 ./scripts/verify-desktop-updater-artifacts.ps1 -ReleaseTag v$(node -p "require('./apps/dsa-desktop/package.json').version")
 ```
 
-> 预期当前执行环境不支持生成 Windows NSIS 安装器时，请在交付说明中明确注明平台限制，并要求指定的 Windows 发布链路复核人补齐该项验证。
+> 지금 실행하는 환경이 Windows NSIS 설치 프로그램을 만들 수 없다면, 전달 설명에 플랫폼 제약을 분명히 적고 지정된 Windows 배포 경로 확인 담당자에게 이 검증을 마무리해 달라고 요청하십시오.
 
-3. 检查更新元数据是否产出
+3. 업데이트 메타데이터가 생성되었는지 확인합니다.
 
 ```bash
 ls -1 dist | sort
 ls -1 dist/*.yml dist/*.blockmap 2>/dev/null || true
 ```
 
-4. 强制对齐版本与发布附件（可在 Windows 环境或能产出 NSIS 产物的执行器上复核）
+4. 버전과 배포 첨부 파일이 맞는지 강제로 대조합니다(Windows 환경이나 NSIS 결과물을 만들 수 있는 실행 환경에서 확인).
 
 ```bash
 RELEASE_TAG="v$(node -p \"require('./package.json').version\")"
@@ -162,21 +165,21 @@ for f in dist/*latest.yml dist/*.blockmap dist/daily-stock-analysis-windows-inst
 done
 
 if [ -f dist/latest.yml ]; then
-  echo \"---- latest.yml 版本片段 ----\"
+  echo \"---- latest.yml 버전 부분 ----\"
   grep -E \"^version:|^files:|^sha512:\" dist/latest.yml
 fi
 
-echo \"---- Release 清单（人工核对）----\"
+echo \"---- Release 목록(직접 대조) ----\"
 echo \"Release Tag: $RELEASE_TAG\"
-echo \"Release 地址: https://github.com/$REPO/releases/tag/$RELEASE_TAG\"
-echo \"应核对附件是否包含:\"
+echo \"Release 주소: https://github.com/$REPO/releases/tag/$RELEASE_TAG\"
+echo \"첨부 파일에 다음이 있는지 확인:\"
 echo \"- daily-stock-analysis-windows-installer-*.exe\"
 echo \"- latest.yml\"
 echo \"- *.blockmap\"
-echo \"并确保 latest.yml 中 version 与 tag 的语义化版本一致，path/url 与安装包附件名一致\"
+echo \"그리고 latest.yml의 version이 tag의 시맨틱 버전과 같고, path/url이 설치 파일 첨부 이름과 같은지 확인\"
 ```
 
-5a. 建议在 PR 描述里记录的“可复核输出”（Windows）：
+5a. PR 설명에 남기기를 권장하는 "다시 확인할 수 있는 출력"(Windows):
 
 ```bash
 echo "release-tag=${RELEASE_TAG}"
@@ -188,30 +191,30 @@ echo "packaging artifacts:"
 ls -1 dist/*.yml dist/*.blockmap dist/*installer*.exe 2>/dev/null | sort
 ```
 
-Windows 发布链路复核清单（在 PR 后由发布团队/维护者执行）：
+Windows 배포 경로 확인 체크리스트(PR 이후 배포 팀/메인테이너가 실행):
 
-- release/tag 与 `daily-stock-analysis-windows-installer-<tag>.exe` 的版本号一致；
-- `latest.yml`、`daily-stock-analysis-windows-installer-<tag>.exe`、`*.blockmap` 同 tag 同步出现且可下载；
-- `latest.yml` 中 `version` 与 Release tag 语义一致（去掉 `v` 前缀后比对），且 `path` / `files.url` 与安装包附件名一致；
-- 如缺少上述文件或 `release-tag` 不匹配，需标注阻断并补齐 `desktop-release` 打包流程。
+- release/tag와 `daily-stock-analysis-windows-installer-<tag>.exe`의 버전 번호가 같은지
+- `latest.yml`, `daily-stock-analysis-windows-installer-<tag>.exe`, `*.blockmap`이 같은 tag에 함께 올라와 있고 내려받을 수 있는지
+- `latest.yml`의 `version`이 Release tag와 의미상 같은지(`v` 접두어를 뗀 뒤 비교), 그리고 `path` / `files.url`이 설치 파일 첨부 이름과 같은지
+- 위 파일이 빠졌거나 `release-tag`가 맞지 않으면 배포 차단으로 표시하고 `desktop-release` 패키징 과정을 보완
 
-5. Windows/NSIS 产物与发布附件一致性请在 Windows 环境手动验证（可人工触发发布流程），并在升级后核对运行时文件留存：
+5. Windows/NSIS 결과물과 배포 첨부 파일이 일치하는지는 Windows 환경에서 직접 확인하고(배포 과정을 수동으로 실행해도 됩니다), 업그레이드 후 실행 중 파일이 그대로 남아 있는지 대조합니다.
 
-   1. 安装前后分别记录安装目录中的 `.env`、`data/stock_analysis.db`、`data/stock_analysis.db-wal`、`data/stock_analysis.db-shm`、`logs/desktop.log` 的 SHA256；
-   2. 确认桌面端下一次启动后，上述文件仍存在且与安装前记录一致；
-   3. 如不一致，可在应用退出后检查用户数据目录中的 `.dsa-desktop-update-backup` 是否清理完整，并结合最新日志串联排查。
+   1. 설치 전후로 각각 설치 폴더의 `.env`, `data/stock_analysis.db`, `data/stock_analysis.db-wal`, `data/stock_analysis.db-shm`, `logs/desktop.log`의 SHA256을 기록합니다.
+   2. 데스크톱 앱을 다음에 실행한 뒤에도 위 파일이 그대로 있고 설치 전 기록과 같은지 확인합니다.
+   3. 다르다면 앱을 종료한 뒤 사용자 데이터 폴더의 `.dsa-desktop-update-backup`이 깨끗이 정리되었는지 확인하고, 최신 로그와 함께 원인을 따라가 봅니다.
 
-Windows 平台建议使用 PowerShell 执行：
+Windows에서는 PowerShell로 실행하기를 권장합니다.
 
 ```bash
 Get-FileHash .env,data\\stock_analysis.db,data\\stock_analysis.db-wal,data\\stock_analysis.db-shm,logs\\desktop.log -Algorithm SHA256
 ```
 
-说明：应用已在 Windows NSIS 安装版的“重启安装”前停止内置后端、备份安装目录旁上述运行时文件，并以静默模式运行更新安装器，目的是避免安装向导抢先覆盖仍在运行的桌面端进程，同时降低更新过程中文件丢失风险；若恢复失败，桌面端会显示更新安装错误并保留手动下载路径供回退处理。此次修复仅改动 Windows 更新安装链路与内置后端进程生命周期处理，不涉及设置保存语义、模型运行时清理策略或配置迁移行为。
+참고: Windows NSIS 설치판은 "재시작 후 설치" 전에 내장 백엔드를 멈추고, 설치 폴더 옆의 위 실행 중 파일을 백업한 뒤, 업데이트 설치 프로그램을 자동(silent) 모드로 실행합니다. 설치 마법사가 아직 실행 중인 데스크톱 앱 프로세스를 먼저 덮어쓰는 일을 피하고, 업데이트 도중 파일이 사라질 위험을 줄이기 위한 것입니다. 복원에 실패하면 데스크톱 앱은 업데이트 설치 오류를 표시하고, 되돌릴 수 있도록 수동 다운로드 경로를 남겨 둡니다. 이 수정은 Windows 업데이트 설치 경로와 내장 백엔드 프로세스 수명 관리만 바꾸었으며, 설정 저장 방식, 모델 실행 정리 정책, 설정 이전 동작에는 영향을 주지 않습니다.
 
-### 分步打包
+### 단계별 패키징
 
-1) 构建 React UI
+1) React UI 빌드
 
 ```bash
 cd apps/dsa-web
@@ -219,25 +222,25 @@ npm install
 npm run build
 ```
 
-2) 按现有脚本打包 Python 后端（脚本会收集 DSA 选股引擎、Futu SDK 与 AkShare 数据文件）
+2) 기존 스크립트로 Python 백엔드 패키징(스크립트가 DSA 종목 선별 엔진, Futu SDK, AkShare 데이터 파일을 수집합니다)
 
-- Windows：
+- Windows:
 
 ```bash
 powershell -ExecutionPolicy Bypass -File scripts\build-backend.ps1
 ```
 
-- macOS：
+- macOS:
 
 ```bash
 bash scripts/build-backend-macos.sh
 ```
 
-macOS 后端打包会显式加入 `src/services/screening/strategies` YAML 资源目录；PyInstaller 参数数组回归测试通过真实 Bash 验证隐藏导入与独立 `main.py` 入口。
+macOS 백엔드 패키징은 `src/services/screening/strategies` YAML 리소스 폴더를 명시적으로 포함합니다. PyInstaller 인자 배열 회귀 테스트는 실제 Bash로 숨은 import(hidden import)와 독립 `main.py` 진입점을 검증합니다.
 
-该脚本会在安装依赖后执行 `--collect-all src.services.screening`、`--collect-all futu` 和 `--collect-data akshare`。构建完成后会通过冻结可执行文件校验 `src.services.screening.pipeline`、`futu`、`orjson` 均可导入，核对选股策略数量，并确认 AkShare 的 `file_fold/calendar.json` 已进入冻结产物，避免发行包在选股、热点题材、Futu 持仓导入或日线增强路径中因缺少模块/package data 降级。选股实现参考 AlphaSift。PR 主 CI 在 `requirements.txt`、Futu broker、Desktop 打包入口或相关 workflow 变化时，会分别运行 `desktop-futu-package-windows` 与 `desktop-futu-package-macos` 阻断检查。
+이 스크립트는 의존성을 설치한 뒤 `--collect-all src.services.screening`, `--collect-all futu`, `--collect-data akshare`를 실행합니다. 빌드가 끝나면 freeze된 실행 파일로 `src.services.screening.pipeline`, `futu`, `orjson`을 모두 import할 수 있는지 검사하고, 종목 선별 전략 수를 대조하며, AkShare의 `file_fold/calendar.json`이 freeze 결과물에 들어갔는지 확인합니다. 이렇게 해서 배포 패키지가 종목 선별, 테마 핫이슈, Futu 보유 종목 가져오기, 일봉 보강 경로에서 모듈이나 package data가 없어 기능이 축소되는 일을 막습니다. 종목 선별 구현은 AlphaSift를 참고했습니다. PR 메인 CI는 `requirements.txt`, Futu broker, Desktop 패키징 진입점 또는 관련 workflow가 바뀌면 `desktop-futu-package-windows`와 `desktop-futu-package-macos` 차단 검사를 각각 실행합니다.
 
-3) 打包 Electron 桌面应用
+3) Electron 데스크톱 앱 패키징
 
 ```bash
 cd apps/dsa-desktop
@@ -245,112 +248,112 @@ npm install
 npm run build
 ```
 
-打包产物位于 `apps/dsa-desktop/dist/`。Windows 安装器会生成 `daily-stock-analysis-windows-installer-<tag>.exe`，安装向导中可选择安装目录。
+패키징 결과물은 `apps/dsa-desktop/dist/`에 있습니다. Windows 설치 프로그램은 `daily-stock-analysis-windows-installer-<tag>.exe`로 생성되며, 설치 마법사에서 설치 폴더를 고를 수 있습니다.
 
-## 目录结构
+## 폴더 구조
 
-Windows 安装包模式下，安装器仅支持当前用户安装且已禁用管理员提权，用户可在安装向导中选择安装目录；安装器会在安装器层面阻止选择 `Program Files`、`Windows` 等系统保护目录（选择时"下一步"按钮自动禁用），安装完成后，应用会在安装目录旁生成/读取 `.env`、`data/stock_analysis.db`（含 `data/stock_analysis.db-wal` / `data/stock_analysis.db-shm`）和 `logs/desktop.log`。请保留默认的 per-user 安装位置或选择其他用户可写目录。
+Windows 설치판에서는 설치 프로그램이 현재 사용자 계정에만 설치되고 관리자 권한 상승은 꺼져 있으며, 사용자가 설치 마법사에서 설치 폴더를 고를 수 있습니다. 설치 프로그램은 `Program Files`, `Windows` 같은 시스템 보호 폴더를 고르지 못하게 막습니다(고르면 "다음" 버튼이 자동으로 비활성화됨). 설치가 끝나면 앱은 설치 폴더 옆에 `.env`, `data/stock_analysis.db`(`data/stock_analysis.db-wal` / `data/stock_analysis.db-shm` 포함), `logs/desktop.log`를 만들거나 읽습니다. 기본 사용자별(per-user) 설치 위치를 그대로 두거나, 사용자가 쓰기 권한을 가진 다른 폴더를 고르십시오.
 
-`win-unpacked` 免安装模式下，目录结构如下：
+`win-unpacked` 무설치 모드의 폴더 구조는 다음과 같습니다.
 
 ```
 win-unpacked/
-  Daily Stock Analysis.exe    <- 双击启动
-  .env                        <- 用户配置文件（首次启动自动生成）
+  Daily Stock Analysis.exe    <- 더블클릭해 실행
+  .env                        <- 사용자 설정 파일(처음 실행 시 자동 생성)
   data/
-    stock_analysis.db         <- 数据库主文件
-    stock_analysis.db-wal     <- WAL 日志文件（更新备份/恢复）
-    stock_analysis.db-shm     <- WAL 共享元文件（更新备份/恢复）
+    stock_analysis.db         <- 데이터베이스 본 파일
+    stock_analysis.db-wal     <- WAL 로그 파일(업데이트 백업/복원 대상)
+    stock_analysis.db-shm     <- WAL 공유 메타 파일(업데이트 백업/복원 대상)
   logs/
-    desktop.log               <- 运行日志
+    desktop.log               <- 실행 로그
   resources/
-    .env.example              <- 配置模板
+    .env.example              <- 설정 템플릿
     backend/
-      stock_analysis.exe      <- 后端服务
+      stock_analysis.exe      <- 백엔드 서버
 ```
 
-## 配置文件说明
+## 설정 파일 안내
 
-- Windows 桌面端的 `.env` 放在 exe 同目录下
-- macOS 打包版的 `.env`、`data/` 和 `logs/` 放在 Electron 用户数据目录，避免替换 `.app` 时丢失
-- 首次启动时自动从 `.env.example` 复制生成
-- 从旧版本升级时，如果旧 `.app` 包内部的 `.env`、`data/stock_analysis.db` 或日志文件仍可访问，新版本会在目标文件不存在时自动迁移到用户数据目录；已有目标文件不会被覆盖
-- 用户需要编辑 `.env` 配置以下内容：
-  - `GEMINI_API_KEY` 或 `OPENAI_API_KEY`：AI 分析必需
-  - `STOCK_LIST`：自选股列表（逗号分隔）
-  - 其他可选配置参考 `.env.example`
+- Windows 데스크톱 앱의 `.env`는 exe와 같은 폴더에 있습니다.
+- macOS 패키지 버전의 `.env`, `data/`, `logs/`는 Electron 사용자 데이터 폴더에 있어서 `.app`을 교체해도 사라지지 않습니다.
+- 처음 실행할 때 `.env.example`을 복사해 자동으로 만듭니다.
+- 구버전에서 업그레이드할 때 예전 `.app` 패키지 안의 `.env`, `data/stock_analysis.db`, 로그 파일에 아직 접근할 수 있으면, 새 버전은 대상 파일이 없을 때에 한해 사용자 데이터 폴더로 자동 이전합니다. 이미 있는 대상 파일은 덮어쓰지 않습니다.
+- 사용자는 `.env`를 편집해 다음 항목을 설정해야 합니다.
+  - `GEMINI_API_KEY` 또는 `OPENAI_API_KEY`: AI 분석에 꼭 필요
+  - `STOCK_LIST`: 관심 종목 목록(쉼표로 구분)
+  - 기타 선택 설정은 `.env.example` 참고
 
-### 配置备份 / 恢复 `.env`
+### `.env` 설정 백업 / 복원
 
-- WebUI 与桌面端都可以从 `系统设置 -> 配置备份` 看到 `导出 .env` 和 `导入 .env` 按钮
-- WebUI 非桌面运行时需要先开启管理员认证并完成登录；未开启认证时按钮会禁用，API 返回 `403`
-- `导出 .env` 会导出当前**已保存**的 `.env` 备份文件；页面上尚未点击“保存配置”的本地草稿不会被导出
-- `导入 .env` 会读取备份文件中的键值并合并到当前配置中，导入后会立即触发配置重载
-- 导入是“键级覆盖”而不是整文件替换：备份文件中出现的键会覆盖当前值，未出现的键保持不变
-- 如果当前页面还有未保存草稿，导入前会先提示确认，避免把本地草稿和已保存配置混在一起
-- Web 端默认 `ADMIN_AUTH_ENABLED=false` 时，设置页会展示按钮为禁用态并提示先启用管理员鉴权；桌面端不受该配置影响，仍可直接使用配置备份/恢复能力。
+- WebUI와 데스크톱 앱 모두 **시스템 설정 -> 설정 백업**(`系统设置 -> 配置备份` / `System settings -> Configuration backup`)에서 **.env 내보내기**(`导出 .env` / `Export .env`)와 **.env 가져오기**(`导入 .env` / `Import .env`) 버튼을 볼 수 있습니다.
+- 데스크톱이 아닌 WebUI에서는 먼저 관리자 인증을 켜고 로그인해야 합니다. 인증을 켜지 않으면 버튼이 비활성화되고 API는 `403`을 돌려줍니다.
+- **.env 내보내기**는 현재 **저장된** `.env` 백업 파일만 내보냅니다. 화면에서 아직 **설정 저장**(`保存配置` / `Save configuration`)을 누르지 않은 로컬 임시 변경은 내보내지 않습니다.
+- **.env 가져오기**는 백업 파일의 키와 값을 읽어 현재 설정에 합치고, 가져온 즉시 설정을 다시 불러옵니다.
+- 가져오기는 파일 전체 교체가 아니라 "키 단위 덮어쓰기"입니다. 백업 파일에 있는 키는 현재 값을 덮어쓰고, 없는 키는 그대로 둡니다.
+- 현재 화면에 저장하지 않은 임시 변경이 있으면, 가져오기 전에 먼저 확인을 요청해 로컬 임시 변경과 저장된 설정이 뒤섞이지 않게 합니다.
+- Web에서 기본값 `ADMIN_AUTH_ENABLED=false`일 때는 설정 페이지의 버튼이 비활성 상태로 표시되고 관리자 인증을 먼저 켜라는 안내가 나옵니다. 데스크톱 앱은 이 설정과 상관없이 설정 백업/복원 기능을 바로 쓸 수 있습니다.
 
-> 建议：从旧版本升级的 macOS 用户仍可在升级前执行一次 `导出 .env` 作为保险；如果旧 `.app` 已经被整体替换，包内旧文件无法凭空恢复，只能通过备份导入。
+> 권장: 구버전에서 업그레이드하는 macOS 사용자는 업그레이드 전에 **.env 내보내기**를 한 번 해 두면 안전합니다. 예전 `.app`이 이미 통째로 교체되었다면 패키지 안의 예전 파일은 되살릴 수 없으며, 백업을 가져오는 방법밖에 없습니다.
 
-### 设置页版本信息
+### 설정 페이지의 버전 정보
 
-- `系统设置 -> 版本信息` 中的“桌面端版本”由 Electron 主进程的 `app.getVersion()` 提供，并通过 preload bridge 暴露给前端
-- 开发态 `npm run dev` 与打包态 `npm run build` / 安装包都会复用同一条版本注入链路，不再在 `preload.js` 里维护独立硬编码版本号
-- `README.md` 继续保留安装和运行入口说明；这类桌面端运行时细节统一落在本专题文档维护，避免入门文档膨胀
+- **시스템 설정 -> 버전 정보**(`系统设置 -> 版本信息` / `System settings -> Version info`)의 "데스크톱 버전"(`桌面端版本` / `Desktop version`)은 Electron 메인 프로세스의 `app.getVersion()`이 제공하며, preload bridge를 통해 프런트엔드에 전달됩니다.
+- 개발 모드 `npm run dev`와 패키지 모드 `npm run build` / 설치 파일 모두 같은 버전 주입 경로를 사용하며, `preload.js`에 따로 하드코딩한 버전 번호를 더는 관리하지 않습니다.
+- `README.md`에는 설치와 실행 안내만 남겨 둡니다. 이런 데스크톱 실행 세부 사항은 이 문서에서 관리해 입문 문서가 지나치게 길어지지 않게 합니다.
 
-### 局域网访问 Windows 桌面端 WebUI
+### 같은 네트워크(LAN)에서 Windows 데스크톱 앱의 WebUI 접속하기
 
-- 桌面端默认仍按 `WEBUI_HOST=127.0.0.1` 只允许本机访问，避免安装后无意暴露后端服务
-- 如需让同一局域网内其他设备访问，在桌面端 `.env` 或 `系统设置 -> WebUI 监听地址` 中设置 `WEBUI_HOST=0.0.0.0`，保存后重启桌面端
-- 桌面端会自动选择 `8000-8100` 中可用端口并传给后端；常见情况下仍是 `8000`，若端口被占用，可在 `logs/desktop.log` 查看 `Using port ...` 和 `Backend launch command=...`
-- Windows 防火墙或服务器安全组仍需放行实际监听端口；对外暴露前建议同时启用 `ADMIN_AUTH_ENABLED`
-- 即使后端绑定 `0.0.0.0`，桌面窗口自身仍会使用本机可访问地址完成健康检查和页面加载
+- 데스크톱 앱은 기본적으로 `WEBUI_HOST=127.0.0.1`로 이 컴퓨터에서만 접속할 수 있게 합니다. 설치 후 의도치 않게 백엔드 서버가 외부에 노출되는 것을 막기 위해서입니다.
+- 같은 네트워크의 다른 기기에서 접속하려면 데스크톱 앱의 `.env` 또는 **시스템 설정**(`系统设置` / `System settings`)의 WebUI 수신 주소 항목(`WEBUI_HOST`)에서 `WEBUI_HOST=0.0.0.0`으로 설정하고 저장한 뒤 데스크톱 앱을 다시 시작합니다.
+- 데스크톱 앱은 `8000-8100` 중 비어 있는 포트를 자동으로 골라 백엔드에 넘깁니다. 대부분은 여전히 `8000`이며, 포트가 사용 중이면 `logs/desktop.log`에서 `Using port ...`와 `Backend launch command=...`를 확인할 수 있습니다.
+- Windows 방화벽이나 서버 보안 그룹에서도 실제 수신 포트를 허용해야 합니다. 외부에 공개하기 전에는 `ADMIN_AUTH_ENABLED`도 함께 켜는 것을 권장합니다.
+- 백엔드가 `0.0.0.0`에 바인딩되어 있어도 데스크톱 창 자체는 이 컴퓨터에서 접근 가능한 주소로 상태 확인과 페이지 로딩을 합니다.
 
-### 桌面端更新提醒
+### 데스크톱 앱 업데이트 알림
 
-- 应用在主界面加载完成后会后台检查 GitHub Releases 的最新正式版，并与当前 `app.getVersion()` 做语义化版本比较
-- Windows NSIS 安装版会通过内置 GitHub 更新源自动下载新版本；下载完成后弹出一次性提醒，用户确认后静默重启并安装
-- 自动更新静默安装会复用当前安装目录；如果用户安装时选择了非默认目录或带空格目录，后续自动更新仍会覆盖同一目录
-- 桌面运行时会在全局右上角显示更新入口，可查看状态、手动检查、打开 Release 页或在更新已下载后执行“重启安装”；普通浏览器 WebUI 不显示该入口
-- `系统设置 -> 版本信息` 中的“桌面端更新”区域仍可作为详细入口和兜底；全局入口与设置页共用同一套更新状态，检查中、下载中或安装中时两侧入口都会禁用，不会重复发起手动检查
-- 主进程手动检查路径同样有 in-flight 防重，避免并发请求 GitHub Releases
-- Windows 免安装包、开发态和 macOS DMG 仍保持“提醒 + 跳转下载页”的兼容路径，不会因为网络失败而阻断桌面端启动
-- 版本检查失败、GitHub API 超时、更新元数据缺失或下载安装异常时，会记录到 `logs/desktop.log`，设置页或右上角入口手动检查时会展示错误状态
+- 앱은 메인 화면을 다 불러온 뒤 백그라운드에서 GitHub Releases의 최신 정식 버전을 확인하고, 현재 `app.getVersion()`과 시맨틱 버전으로 비교합니다.
+- Windows NSIS 설치판은 내장된 GitHub 업데이트 소스로 새 버전을 자동으로 내려받습니다. 내려받기가 끝나면 알림을 한 번 띄우고, 사용자가 확인하면 조용히 재시작해 설치합니다.
+- 자동 업데이트의 무인 설치는 현재 설치 폴더를 그대로 사용합니다. 사용자가 설치할 때 기본값이 아닌 폴더나 공백이 들어간 폴더를 골랐다면, 이후 자동 업데이트도 같은 폴더를 덮어씁니다.
+- 데스크톱 앱에서는 화면 전체 오른쪽 위에 업데이트 버튼이 표시되어, 상태 확인, 수동 확인, Release 페이지 열기, 업데이트를 내려받은 뒤 "재시작 후 설치"를 할 수 있습니다. 일반 브라우저의 WebUI에는 이 버튼이 나타나지 않습니다.
+- **시스템 설정 -> 버전 정보**의 "데스크톱 업데이트"(`桌面端更新` / `Desktop update`) 영역은 여전히 자세한 입구이자 대체 수단으로 쓸 수 있습니다. 오른쪽 위 버튼과 설정 페이지는 같은 업데이트 상태를 공유하며, 확인·내려받기·설치 중에는 양쪽 모두 비활성화되어 수동 확인을 중복으로 시작하지 않습니다.
+- 메인 프로세스의 수동 확인 경로에도 진행 중(in-flight) 중복 방지가 있어 GitHub Releases에 동시에 요청을 보내지 않습니다.
+- Windows 무설치 패키지, 개발 모드, macOS DMG는 계속 "알림 + 다운로드 페이지로 이동" 방식을 유지하며, 네트워크 오류 때문에 데스크톱 앱 시작이 막히지는 않습니다.
+- 버전 확인 실패, GitHub API 시간 초과, 업데이트 메타데이터 누락, 다운로드·설치 오류는 `logs/desktop.log`에 기록되며, 설정 페이지나 오른쪽 위 버튼으로 수동 확인할 때 오류 상태가 표시됩니다.
 
-## 常见问题
+## 자주 묻는 질문
 
-### 启动后一直显示 "Preparing backend..."
+### 실행 후 계속 "Preparing backend..."만 표시될 때
 
-1. 检查 `logs/desktop.log` 查看错误信息
-2. 确认 `.env` 文件存在且配置正确
-3. 确认端口 8000-8100 未被占用；桌面端会自动选择其中一个可用端口，无需通过 `.env` 手动改 `WEBUI_PORT`
-4. 如果日志里显示 Electron 等待的端口和后端实际监听端口不一致，优先升级到包含桌面端端口同步修复的版本
+1. `logs/desktop.log`에서 오류 메시지를 확인합니다.
+2. `.env` 파일이 있고 설정이 올바른지 확인합니다.
+3. 8000-8100 포트가 모두 사용 중이 아닌지 확인합니다. 데스크톱 앱이 이 중 비어 있는 포트를 자동으로 고르므로 `.env`에서 `WEBUI_PORT`를 직접 바꿀 필요는 없습니다.
+4. 로그에서 Electron이 기다리는 포트와 백엔드가 실제로 수신하는 포트가 다르게 나오면, 데스크톱 포트 동기화 수정이 들어간 버전으로 먼저 업그레이드하십시오.
 
-### 后端启动报 ModuleNotFoundError
+### 백엔드 시작 시 ModuleNotFoundError가 날 때
 
-PyInstaller 打包时缺少模块，需要在 Windows 与 macOS 后端构建脚本中同步增加 `--hidden-import`，并对冻结产物执行运行时导入校验。当前脚本会显式安装、冻结并探测 LiteLLM 运行路径需要的 `orjson`；若日志包含 `No module named 'orjson'`，请升级到修复版本并重新构建，不能只在已发布目录中手工安装依赖。
+PyInstaller로 패키징할 때 모듈이 빠진 것입니다. Windows와 macOS 백엔드 빌드 스크립트 양쪽에 `--hidden-import`를 함께 추가하고, freeze 결과물에서 실행 시 import 검사를 해야 합니다. 현재 스크립트는 LiteLLM 실행 경로에 필요한 `orjson`을 명시적으로 설치·freeze·검사합니다. 로그에 `No module named 'orjson'`이 있으면 수정된 버전으로 업그레이드해 다시 빌드하십시오. 이미 배포된 폴더에 의존성을 손으로 설치하는 것만으로는 해결되지 않습니다.
 
-如果日志提示缺少 `akshare/file_fold/calendar.json`，说明后端冻结产物没有完整收集 AkShare package data。请使用仓库当前的 `scripts/build-backend.ps1` 或 `scripts/build-backend-macos.sh` 重新构建；脚本会在生成桌面包前检查该文件，缺失时直接终止构建。
+로그에 `akshare/file_fold/calendar.json`이 없다고 나오면, 백엔드 freeze 결과물이 AkShare package data를 빠짐없이 수집하지 못한 것입니다. 저장소의 현재 `scripts/build-backend.ps1` 또는 `scripts/build-backend-macos.sh`로 다시 빌드하십시오. 스크립트는 데스크톱 패키지를 만들기 전에 이 파일을 검사하고, 없으면 바로 빌드를 중단합니다.
 
-### UI 加载空白
+### UI가 빈 화면으로 뜰 때
 
-确认 `static/index.html` 存在，如不存在需重新构建 React UI。
+`static/index.html`이 있는지 확인하고, 없으면 React UI를 다시 빌드합니다.
 
-### macOS 升级后配置迁移
+### macOS 업그레이드 후 설정 이전
 
-旧版本曾把运行时 `.env`、数据库和日志写在 `.app` 包内部。新版本改为使用 Electron 用户数据目录，并在旧 `.app` 包内文件仍可访问时做一次性迁移。迁移规则是“目标不存在才复制”，避免覆盖用户已经在新版本中保存的配置。
+구버전은 실행 중 `.env`, 데이터베이스, 로그를 `.app` 패키지 안에 썼습니다. 새 버전은 Electron 사용자 데이터 폴더를 쓰도록 바뀌었고, 예전 `.app` 패키지 안의 파일에 아직 접근할 수 있으면 한 번만 이전합니다. 이전 규칙은 "대상이 없을 때만 복사"이므로, 사용자가 새 버전에서 이미 저장한 설정을 덮어쓰지 않습니다.
 
-如果旧 `.app` 已经被整体替换，旧包内 `.env` 无法由新版本自动恢复。此时可使用升级前导出的 `.env` 在 `系统设置 -> 配置备份` 中手动导入；完成一次迁移或重新配置后，后续版本会继续复用用户数据目录，不再随 `.app` 替换丢失。
+예전 `.app`이 이미 통째로 교체되었다면 패키지 안의 예전 `.env`는 새 버전이 자동으로 되살릴 수 없습니다. 이럴 때는 업그레이드 전에 내보낸 `.env`를 **시스템 설정 -> 설정 백업**(`系统设置 -> 配置备份`)에서 직접 가져오십시오. 한 번 이전하거나 다시 설정하고 나면, 이후 버전은 계속 사용자 데이터 폴더를 쓰므로 `.app`을 교체해도 설정이 사라지지 않습니다.
 
-## 分发给用户
+## 사용자에게 배포하기
 
-Windows 分发现在有两种方式：
+Windows 배포 방법은 두 가지입니다.
 
-1. 安装包：分发 `apps/dsa-desktop/dist/` 下的 `daily-stock-analysis-windows-installer-<tag>.exe`，用户安装时可自行选择目标目录
-2. 免安装包：将 `apps/dsa-desktop/dist/win-unpacked/` 整个文件夹打包发给用户
+1. 설치 파일: `apps/dsa-desktop/dist/`의 `daily-stock-analysis-windows-installer-<tag>.exe`를 배포합니다. 사용자는 설치할 때 대상 폴더를 직접 고를 수 있습니다.
+2. 무설치 패키지: `apps/dsa-desktop/dist/win-unpacked/` 폴더 전체를 압축해 사용자에게 보냅니다.
 
-使用 `win-unpacked` 免安装包时，用户只需：
+`win-unpacked` 무설치 패키지를 쓰는 사용자는 다음만 하면 됩니다.
 
-1. 解压文件夹
-2. 编辑 `.env` 配置 API Key 和股票列表
-3. 双击 `Daily Stock Analysis.exe` 启动
+1. 폴더 압축 풀기
+2. `.env`를 편집해 API Key와 종목 목록 설정
+3. `Daily Stock Analysis.exe`를 더블클릭해 실행

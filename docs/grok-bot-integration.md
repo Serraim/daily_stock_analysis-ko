@@ -1,28 +1,28 @@
-# Grok Bot 集成说明
+# Grok Bot 연동 안내
 
-本文说明 [daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)（DSA）如何对接 **2026-08-11** 上线的 [Grok Bot](https://x.ai/bot)（xAI 的 AI teammate 产品，不是普通 Grok 聊天）。
+이 문서는 [daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)(DSA)를 **2026-08-11**에 공개된 [Grok Bot](https://x.ai/bot)(일반 Grok 채팅이 아니라 xAI의 AI 동료(teammate) 제품)과 연결하는 방법을 설명합니다.
 
-不新增 API、环境变量、provider 或运行时分支。Grok Bot 只消费现有 REST / Skill 契约。
+API, 환경 변수, provider, 실행 분기를 새로 만들지 않습니다. Grok Bot은 기존 REST / Skill 계약만 씁니다.
 
-## 先分清两条路径
+## 먼저 두 가지 경로를 구분하세요
 
-| 路径 | 是什么 | 怎么配 | 不是什么 |
+| 경로 | 무엇인가 | 설정 방법 | 아닌 것 |
 | --- | --- | --- | --- |
-| **Grok 当分析模型** | LiteLLM 直连 `xai/*`，DSA 用 Grok 写报告 | `XAI_API_KEY` + `LITELLM_MODEL=xai/<官方模型ID>`，见 [LLM 配置指南](LLM_CONFIG_GUIDE.md) | 不是 Grok Bot 产品 |
-| **Grok Bot 当队友** | 带持久云电脑、Skills、Routines、MCP/Connectors、computer use 的 teammate | Bot 调 DSA 已部署的 HTTP API，或在其电脑上跑 `python main.py` | 不要把 Bot 配成 `LITELLM_MODEL` |
+| **Grok을 분석 모델로 쓰기** | LiteLLM으로 `xai/*`에 바로 연결해 DSA가 Grok으로 보고서를 씀 | `XAI_API_KEY` + `LITELLM_MODEL=xai/<공식 모델 ID>`. [LLM 설정 가이드](LLM_CONFIG_GUIDE.md) 참고 | Grok Bot 제품이 아님 |
+| **Grok Bot을 동료로 쓰기** | 상시 클라우드 컴퓨터, Skills, Routines, MCP/Connectors, computer use를 갖춘 teammate | Bot이 이미 배포된 DSA HTTP API를 호출하거나, 자기 컴퓨터에서 `python main.py`를 실행 | Bot을 `LITELLM_MODEL`로 설정하지 마세요 |
 
-两条路径可以同时用：DSA 用 `xai/grok-*` 做分析，Grok Bot 再来读报告 / `DecisionSignal`。
+두 경로를 함께 쓸 수도 있습니다. DSA는 `xai/grok-*`로 분석하고, Grok Bot은 그 보고서나 `DecisionSignal`을 읽어 가는 식입니다.
 
-## 推荐对接顺序
+## 권장 연결 순서
 
-1. 先让 DSA API 长期可访问：`python main.py --serve-only` 或 Docker。GitHub Actions 只做定时任务，不长期暴露 API。
-2. 在 Grok Bot 里放一条 Skill（可直接改 [openclaw Skill](openclaw-skill-integration.md) 的 `SKILL.md` 示例，或用 [`docs/examples/grok_bot/SKILL.md`](examples/grok_bot/SKILL.md)）。
-3. 需要盘中盯盘 / 早报时，用 Bot Routine 调 `DecisionSignal` 查询，而不是反复跑完整分析。
-4. 只有 Bot 已经能稳定调通 HTTP 之后，才考虑把同一组接口挂到 MCP Connector。本仓库 **P0 不提供 MCP server**。
+1. 먼저 DSA API가 계속 접속 가능하도록 합니다: `python main.py --serve-only` 또는 Docker. GitHub Actions는 예약 실행만 하며 API를 계속 열어 두지 않습니다.
+2. Grok Bot에 Skill을 하나 넣습니다([openclaw Skill](openclaw-skill-integration.md)의 `SKILL.md` 예시를 고쳐 쓰거나 [`docs/examples/grok_bot/SKILL.md`](examples/grok_bot/SKILL.md)를 쓰세요).
+3. 장중 감시나 아침 브리핑이 필요하면, 전체 분석을 반복해서 돌리지 말고 Bot Routine으로 `DecisionSignal`을 조회하세요.
+4. Bot이 HTTP 호출을 안정적으로 할 수 있게 된 다음에만, 같은 엔드포인트들을 MCP Connector에 연결하는 것을 고려하세요. 이 저장소는 **P0 단계에서 MCP server를 제공하지 않습니다**.
 
-## Skill：触发个股分析
+## Skill: 개별 종목 분석 실행
 
-与 openclaw 相同的主入口。Bot / Routine **默认 `async_mode: true`**：
+openclaw와 같은 주 진입점입니다. Bot / Routine은 **기본으로 `async_mode: true`**를 씁니다.
 
 ```http
 POST {DSA_BASE_URL}/api/v1/analysis/analyze
@@ -36,62 +36,62 @@ Content-Type: application/json
 }
 ```
 
-- 异步：返回 202 + `task_id`，再 `GET /api/v1/analysis/status/{task_id}` 直到 `status: completed`。完成报告在 `result.report`（`TaskStatus.result` 是 `AnalysisResultResponse`），不要读响应根上的 `report`。
-- 不要在同步超时后改发异步重跑。同步超时后服务端 `_handle_sync_analysis` 仍会继续跑且不进 `TaskQueue`，再发 `async_mode: true` 会绕过队列去重，造成重复 LLM 费用与推送。
-- 仅当 HTTP 超时 ≥300 秒且用户在等单次结果时，才用 `async_mode: false`。同步响应的报告在根级 `report`。
-- 健康检查：`GET /api/health`。
-- 问股 Agent（需 `AGENT_MODE=true`）：`POST /api/v1/agent/chat`。
+- 비동기: 202 + `task_id`를 반환합니다. 그다음 `status: completed`가 될 때까지 `GET /api/v1/analysis/status/{task_id}`를 조회합니다. 완료된 보고서는 `result.report`에 있습니다(`TaskStatus.result`가 `AnalysisResultResponse`입니다). 응답 최상위의 `report`를 읽지 마세요.
+- 동기 요청이 시간 초과되었다고 비동기로 다시 요청하지 마세요. 동기 요청이 시간 초과되어도 서버의 `_handle_sync_analysis`는 계속 실행되며 `TaskQueue`에 들어가지 않습니다. 이때 `async_mode: true`로 다시 보내면 큐의 중복 제거를 우회해 LLM 비용과 알림이 중복으로 발생합니다.
+- HTTP 제한 시간이 300초 이상이고 사용자가 결과 하나를 기다리는 경우에만 `async_mode: false`를 쓰세요. 동기 응답의 보고서는 최상위 `report`에 있습니다.
+- 상태 확인: `GET /api/health`.
+- 종목 질문 Agent(`AGENT_MODE=true` 필요): `POST /api/v1/agent/chat`.
 
-结果读取约定（与 openclaw Skill 一致，避免平行字段）：
+결과 읽기 약속(openclaw Skill과 같으며, 같은 뜻의 필드를 따로 만들지 않기 위한 것입니다):
 
-- 自由文本：`report.summary.operation_advice`、`trend_prediction`、`analysis_summary`（异步前缀 `result.`）
-- 结构化动作：可选 `action` / `action_label`（八态 `buy|add|hold|reduce|sell|watch|avoid|alert`）
-- 旧历史缺字段时回退 `operation_advice`；旧三态统计仍以 `decision_type` 为准
+- 자유 텍스트: `report.summary.operation_advice`, `trend_prediction`, `analysis_summary`(비동기는 앞에 `result.`가 붙음)
+- 구조화된 행동: 선택 필드 `action` / `action_label`(8가지 상태 `buy|add|hold|reduce|sell|watch|avoid|alert`)
+- 예전 기록에 필드가 없으면 `operation_advice`로 대신합니다. 예전 3가지 상태 통계는 여전히 `decision_type`을 기준으로 합니다
 
-Grok Bot Skill 正文见 [`docs/examples/grok_bot/SKILL.md`](examples/grok_bot/SKILL.md)，也可复用 [openclaw Skill](openclaw-skill-integration.md) 示例。环境变量统一为 `DSA_BASE_URL`。
+Grok Bot Skill 본문은 [`docs/examples/grok_bot/SKILL.md`](examples/grok_bot/SKILL.md)에 있으며, [openclaw Skill](openclaw-skill-integration.md) 예시를 다시 써도 됩니다. 환경 변수는 `DSA_BASE_URL` 하나로 통일합니다.
 
-## Skill：大盘复盘
+## Skill: 시장 리뷰
 
-`POST {DSA_BASE_URL}/api/v1/analysis/market-review` 固定返回 202 接受体 + `task_id`，不是复盘正文。请求体可传 `send_notification`、`region`。
+`POST {DSA_BASE_URL}/api/v1/analysis/market-review`는 항상 202 접수 응답 + `task_id`를 반환하며, 리뷰 본문이 아닙니다. 요청 본문에 `send_notification`, `region`을 넣을 수 있습니다.
 
-轮询 `GET /api/v1/analysis/status/{task_id}` 直到 `status: completed`，从 `TaskStatus` 顶层读 `market_review_report` 或 `market_review_payload`（不在 `result.report`）。
+`status: completed`가 될 때까지 `GET /api/v1/analysis/status/{task_id}`를 조회한 다음, `TaskStatus` 최상위에서 `market_review_report` 또는 `market_review_payload`를 읽으세요(`result.report`에는 없습니다).
 
-## Routine：消费 DecisionSignal
+## Routine: DecisionSignal 활용
 
-不要让 Routine 每次都重跑分析。公开查询口：
+Routine이 매번 분석을 다시 돌리게 하지 마세요. 공개 조회 엔드포인트:
 
-| 用途 | 接口 |
+| 용도 | 엔드포인트 |
 | --- | --- |
-| 某股最新 active 信号 | `GET /api/v1/decision-signals/latest/{stock_code}` |
-| 分页筛选 | `GET /api/v1/decision-signals` |
-| 后验统计 | `GET /api/v1/decision-signals/outcomes/stats` |
-| 有用 / 无用反馈 | `GET/PUT /api/v1/decision-signals/{signal_id}/feedback` |
+| 특정 종목의 최신 active 신호 | `GET /api/v1/decision-signals/latest/{stock_code}` |
+| 페이지 단위 필터링 | `GET /api/v1/decision-signals` |
+| 사후 결과 통계 | `GET /api/v1/decision-signals/outcomes/stats` |
+| 유용함 / 유용하지 않음 피드백 | `GET/PUT /api/v1/decision-signals/{signal_id}/feedback` |
 
-字段与生命周期见 [DecisionSignal 专题](decision-signals.md)。`DecisionSignal` 只记录建议，不执行下单或调仓。
+필드와 생명 주기는 [DecisionSignal 문서](decision-signals.md)를 보세요. `DecisionSignal`은 권고를 기록할 뿐, 주문을 내거나 포트폴리오를 조정하지 않습니다.
 
-需要给 Bot 低敏上下文时，用 [AnalysisContextPack](analysis-context-pack.md) 的公开 overview，不要把完整 `context_snapshot` 塞进 Skill 提示词。
+Bot에 민감도가 낮은 컨텍스트를 줘야 한다면 [AnalysisContextPack](analysis-context-pack.md)의 공개 overview를 쓰세요. 전체 `context_snapshot`을 Skill 프롬프트에 넣지 마세요.
 
 ## MCP / Connector / computer use
 
-- **MCP**：把上表 REST 包成 tool 即可（`analyze_stock`、`get_latest_signal`、`market_review`）。本仓库暂不内置 MCP server，以免和 FastAPI 契约双源漂移。
-- **Connectors**：Grok Bot 可登录飞书 / 邮件等；DSA 自己的通知渠道仍走 `.env` 里已有的 webhook，不必经 Bot 转发。
-- **Computer use**：仅当 Bot 的云电脑里已经 clone 并配好 `.env` 时，才适合跑 `python main.py --stocks 600519,AAPL` 或 `python main.py --market-review`。默认仍推荐 HTTP，便于鉴权、超时和异步任务。
+- **MCP**: 위 표의 REST를 tool로 감싸기만 하면 됩니다(`analyze_stock`, `get_latest_signal`, `market_review`). 이 저장소는 FastAPI 계약과 두 갈래로 어긋나는 일을 막기 위해 아직 MCP server를 내장하지 않습니다.
+- **Connectors**: Grok Bot은 Feishu(페이슈, 중국 업무용 메신저) / 이메일 등에 로그인할 수 있습니다. DSA 자체의 알림 채널은 여전히 `.env`에 있는 webhook을 쓰며, Bot을 거쳐 전달할 필요가 없습니다.
+- **Computer use**: Bot의 클라우드 컴퓨터에 저장소를 clone하고 `.env`까지 설정해 둔 경우에만 `python main.py --stocks 600519,AAPL`이나 `python main.py --market-review`를 실행하기에 적합합니다. 인증, 제한 시간, 비동기 작업을 다루기 쉬우므로 기본적으로는 여전히 HTTP를 권장합니다.
 
-## 认证
+## 인증
 
-默认 DSA API 无需认证。若 `ADMIN_AUTH_ENABLED=true`，当前只支持登录后的 Cookie，**不支持 Bearer Token**。Grok Bot 若只能带 `Authorization: Bearer`，先保持 API 不鉴权并限制监听网段，或在反代层做独立鉴权；不要把 `XAI_API_KEY` 当成 DSA API 的鉴权密钥。
+기본적으로 DSA API는 인증이 필요 없습니다. `ADMIN_AUTH_ENABLED=true`이면 현재는 로그인 후 받은 Cookie만 지원하며 **Bearer Token은 지원하지 않습니다**. Grok Bot이 `Authorization: Bearer`만 보낼 수 있다면, API는 인증 없이 두고 접속 가능한 네트워크 범위를 제한하거나, 리버스 프록시에서 따로 인증하세요. `XAI_API_KEY`를 DSA API 인증 키로 쓰지 마세요.
 
-## 明确不做的事
+## 하지 않기로 한 것
 
-- 不把 Grok Bot 注册成 LiteLLM managed channel。
-- 不新增 `GROK_BOT_*` 环境变量。
-- 不复制一套平行 `DecisionSignal` / `AnalysisContextPack` schema。
-- 不在本页承诺某个 `grok-*` 型号在当前 `litellm` 约束内一定可用。型号以 [xAI 文档](https://docs.x.ai/docs) 为准，并用 `python scripts/check_env.py --llm` 实测。
+- Grok Bot을 LiteLLM managed channel로 등록하지 않습니다.
+- `GROK_BOT_*` 환경 변수를 새로 만들지 않습니다.
+- `DecisionSignal` / `AnalysisContextPack` schema를 따로 복제하지 않습니다.
+- 특정 `grok-*` 모델이 현재 `litellm` 버전 조건에서 반드시 동작한다고 이 문서에서 약속하지 않습니다. 모델은 [xAI 문서](https://docs.x.ai/docs)를 기준으로 하고, `python scripts/check_env.py --llm`으로 직접 확인하세요.
 
-## 最小验收
+## 최소 확인 항목
 
-1. DSA：`python scripts/check_env.py --config`；若走 xAI 模型再跑 `python scripts/check_env.py --llm`。
-2. `GET {DSA_BASE_URL}/api/health` 成功。
-3. Bot Skill 对一只真实代码（如 `AAPL` 或 `600519`）拿到 `operation_advice` 或 `action`（异步路径从 `result.report` 读）。
-4. 大盘复盘能从 status 拿到 `market_review_report` 或 `market_review_payload`，而不是只拿到 202 accepted。
-5. Routine 能读到 `GET /api/v1/decision-signals/latest/{stock_code}` 的 JSON，而无需重跑分析。
+1. DSA: `python scripts/check_env.py --config`. xAI 모델을 쓴다면 `python scripts/check_env.py --llm`도 실행합니다.
+2. `GET {DSA_BASE_URL}/api/health`가 성공합니다.
+3. Bot Skill이 실제 종목 코드 하나(예: `AAPL` 또는 `600519`)에 대해 `operation_advice` 또는 `action`을 받아 옵니다(비동기 경로는 `result.report`에서 읽음).
+4. 시장 리뷰가 202 accepted만 받는 것이 아니라 status에서 `market_review_report` 또는 `market_review_payload`를 받아 옵니다.
+5. Routine이 분석을 다시 돌리지 않고 `GET /api/v1/decision-signals/latest/{stock_code}`의 JSON을 읽을 수 있습니다.

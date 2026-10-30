@@ -1,23 +1,25 @@
-# 🚀 部署指南
+# 🚀 배포 가이드
 
-本文档介绍如何将 A股自选股智能分析系统部署到服务器。
+이 문서는 A주(중국 본토 증시 상장 주식) 관심 종목 AI 분석 시스템을 서버에 배포하는 방법을 설명합니다.
 
-## 📋 部署方案对比
+## 📋 배포 방식 비교
 
-| 方案 | 优点 | 缺点 | 推荐场景 |
+| 방식 | 장점 | 단점 | 추천 상황 |
 |------|------|------|----------|
-| **Docker Compose** ⭐ | 一键部署、环境隔离、易迁移、易升级 | 需要安装 Docker | **推荐**：大多数场景 |
-| **直接部署** | 简单直接、无额外依赖 | 环境依赖、迁移麻烦 | 临时测试 |
-| **Systemd 服务** | 系统级管理、开机自启 | 配置繁琐 | 长期稳定运行 |
-| **Supervisor** | 进程管理、自动重启 | 需要额外安装 | 多进程管理 |
+| **Docker Compose** ⭐ | 한 번에 배포, 환경 격리, 이전과 업그레이드가 쉬움 | Docker 설치 필요 | **추천**: 대부분의 경우 |
+| **직접 배포** | 단순하고 추가 의존성 없음 | 환경 의존성이 있고 이전이 번거로움 | 임시 테스트 |
+| **Systemd 서비스** | 시스템 수준 관리, 부팅 시 자동 시작 | 설정이 번거로움 | 장기간 안정적으로 운영 |
+| **Supervisor** | 프로세스 관리, 자동 재시작 | 별도 설치 필요 | 여러 프로세스 관리 |
 
-**结论：推荐使用 Docker Compose，迁移最快最方便！**
+**결론: Docker Compose를 권장합니다. 다른 서버로 옮기기도 가장 빠르고 편합니다!**
 
 ---
 
-## 🐳 方案一：Docker Compose 部署（推荐）
+## 🐳 방식 1: Docker Compose 배포(권장)
 
-### 1. 安装 Docker
+> 아래 설치 명령은 Linux 서버 기준입니다. Windows PC에서는 Docker Desktop을 설치해 Docker를 사용할 수 있습니다.
+
+### 1. Docker 설치
 
 ```bash
 # Ubuntu/Debian
@@ -30,156 +32,162 @@ sudo systemctl start docker
 sudo systemctl enable docker
 ```
 
-### 2. 准备配置文件
+### 2. 설정 파일 준비
 
 ```bash
-# 克隆代码（或上传代码到服务器）
+# 코드 클론(또는 코드를 서버에 업로드)
 git clone <your-repo-url> /opt/stock-analyzer
 cd /opt/stock-analyzer
 
-# 复制并编辑配置文件
+# 설정 파일을 복사한 뒤 편집
 cp .env.example .env
-vim .env  # 填入真实的 API Key 等配置
+vim .env  # 실제 API Key 등 설정값 입력
 ```
 
-### 3. 一键启动
+### 3. 한 번에 시작
 
 ```bash
-# 构建并启动（同时包含定时分析和 Web 界面服务）
+# 빌드 후 시작(예약 분석과 Web 화면 서비스를 함께 실행)
 docker-compose -f ./docker/docker-compose.yml up -d
 
-# 查看日志
+# 로그 보기
 docker-compose -f ./docker/docker-compose.yml logs -f
 
-# 查看运行状态
+# 실행 상태 보기
 docker-compose -f ./docker/docker-compose.yml ps
 ```
 
-启动成功后，在浏览器输入 `http://服务器公网IP:8000` 即可打开 Web 管理界面。如果打不开，记得先在云服务器控制台的「安全组」里放行 8000 端口。
+시작에 성공하면 브라우저에 `http://서버공인IP:8000`을 입력해 Web 관리 화면을 열 수 있습니다. 열리지 않으면 먼저 클라우드 서버 콘솔의 「보안 그룹」에서 8000 포트를 허용했는지 확인하십시오.
 
-> 不知道怎么访问？→ [云服务器 Web 界面访问指南](deploy-webui-cloud.md)
+> 접속 방법을 모르겠다면 → [클라우드 서버 Web 화면 접속 가이드](deploy-webui-cloud.md)
 
-### 3.1 资源建议
+### 3.1 리소스 권장 사항
 
-默认 `docker/docker-compose.yml` 为每个服务设置 `limits.memory: 1G`、`reservations.memory: 512M`，这是完整分析场景的推荐起点。
+기본 `docker/docker-compose.yml`은 서비스마다 `limits.memory: 1G`, `reservations.memory: 512M`을 설정하며, 이것이 전체 분석에 권장하는 출발점입니다.
 
-- 最低可尝试：`512M`，仅适合轻量 Web/API、单股、低并发场景，建议设置 `MAX_WORKERS=1`。
-- 推荐：`1G`，适合单独运行 `server` 或 `analyzer` 的常规分析。
-- 高负载：`2G+`，适合同时启动 `server + analyzer`、多股票、默认 `MAX_WORKERS=3`、大盘复盘、新闻扩展、图片报告或选股。
+- 최소 시도 가능: `512M`. 가벼운 Web/API, 단일 종목, 낮은 동시 실행 환경에만 적합하며, `MAX_WORKERS=1`로 설정하는 것을 권장합니다.
+- 권장: `1G`. `server` 또는 `analyzer` 하나만 실행하는 일반적인 분석에 적합합니다.
+- 고부하: `2G+`. `server + analyzer`를 함께 시작하거나, 여러 종목, 기본값 `MAX_WORKERS=3`, 시장 리뷰, 뉴스 확장, 이미지 리포트, 종목 선별을 쓰는 경우에 적합합니다.
 
-如果只能使用 `512M`，请避免同时启动 `server` 和 `analyzer`，并关闭非必要的大盘复盘、新闻扩展和图片报告能力。
+`512M`만 쓸 수 있다면 `server`와 `analyzer`를 동시에 시작하지 말고, 꼭 필요하지 않은 시장 리뷰, 뉴스 확장, 이미지 리포트 기능은 꺼 두십시오.
 
-### 3.2 避免重复定时推送
+### 3.2 예약 알림 중복 방지
 
-建议只保留一个自动调度入口：独立 `analyzer`，或开启 `SCHEDULE_ENABLED=true` 的 `server`。排查 NAS 上遗留的 `--schedule` 容器及重复部署；两个实例使用独立数据库时无法去重。
+자동 예약 실행의 진입점은 하나만 두는 것을 권장합니다. 독립된 `analyzer`를 쓰거나, `SCHEDULE_ENABLED=true`를 켠 `server`를 쓰십시오. NAS에 남아 있는 `--schedule` 컨테이너나 중복 배포가 없는지 확인하십시오. 두 인스턴스가 서로 다른 데이터베이스를 쓰면 중복을 걸러낼 수 없습니다.
 
-CLI 与 Web/API 的每日定时任务会在 `DATABASE_PATH` 指向的同一个 SQLite 文件中原子认领本次计划时间。相同到期时刻、自选股/持仓来源、分析/推送选项和报告口径只自动派发一次，即使第二个进程在第一个结束后才触发。不同时间点、不同自选股或不同分析/推送选项仍独立执行。到期时间按调度器所在进程的时区换算为 UTC；同一部署应保持 `TZ` 一致。官方 Compose 的两个服务默认共享 `data/`，因此共享认领记录。
+CLI와 Web/API의 일일 예약 실행은 `DATABASE_PATH`가 가리키는 같은 SQLite 파일 안에서 이번 예정 시각을 원자적으로 선점(claim)합니다. 예정 시각, 관심 종목/보유 종목 출처, 분석/알림 옵션, 리포트 기준이 모두 같으면 자동 실행은 한 번만 이뤄지며, 두 번째 프로세스가 첫 번째 프로세스가 끝난 뒤에 실행되더라도 마찬가지입니다. 예정 시각, 관심 종목, 분석/알림 옵션이 다르면 각각 따로 실행됩니다. 예정 시각은 스케줄러가 도는 프로세스의 시간대를 기준으로 UTC로 환산되므로, 한 배포 안에서는 `TZ`를 같게 유지하십시오. 공식 Compose의 두 서비스는 기본적으로 `data/`를 공유하므로 선점 기록도 함께 씁니다.
 
-这是“自动派发至多一次”，不是失败自动重试或通知送达保证。认领后进程退出、超时、分析失败（可能已发出部分通知）都不会让另一个定时器重复整轮任务；确认结果后可用 Web 的“立即运行”手动补跑。认领发生在实际执行边界，并固定自选股快照，避免保存设置与异步启动之间的竞态；因忙碌而未启动的 Web 任务不会认领。启动时立即运行、手动 CLI/API 分析及“立即运行”不参与此去重，也不会被它阻止。记录自动保留约 7 天；数据库不可写或锁超时会记录错误并跳过本轮，Web 调度状态会显示认领错误。
+이 기능은 "자동 실행은 많아야 한 번"을 보장할 뿐, 실패 시 자동 재시도나 알림 전달을 보장하지는 않습니다. 선점한 뒤 프로세스가 종료되거나, 시간이 초과되거나, 분석이 실패하더라도(알림 일부가 이미 나갔을 수 있음) 다른 타이머가 전체 작업을 다시 실행하지 않습니다. 결과를 확인한 뒤 Web의 "지금 실행"으로 직접 다시 돌릴 수 있습니다. 선점은 실제 실행 시점에 이뤄지고 관심 종목 스냅샷을 고정하므로, 설정 저장과 비동기 시작 사이의 경쟁 상태를 막습니다. Web 작업이 다른 작업 때문에 시작되지 못했다면 선점하지 않습니다. 시작 시 즉시 실행, 수동 CLI/API 분석, "지금 실행"은 이 중복 방지 대상이 아니며 이 기능 때문에 막히지도 않습니다. 기록은 약 7일간 자동 보관됩니다. 데이터베이스에 쓸 수 없거나 잠금 대기 시간이 초과되면 오류를 기록하고 이번 회차를 건너뛰며, Web 예약 상태 화면에 선점 오류가 표시됩니다.
 
-本机制依赖共享 SQLite 文件的可靠文件锁，仅覆盖同主机进程及使用同一个本地 bind mount 的容器；不承诺独立数据库、NFS 或跨主机部署的分布式去重。无需新增配置或修改历史分析数据。
+이 기능은 공유 SQLite 파일의 안정적인 파일 잠금에 의존하므로, 같은 호스트의 프로세스와 같은 로컬 bind mount를 쓰는 컨테이너에만 적용됩니다. 데이터베이스가 서로 다르거나 NFS 또는 여러 호스트에 걸친 배포에서의 분산 중복 방지는 보장하지 않습니다. 새로운 설정을 추가하거나 기존 분석 데이터를 수정할 필요는 없습니다.
 
-### 4. 常用管理命令
+### 4. 자주 쓰는 관리 명령
 
 ```bash
-# 停止服务
+# 서비스 중지
 docker-compose -f ./docker/docker-compose.yml down
 
-# 重启服务
+# 서비스 재시작
 docker-compose -f ./docker/docker-compose.yml restart
 
-# 更新代码后重新部署
+# 코드 업데이트 후 다시 배포
 git pull
 docker-compose -f ./docker/docker-compose.yml build --no-cache
 docker-compose -f ./docker/docker-compose.yml up -d
 
-# 进入容器调试
+# 컨테이너에 들어가 디버깅
 docker-compose -f ./docker/docker-compose.yml exec -u dsa stock-analyzer bash
 
-# 手动执行一次分析
+# 분석을 수동으로 한 번 실행
 docker-compose -f ./docker/docker-compose.yml exec -u dsa stock-analyzer python main.py --no-notify
 ```
 
-### 5. 数据持久化
+### 5. 데이터 영구 보관
 
-数据自动保存在宿主机目录：
-- `./data/` - 数据库文件
-- `./logs/` - 日志文件
-- `./reports/` - 分析报告
+데이터는 호스트 디렉터리에 자동으로 저장됩니다.
+- `./data/` - 데이터베이스 파일
+- `./logs/` - 로그 파일
+- `./reports/` - 분석 리포트
 
-### 6. 权限说明
+### 6. 권한 안내
 
-Docker 镜像启动入口会自动创建并修复 `./data`、`./logs`、`./reports` 对应挂载目录的权限，然后降权为非 root 用户 (`dsa`, UID 1000) 运行应用。普通部署不需要手动 `chown` / `chmod`。
+Docker 이미지의 시작 진입점은 `./data`, `./logs`, `./reports`에 해당하는 마운트 디렉터리를 자동으로 만들고 권한을 바로잡은 뒤, root가 아닌 사용자(`dsa`, UID 1000)로 권한을 낮춰 애플리케이션을 실행합니다. 일반적인 배포에서는 `chown` / `chmod`를 직접 실행할 필요가 없습니다.
 
-如果你显式指定了 `--user` / Compose `user:`，或使用只读挂载、rootless Docker、NFS 等不允许容器修复属主的环境，请确保实际运行用户对这些目录具备写入权限。
+`--user` / Compose `user:`를 직접 지정했거나, 읽기 전용 마운트, rootless Docker, NFS처럼 컨테이너가 소유자를 바꿀 수 없는 환경을 쓴다면, 실제 실행 사용자가 이 디렉터리들에 쓰기 권한을 갖고 있는지 확인하십시오.
 
 ---
 
-## 🖥️ 方案二：直接部署
+## 🖥️ 방식 2: 직접 배포
 
-### 1. 安装 Python 环境
+> 아래 명령은 Linux(Ubuntu/Debian) 서버 기준입니다. Windows에서는 가상환경 활성화 등 일부 명령이 다릅니다.
+
+### 1. Python 환경 설치
 
 ```bash
-# 安装 Python 3.10+
+# Python 3.10+ 설치
 sudo apt update
 sudo apt install -y python3.10 python3.10-venv python3-pip
 
-# 创建虚拟环境
+# 가상환경 만들기
 python3.10 -m venv /opt/stock-analyzer/venv
 source /opt/stock-analyzer/venv/bin/activate
 ```
 
-### 2. 安装依赖
+### 2. 의존성 설치
 
 ```bash
 cd /opt/stock-analyzer
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-### 3. 配置环境变量
+> `-i https://pypi.tuna.tsinghua.edu.cn/simple`은 중국 내 PyPI 미러 주소입니다. 중국 밖에서는 이 옵션을 빼고 `pip install -r requirements.txt`만 실행해도 됩니다.
+
+### 3. 환경 변수 설정
 
 ```bash
 cp .env.example .env
-vim .env  # 填入配置
+vim .env  # 설정값 입력
 ```
 
-### 4. 运行
+### 4. 실행
 
 ```bash
-# 单次运行
+# 한 번만 실행
 python main.py
 
-# 定时任务模式（前台运行）
+# 예약 실행 모드(포그라운드 실행)
 python main.py --schedule
 
-# 后台运行（使用 nohup）
+# 백그라운드 실행(nohup 사용)
 nohup python main.py --schedule > /dev/null 2>&1 &
 
-# 启动 Web 管理界面（云服务器需先在 .env 中设置 WEBUI_HOST=0.0.0.0）
+# Web 관리 화면 시작(클라우드 서버라면 먼저 .env에서 WEBUI_HOST=0.0.0.0 설정)
 python main.py --webui-only
 
-# 启动 Web 界面（启动时执行一次分析；需每日定时请加 --schedule 或设 SCHEDULE_ENABLED=true）
+# Web 화면 시작(시작할 때 분석을 한 번 실행합니다. 매일 예약 실행하려면 --schedule을 붙이거나 SCHEDULE_ENABLED=true로 설정)
 python main.py --webui
 ```
 
-> 不知道怎么访问？→ [云服务器 Web 界面访问指南](deploy-webui-cloud.md)
+> 접속 방법을 모르겠다면 → [클라우드 서버 Web 화면 접속 가이드](deploy-webui-cloud.md)
 
 ---
 
-## 🔧 方案三：Systemd 服务
+## 🔧 방식 3: Systemd 서비스
 
-创建 systemd 服务文件实现开机自启和自动重启：
+> Systemd는 Linux 전용입니다.
 
-### 1. 创建服务文件
+systemd 서비스 파일을 만들어 부팅 시 자동 시작과 자동 재시작을 설정합니다.
+
+### 1. 서비스 파일 만들기
 
 ```bash
 sudo vim /etc/systemd/system/stock-analyzer.service
 ```
 
-内容：
+내용:
 ```ini
 [Unit]
-Description=A股自选股智能分析系统
+Description=A주 관심 종목 AI 분석 시스템
 After=network.target
 
 [Service]
@@ -195,68 +203,68 @@ RestartSec=30
 WantedBy=multi-user.target
 ```
 
-### 2. 启动服务
+### 2. 서비스 시작
 
 ```bash
-# 重载配置
+# 설정 다시 불러오기
 sudo systemctl daemon-reload
 
-# 启动服务
+# 서비스 시작
 sudo systemctl start stock-analyzer
 
-# 开机自启
+# 부팅 시 자동 시작
 sudo systemctl enable stock-analyzer
 
-# 查看状态
+# 상태 보기
 sudo systemctl status stock-analyzer
 
-# 查看日志
+# 로그 보기
 journalctl -u stock-analyzer -f
 ```
 
 ---
 
-## ⚙️ 配置说明
+## ⚙️ 설정 안내
 
-### 必须配置项
+### 필수 설정 항목
 
-| 配置项 | 说明 | 获取方式 |
+| 설정 항목 | 설명 | 얻는 방법 |
 |--------|------|----------|
-| `ANSPIRE_API_KEYS` / `AIHUBMIX_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI 模型至少配置一个；推荐优先 Anspire 或 AIHubMix | 对应服务商控制台 |
-| `STOCK_LIST` | 自选股列表 | 逗号分隔的股票代码；已登记指数显式形态（如 `sh000016`、`930606.CSI`、`sz399365`）经一次性 `--stocks` 或 GitHub Actions 入口支持（本地 `.env`/Docker 无参数默认运行保持股票语义，指数需配 `--stocks`），规则见 [指数自选股配置](full-guide.md#指数自选股配置) |
-| 通知渠道 | 至少配置一个，如企业微信、飞书、Telegram 或邮件 | 对应通知平台 |
+| `ANSPIRE_API_KEYS` / `AIHUBMIX_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | AI 모델을 최소 하나는 설정해야 합니다. Anspire 또는 AIHubMix를 우선 권장합니다 | 각 서비스 제공자 콘솔 |
+| `STOCK_LIST` | 관심 종목 목록 | 쉼표로 구분한 종목 코드입니다. 등록된 지수의 명시적 형식(예: `sh000016`, `930606.CSI`, `sz399365`)은 일회성 `--stocks` 실행이나 GitHub Actions 진입점에서 지원합니다(로컬 `.env`/Docker에서 인자 없이 기본 실행하면 주식으로 처리하므로, 지수는 `--stocks`로 지정해야 합니다). 규칙은 [지수 관심 종목 설정](full-guide.md#指数自选股配置)을 참고하십시오 |
+| 알림 채널 | 최소 하나 설정합니다. 예: WeCom(위챗 워크), Feishu(페이슈), Telegram, 이메일 | 각 알림 플랫폼 |
 
-### 可选配置项
+### 선택 설정 항목
 
-| 配置项 | 默认值 | 说明 |
+| 설정 항목 | 기본값 | 설명 |
 |--------|--------|------|
-| `SCHEDULE_ENABLED` | `false` | 是否启用定时任务 |
-| `SCHEDULE_TIME` | `18:00` | 每日执行时间 |
-| `MARKET_REVIEW_ENABLED` | `true` | 是否启用大盘复盘 |
-| `ANSPIRE_API_KEYS` | - | Anspire 大模型与新闻搜索（推荐） |
-| `AIHUBMIX_KEY` | - | AIHubMix 一 Key 多模型（推荐） |
-| `SERPAPI_API_KEYS` | - | SerpAPI 实时金融新闻搜索（推荐） |
-| `TAVILY_API_KEYS` | - | Tavily 新闻搜索（可选） |
-| `MINIMAX_API_KEYS` | - | MiniMax 搜索（可选） |
+| `SCHEDULE_ENABLED` | `false` | 예약 실행 사용 여부 |
+| `SCHEDULE_TIME` | `18:00` | 매일 실행 시각 |
+| `MARKET_REVIEW_ENABLED` | `true` | 시장 리뷰 사용 여부 |
+| `ANSPIRE_API_KEYS` | - | Anspire LLM 및 뉴스 검색(권장) |
+| `AIHUBMIX_KEY` | - | AIHubMix, 키 하나로 여러 모델 사용(권장) |
+| `SERPAPI_API_KEYS` | - | SerpAPI 실시간 금융 뉴스 검색(권장) |
+| `TAVILY_API_KEYS` | - | Tavily 뉴스 검색(선택) |
+| `MINIMAX_API_KEYS` | - | MiniMax 검색(선택) |
 
 ---
 
-## 🌐 代理配置
+## 🌐 프록시 설정
 
-如果服务器在国内，访问 Gemini API 需要代理：
+서버가 중국 본토에 있으면 Gemini API에 접속하려면 프록시가 필요합니다.
 
-### Docker 方式
+### Docker 방식
 
-编辑 `docker-compose.yml`：
+`docker-compose.yml`을 편집합니다.
 ```yaml
 environment:
   - http_proxy=http://your-proxy:port
   - https_proxy=http://your-proxy:port
 ```
 
-### 直接部署方式
+### 직접 배포 방식
 
-编辑 `main.py` 顶部：
+`main.py` 맨 위를 편집합니다.
 ```python
 os.environ["http_proxy"] = "http://your-proxy:port"
 os.environ["https_proxy"] = "http://your-proxy:port"
@@ -264,63 +272,65 @@ os.environ["https_proxy"] = "http://your-proxy:port"
 
 ---
 
-## 📊 监控与维护
+## 📊 모니터링과 유지 관리
 
-### 日志查看
+> 아래 `tail`, `ps`, `ls`, `find` 명령은 Linux/macOS용입니다.
+
+### 로그 보기
 
 ```bash
-# Docker 方式
+# Docker 방식
 docker-compose -f ./docker/docker-compose.yml logs -f --tail=100
 
-# 直接部署
+# 직접 배포
 tail -f /opt/stock-analyzer/logs/stock_analysis_*.log
 ```
 
-### 健康检查
+### 상태 점검
 
 ```bash
-# 检查进程
+# 프로세스 확인
 ps aux | grep main.py
 
-# 检查最近的报告
+# 최근 리포트 확인
 ls -la /opt/stock-analyzer/reports/
 ```
 
-### 定期维护
+### 정기 유지 관리
 
 ```bash
-# 清理旧日志（保留7天）
+# 오래된 로그 정리(7일 보관)
 find /opt/stock-analyzer/logs -mtime +7 -delete
 
-# 清理旧报告（保留30天）
+# 오래된 리포트 정리(30일 보관)
 find /opt/stock-analyzer/reports -mtime +30 -delete
 ```
 
 ---
 
-## ❓ 常见问题
+## ❓ 자주 묻는 질문
 
-### 1. Docker 构建失败
+### 1. Docker 빌드 실패
 
 ```bash
-# 清理缓存重新构建
+# 캐시를 지우고 다시 빌드
 docker-compose -f ./docker/docker-compose.yml build --no-cache
 ```
 
-### 2. API 访问超时
+### 2. API 접속 시간 초과
 
-检查代理配置，确保服务器能访问 Gemini API。
+프록시 설정을 확인하고, 서버에서 Gemini API에 접속할 수 있는지 확인하십시오.
 
-### 3. 数据库锁定
+### 3. 데이터베이스 잠김
 
 ```bash
-# 停止服务后删除 lock 文件
+# 서비스를 중지한 뒤 lock 파일 삭제
 rm /opt/stock-analyzer/data/*.lock
 ```
 
-### 4. 内存不足
+### 4. 메모리 부족
 
-默认 Compose 已推荐 `1G`。如果仍出现 OOM 或平台杀掉容器，请提高 `docker-compose.yml` 中的内存限制；同时跑 `server + analyzer`、多股票、大盘复盘、图片报告或选股时建议 `2G+`：
+기본 Compose는 이미 `1G`를 권장합니다. 그래도 OOM(메모리 부족)이 발생하거나 플랫폼이 컨테이너를 강제로 종료한다면 `docker-compose.yml`의 메모리 한도를 높이십시오. `server + analyzer`, 여러 종목, 시장 리뷰, 이미지 리포트, 종목 선별을 함께 돌린다면 `2G+`를 권장합니다.
 ```yaml
 deploy:
   resources:
@@ -330,50 +340,50 @@ deploy:
       memory: 512M
 ```
 
-低配环境只能使用 `512M` 时，建议设置 `MAX_WORKERS=1`，只启动 `server` 或 `analyzer` 其中一个服务，并减少非必要的大盘复盘、新闻扩展和图片报告任务。
+저사양 환경에서 `512M`만 쓸 수 있다면 `MAX_WORKERS=1`로 설정하고, `server`와 `analyzer` 중 하나만 시작하며, 꼭 필요하지 않은 시장 리뷰, 뉴스 확장, 이미지 리포트 작업을 줄이는 것을 권장합니다.
 
-### 5. WebUI 打开后 UI 元素异常变大 / 布局错乱
+### 5. WebUI를 열었더니 UI 요소가 비정상적으로 크게 보이거나 레이아웃이 깨짐
 
-**症状**：能访问 8000 端口，但页面上的文字、按钮、卡片异常放大，没有正常布局。
+**증상**: 8000 포트에는 접속되지만 페이지의 글자, 버튼, 카드가 비정상적으로 크게 보이고 정상적인 레이아웃이 나오지 않습니다.
 
-**根因**：`static/index.html` 存在，但 CSS/JS 资源文件缺失（`static/assets/` 为空或不存在），浏览器无法加载样式与脚本，导致裸 HTML 渲染。
+**원인**: `static/index.html`은 있지만 CSS/JS 리소스 파일이 없어서(`static/assets/`가 비어 있거나 없음) 브라우저가 스타일과 스크립트를 불러오지 못하고 HTML만 그대로 표시합니다.
 
-**解决方法**：
+**해결 방법**:
 
-- **Docker 部署**：执行以下命令重新构建镜像（确保前端已正确打包进镜像）：
+- **Docker 배포**: 다음 명령으로 이미지를 다시 빌드합니다(프런트엔드가 이미지에 제대로 포함되도록 함).
   ```bash
   docker-compose -f ./docker/docker-compose.yml down
   docker-compose -f ./docker/docker-compose.yml build --no-cache
   docker-compose -f ./docker/docker-compose.yml up -d
   ```
-  构建完成后刷新浏览器缓存（`Ctrl+Shift+R`）再访问。
+  빌드가 끝나면 브라우저 캐시를 새로 고친 뒤(`Ctrl+Shift+R`) 다시 접속합니다.
 
-- **直接部署（pip + python）**：先构建前端，再启动服务：
+- **직접 배포(pip + python)**: 먼저 프런트엔드를 빌드한 다음 서비스를 시작합니다.
   ```bash
-  # 安装 Node.js 18+（推荐 20+，如尚未安装）
-  # 构建前端
+  # Node.js 18+ 설치(20+ 권장, 아직 설치하지 않았다면)
+  # 프런트엔드 빌드
   cd apps/dsa-web
   npm ci
   npm run build
   cd ../..
-  # 启动服务
+  # 서비스 시작
   python main.py --webui-only
   ```
 
-**验证**：用浏览器开发者工具（F12 → Network）检查是否有 `/assets/index-*.js` 和 `/assets/index-*.css` 的 404 错误；如有，说明资源缺失，按上述步骤重新构建即可。
+**확인**: 브라우저 개발자 도구(F12 → Network)에서 `/assets/index-*.js`와 `/assets/index-*.css`에 404 오류가 있는지 확인합니다. 있다면 리소스가 빠진 것이므로 위 단계대로 다시 빌드하면 됩니다.
 
 ---
 
-## 🔄 快速迁移
+## 🔄 빠른 서버 이전
 
-从一台服务器迁移到另一台：
+서버 한 대에서 다른 서버로 옮기는 방법입니다.
 
 ```bash
-# 源服务器：打包
+# 기존 서버: 압축
 cd /opt/stock-analyzer
 tar -czvf stock-analyzer-backup.tar.gz .env data/ logs/ reports/
 
-# 目标服务器：部署
+# 새 서버: 배포
 mkdir -p /opt/stock-analyzer
 cd /opt/stock-analyzer
 git clone <your-repo-url> .
@@ -383,77 +393,77 @@ docker-compose -f ./docker/docker-compose.yml up -d
 
 ---
 
-## ☁️ 方案四：GitHub Actions 部署（免服务器）
+## ☁️ 방식 4: GitHub Actions 배포(서버 불필요)
 
-**最简单的方案！** 无需服务器，利用 GitHub 免费计算资源。
+**가장 간단한 방식입니다!** 서버 없이 GitHub의 무료 컴퓨팅 자원을 사용합니다.
 
-### 优势
-- ✅ **完全免费**（每月 2000 分钟）
-- ✅ **无需服务器**
-- ✅ **自动定时执行**
-- ✅ **零维护成本**
+### 장점
+- ✅ **완전 무료**(매월 2000분)
+- ✅ **서버 불필요**
+- ✅ **자동 예약 실행**
+- ✅ **유지 관리 비용 없음**
 
-### 限制
-- ⚠️ 无状态（每次运行是新环境）
-- ⚠️ 定时可能有几分钟延迟
-- ⚠️ 无法提供 HTTP API
+### 제한
+- ⚠️ 상태가 남지 않음(실행할 때마다 새 환경)
+- ⚠️ 예약 실행이 몇 분 늦어질 수 있음
+- ⚠️ HTTP API를 제공할 수 없음
 
-### 部署步骤
+### 배포 단계
 
-#### 1. 创建 GitHub 仓库
+#### 1. GitHub 저장소 만들기
 
 ```bash
-# 初始化 git（如果还没有）
+# git 초기화(아직 하지 않았다면)
 cd /path/to/daily_stock_analysis
 git init
 git add .
 git commit -m "Initial commit"
 
-# 创建 GitHub 仓库并推送
-# 在 GitHub 网页上创建新仓库后：
-git remote add origin https://github.com/你的用户名/daily_stock_analysis.git
+# GitHub 저장소를 만들고 푸시
+# GitHub 웹페이지에서 새 저장소를 만든 뒤:
+git remote add origin https://github.com/<내-사용자명>/daily_stock_analysis.git
 git branch -M main
 git push -u origin main
 ```
 
-#### 2. 配置 Secrets（重要！）
+#### 2. Secrets 설정(중요!)
 
-打开仓库页面 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+저장소 페이지 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-添加以下 Secrets：
+다음 Secrets를 추가합니다.
 
-| Secret 名称 | 说明 | 必填 |
+| Secret 이름 | 설명 | 필수 여부 |
 |------------|------|------|
-| `ANSPIRE_API_KEYS` | Anspire Open API Key（一 Key 启用大模型与搜索） | 推荐 |
-| `AIHUBMIX_KEY` | AIHubMix API Key（一 Key 多模型） | 推荐 |
-| `ANTHROPIC_API_KEY` | Anthropic API Key | 可选 |
-| `GEMINI_API_KEY` | Gemini AI API Key | 可选 |
-| `OPENAI_API_KEY` | OpenAI 兼容 API Key | 可选 |
-| `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | 可选* |
-| `FEISHU_WEBHOOK_URL` | 飞书机器人 Webhook | 可选* |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | 可选* |
-| `TELEGRAM_CHAT_ID` | Telegram Chat ID | 可选* |
-| `TELEGRAM_MESSAGE_THREAD_ID` | Telegram Topic ID | 可选* |
-| `EMAIL_SENDER` | 发件人邮箱 | 可选* |
-| `EMAIL_PASSWORD` | 邮箱授权码 | 可选* |
-| `SERVERCHAN3_SENDKEY` | Server酱³ Sendkey | 可选* |
-| `CUSTOM_WEBHOOK_URLS` | 自定义 Webhook（多个逗号分隔） | 可选* |
-| `STOCK_LIST` | 自选股列表，如 `600519,300750` | ✅ |
-| `SERPAPI_API_KEYS` | SerpAPI Key | 推荐 |
-| `TAVILY_API_KEYS` | Tavily 搜索 API Key | 可选 |
-| `BOCHA_API_KEYS` | 博查搜索 API Key | 可选 |
-| `BRAVE_API_KEYS` | Brave Search API Key | 可选 |
-| `MINIMAX_API_KEYS` | MiniMax Coding Plan Web Search | 可选 |
-| `SEARXNG_BASE_URLS` | SearXNG 自建实例（无配额兜底，需在 settings.yml 启用 format: json）；留空时仅在显式启用公共实例发现后使用 `searx.space` | 可选 |
-| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | 是否在 `SEARXNG_BASE_URLS` 为空时自动从 `searx.space` 获取公共实例（默认 `false`） | 可选 |
-| `TUSHARE_TOKEN` | Tushare Token | 可选 |
-| `GEMINI_MODEL` | 模型名称（默认 gemini-2.0-flash） | 可选 |
+| `ANSPIRE_API_KEYS` | Anspire Open API Key(키 하나로 LLM과 검색 사용) | 권장 |
+| `AIHUBMIX_KEY` | AIHubMix API Key(키 하나로 여러 모델 사용) | 권장 |
+| `ANTHROPIC_API_KEY` | Anthropic API Key | 선택 |
+| `GEMINI_API_KEY` | Gemini AI API Key | 선택 |
+| `OPENAI_API_KEY` | OpenAI 호환 API Key | 선택 |
+| `WECHAT_WEBHOOK_URL` | WeCom(위챗 워크) 봇 Webhook | 선택* |
+| `FEISHU_WEBHOOK_URL` | Feishu(페이슈) 봇 Webhook | 선택* |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | 선택* |
+| `TELEGRAM_CHAT_ID` | Telegram Chat ID | 선택* |
+| `TELEGRAM_MESSAGE_THREAD_ID` | Telegram Topic ID | 선택* |
+| `EMAIL_SENDER` | 보내는 사람 이메일 | 선택* |
+| `EMAIL_PASSWORD` | 이메일 인증 코드(앱 비밀번호) | 선택* |
+| `SERVERCHAN3_SENDKEY` | Server酱³(ServerChan, 중국 알림 서비스) Sendkey | 선택* |
+| `CUSTOM_WEBHOOK_URLS` | 사용자 지정 Webhook(여러 개는 쉼표로 구분) | 선택* |
+| `STOCK_LIST` | 관심 종목 목록. 예: `600519,300750` | ✅ |
+| `SERPAPI_API_KEYS` | SerpAPI Key | 권장 |
+| `TAVILY_API_KEYS` | Tavily 검색 API Key | 선택 |
+| `BOCHA_API_KEYS` | Bocha(博查) 검색 API Key | 선택 |
+| `BRAVE_API_KEYS` | Brave Search API Key | 선택 |
+| `MINIMAX_API_KEYS` | MiniMax Coding Plan Web Search | 선택 |
+| `SEARXNG_BASE_URLS` | 직접 운영하는 SearXNG 인스턴스(할당량 제한 없는 예비 검색 수단이며 settings.yml에서 `format: json`을 켜야 함). 비워 두면 공개 인스턴스 탐색을 명시적으로 켠 경우에만 `searx.space`를 사용합니다 | 선택 |
+| `SEARXNG_PUBLIC_INSTANCES_ENABLED` | `SEARXNG_BASE_URLS`가 비어 있을 때 `searx.space`에서 공개 인스턴스를 자동으로 가져올지 여부(기본값 `false`) <!-- 계약 키(tests): 默认 `false` --> | 선택 |
+| `TUSHARE_TOKEN` | Tushare Token | 선택 |
+| `GEMINI_MODEL` | 모델 이름(기본값 gemini-2.0-flash) | 선택 |
 
-> *注：通知渠道至少配置一个，支持多渠道同时推送
+> *참고: 알림 채널은 최소 하나 설정해야 하며, 여러 채널로 동시에 알림을 보낼 수 있습니다.
 
-#### 3. 验证 Workflow 文件
+#### 3. Workflow 파일 확인
 
-确保 `.github/workflows/00-daily-analysis.yml` 文件存在且已提交：
+`.github/workflows/00-daily-analysis.yml` 파일이 있고 커밋되어 있는지 확인합니다.
 
 ```bash
 git add .github/workflows/00-daily-analysis.yml
@@ -461,72 +471,74 @@ git commit -m "Add GitHub Actions workflow"
 git push
 ```
 
-#### 4. 手动测试运行
+#### 4. 수동 테스트 실행
 
-1. 打开仓库页面 → **Actions** 标签
-2. 选择 **"每日股票分析"** workflow
-3. 点击 **"Run workflow"** 按钮
-4. 选择运行模式：
-   - `full` - 完整分析（股票+大盘）
-   - `market-only` - 仅大盘复盘
-   - `stocks-only` - 仅股票分析
-5. 点击绿色 **"Run workflow"** 按钮
+1. 저장소 페이지 → **Actions** 탭을 엽니다.
+2. **"每日股票分析"** workflow를 선택합니다(화면에 중국어 이름 그대로 표시되며, "일일 주식 분석"이라는 뜻입니다).
+3. **"Run workflow"** 버튼을 클릭합니다.
+4. 실행 모드를 선택합니다.
+   - `full` - 전체 분석(종목 + 시장)
+   - `market-only` - 시장 리뷰만
+   - `stocks-only` - 종목 분석만
+5. 초록색 **"Run workflow"** 버튼을 클릭합니다.
 
-#### 5. 查看执行日志
+#### 5. 실행 로그 보기
 
-- Actions 页面可以看到运行历史
-- 点击具体的运行记录查看详细日志
-- 分析报告会作为 Artifact 保存 30 天
+- Actions 페이지에서 실행 기록을 볼 수 있습니다.
+- 개별 실행 기록을 클릭하면 자세한 로그를 볼 수 있습니다.
+- 분석 리포트는 Artifact로 30일간 보관됩니다.
 
-### 定时说明
+### 예약 실행 안내
 
-默认配置：**周一到周五，北京时间 18:00** 自动执行
+기본 설정: **월요일부터 금요일까지, 베이징 시간 18:00**(한국 시간 19:00)에 자동 실행
 
-修改时间：编辑 `.github/workflows/00-daily-analysis.yml` 中的 cron 表达式：
+시각 변경: `.github/workflows/00-daily-analysis.yml`의 cron 표현식을 편집합니다.
 
 ```yaml
 schedule:
-  - cron: '0 10 * * 1-5'  # UTC 时间，+8 = 北京时间
+  - cron: '0 10 * * 1-5'  # UTC 시간, +8 = 베이징 시간
 ```
 
-常用 cron 示例：
-| 表达式 | 说明 |
+자주 쓰는 cron 예시:
+| 표현식 | 설명 |
 |--------|------|
-| `'0 10 * * 1-5'` | 周一到周五 18:00（北京时间） |
-| `'30 7 * * 1-5'` | 周一到周五 15:30（北京时间） |
-| `'0 10 * * *'` | 每天 18:00（北京时间） |
-| `'0 2 * * 1-5'` | 周一到周五 10:00（北京时间） |
+| `'0 10 * * 1-5'` | 월~금 18:00(베이징 시간) |
+| `'30 7 * * 1-5'` | 월~금 15:30(베이징 시간) |
+| `'0 10 * * *'` | 매일 18:00(베이징 시간) |
+| `'0 2 * * 1-5'` | 월~금 10:00(베이징 시간) |
 
-### 修改自选股
+> 베이징 시간은 UTC+8, 한국 시간은 UTC+9이므로 한국 시간이 베이징 시간보다 1시간 빠릅니다.
 
-方法一：修改仓库 Secret `STOCK_LIST`
+### 관심 종목 변경
 
-方法二：直接修改代码后推送：
+방법 1: 저장소 Secret `STOCK_LIST`를 수정합니다.
+
+방법 2: 코드를 직접 수정한 뒤 푸시합니다.
 ```bash
-# 修改 .env.example 或在代码中设置默认值
+# .env.example을 수정하거나 코드에서 기본값 설정
 git commit -am "Update stock list"
 git push
 ```
 
-### 常见问题
+### 자주 묻는 질문
 
-**Q: 为什么定时任务没有执行？**
-A: GitHub Actions 定时任务可能有 5-15 分钟延迟，且仅在仓库有活动时才触发。长时间无 commit 可能导致 workflow 被禁用。
+**Q: 예약 실행이 왜 실행되지 않나요?**
+A: GitHub Actions 예약 실행은 5~15분 늦어질 수 있고, 저장소에 활동이 있을 때만 실행됩니다. 오랫동안 commit이 없으면 workflow가 비활성화될 수 있습니다.
 
-**Q: 如何查看历史报告？**
-A: Actions → 选择运行记录 → Artifacts → 下载 `analysis-reports-xxx`
+**Q: 이전 리포트는 어떻게 보나요?**
+A: Actions → 실행 기록 선택 → Artifacts → `analysis-reports-xxx` 다운로드
 
-**Q: 免费额度够用吗？**
-A: 每次运行约 2-5 分钟，一个月 22 个工作日 = 44-110 分钟，远低于 2000 分钟限制。
-
----
-
-## 🌐 云服务器上部署了，但不知道怎么用浏览器访问？
-
-详见 → [云服务器 Web 界面访问指南](deploy-webui-cloud.md)
-
-涵盖：直接部署和 Docker 两种方式的启动与访问、安全组/防火墙配置、常见问题排查、Nginx 反向代理（可选）。
+**Q: 무료 사용량으로 충분한가요?**
+A: 한 번 실행에 약 2~5분이 걸리므로 한 달 영업일 22일 기준 44~110분이며, 2000분 한도보다 훨씬 적습니다.
 
 ---
 
-**祝部署顺利！🎉**
+## 🌐 클라우드 서버에 배포했는데 브라우저로 어떻게 접속하나요?
+
+자세한 내용 → [클라우드 서버 Web 화면 접속 가이드](deploy-webui-cloud.md)
+
+다루는 내용: 직접 배포와 Docker 두 방식의 시작 및 접속 방법, 보안 그룹/방화벽 설정, 자주 발생하는 문제 해결, Nginx 리버스 프록시(선택).
+
+---
+
+**배포가 순조롭기를 바랍니다! 🎉**

@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-飞书 Stream 模式适配器
+Feishu Stream 방식 어댑터
 ===================================
 
-使用飞书官方 lark-oapi SDK 的 WebSocket 长连接模式接入机器人，
-无需公网 IP 和 Webhook 配置。
+Feishu 공식 lark-oapi SDK의 WebSocket 상시 연결 방식으로 봇을 연결합니다.
+공인 IP와 Webhook 설정이 필요 없습니다.
 
-优势：
-- 不需要公网 IP 或域名
-- 不需要配置 Webhook URL
-- 通过 WebSocket 长连接接收消息
-- 更简单的接入方式
-- 内置自动重连和心跳保活
+장점:
+- 공인 IP나 도메인이 필요 없음
+- Webhook URL 설정이 필요 없음
+- WebSocket 상시 연결로 메시지 수신
+- 더 간단한 연결 방식
+- 자동 재연결과 하트비트 연결 유지 내장
 
-依赖：
+의존성:
 pip install lark-oapi
 
-飞书长连接文档：
+Feishu 상시 연결 문서:
 https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/server-side-sdk/python--sdk/handle-events
 """
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 FEISHU_DOMAIN = "https://open.feishu.cn"
 LARK_DOMAIN = "https://open.larksuite.com"
 
-# 尝试导入飞书 SDK
+# Feishu SDK import 시도
 try:
     import lark_oapi as lark
     from lark_oapi import ws
@@ -56,8 +56,8 @@ try:
     FEISHU_SDK_AVAILABLE = True
 except ImportError:
     FEISHU_SDK_AVAILABLE = False
-    logger.warning("[Feishu Stream] lark-oapi SDK 未安装，Stream 模式不可用")
-    logger.warning("[Feishu Stream] 请运行: pip install lark-oapi")
+    logger.warning("[Feishu Stream] lark-oapi SDK가 설치되지 않아 Stream 방식을 쓸 수 없음")
+    logger.warning("[Feishu Stream] 다음을 실행해 주세요: pip install lark-oapi")
 
 from bot.models import BotMessage, BotResponse, ChatType
 from src.formatters import format_feishu_markdown, chunk_content_by_max_bytes
@@ -81,9 +81,9 @@ def _resolve_feishu_domain(domain: Optional[str]) -> str:
 
 class FeishuReplyClient:
     """
-    飞书消息回复客户端
+    Feishu 메시지 답장 클라이언트
 
-    使用飞书 API 发送回复消息。
+    Feishu API로 답장 메시지를 보냅니다.
     """
 
     def __init__(
@@ -94,12 +94,12 @@ class FeishuReplyClient:
     ):
         """
         Args:
-            app_id: 飞书应用 ID
-            app_secret: 飞书应用密钥
-            domain: 飞书 API 区域（feishu/lark）或 SDK API 域名
+            app_id: Feishu 앱 ID
+            app_secret: Feishu 앱 시크릿
+            domain: Feishu API 지역(feishu/lark) 또는 SDK API 도메인
         """
         if not FEISHU_SDK_AVAILABLE:
-            raise ImportError("lark-oapi SDK 未安装")
+            raise ImportError("lark-oapi SDK가 설치되지 않음")
 
         config = get_config()
         configured_domain = (
@@ -116,7 +116,7 @@ class FeishuReplyClient:
             .log_level(lark.LogLevel.WARNING) \
             .build()
 
-        # 获取配置的最大字节数
+        # 설정된 최대 바이트 수 가져오기
         self._max_bytes = getattr(config, 'feishu_max_bytes', 20000)
 
     def _send_interactive_card(self, content: str, message_id: Optional[str] = None,
@@ -124,26 +124,26 @@ class FeishuReplyClient:
                                receive_id_type: str = "chat_id",
                                at_user: bool = False, user_id: Optional[str] = None) -> bool:
         """
-        发送交互卡片消息（支持 Markdown 渲染）
+        인터랙티브 카드 메시지 보내기(Markdown 렌더링 지원)
 
         Args:
-            content: Markdown 格式的内容
-            message_id: 原消息 ID（回复时使用）
-            chat_id: 会话 ID（主动发送时使用）
-            receive_id_type: 接收者 ID 类型
-            at_user: 是否 @用户
-            user_id: 用户 open_id（at_user=True 时需要）
+            content: Markdown 형식 내용
+            message_id: 원래 메시지 ID(답장할 때 사용)
+            chat_id: 대화 ID(먼저 보낼 때 사용)
+            receive_id_type: 받는 사람 ID 유형
+            at_user: 사용자를 @멘션할지 여부
+            user_id: 사용자 open_id(at_user=True일 때 필요)
 
         Returns:
-            是否发送成功
+            전송 성공 여부
         """
         try:
-            # 如果需要 @用户，在内容前添加 @ 标记
+            # 사용자를 @멘션해야 하면 내용 앞에 @ 표시 추가
             final_content = content
             if at_user and user_id:
                 final_content = f"<at user_id=\"{user_id}\"></at> {content}"
 
-            # 构建交互卡片 payload
+            # 인터랙티브 카드 payload 만들기
             card_data = {
                 "config": {"wide_screen_mode": True},
                 "elements": [
@@ -160,7 +160,7 @@ class FeishuReplyClient:
             content_json = json.dumps(card_data)
 
             if message_id:
-                # 回复消息
+                # 메시지에 답장
                 request = ReplyMessageRequest.builder() \
                     .message_id(message_id) \
                     .request_body(
@@ -172,7 +172,7 @@ class FeishuReplyClient:
                     .build()
                 response = self._client.im.v1.message.reply(request)
             else:
-                # 主动发送消息
+                # 먼저 메시지 보내기
                 request = CreateMessageRequest.builder() \
                     .receive_id_type(receive_id_type) \
                     .request_body(
@@ -187,40 +187,40 @@ class FeishuReplyClient:
 
             if not response.success():
                 logger.error(
-                    f"[Feishu Stream] 发送交互卡片失败: code={response.code}, "
+                    f"[Feishu Stream] 인터랙티브 카드 전송 실패: code={response.code}, "
                     f"msg={response.msg}, log_id={response.get_log_id()}"
                 )
                 return False
 
-            logger.debug("[Feishu Stream] 发送交互卡片成功")
+            logger.debug("[Feishu Stream] 인터랙티브 카드 전송 성공")
             return True
 
         except Exception as e:
-            logger.error(f"[Feishu Stream] 发送交互卡片异常: {e}")
+            logger.error(f"[Feishu Stream] 인터랙티브 카드 전송 예외: {e}")
             return False
 
     def reply_text(self, message_id: str, text: str, at_user: bool = False,
                    user_id: Optional[str] = None) -> bool:
         """
-        回复文本消息（支持交互卡片和分段发送）
+        텍스트 메시지로 답장(인터랙티브 카드와 나눠 보내기 지원)
 
         Args:
-            message_id: 原消息 ID
-            text: 回复文本
-            at_user: 是否 @用户
-            user_id: 用户 open_id（at_user=True 时需要）
+            message_id: 원래 메시지 ID
+            text: 답장 텍스트
+            at_user: 사용자를 @멘션할지 여부
+            user_id: 사용자 open_id(at_user=True일 때 필요)
 
         Returns:
-            是否发送成功
+            전송 성공 여부
         """
-        # 将文本转换为飞书 Markdown 格式
+        # 텍스트를 Feishu Markdown 형식으로 변환
         formatted_text = format_feishu_markdown(text)
 
-        # 检查是否需要分段发送
+        # 나눠 보내야 하는지 확인
         content_bytes = len(formatted_text.encode('utf-8'))
         if content_bytes > self._max_bytes:
             logger.info(
-                f"[Feishu Stream] 回复消息内容超长({content_bytes}字节)，将分批发送"
+                f"[Feishu Stream] 답장 내용이 너무 김({content_bytes}바이트), 나눠서 보냄"
             )
             return self._send_to_chat_chunked(
                 formatted_text,
@@ -232,7 +232,7 @@ class FeishuReplyClient:
                 ),
             )
 
-        # 单条消息，使用交互卡片
+        # 메시지 하나면 인터랙티브 카드 사용
         return self._send_interactive_card(
             formatted_text, message_id=message_id, at_user=at_user, user_id=user_id
         )
@@ -240,24 +240,24 @@ class FeishuReplyClient:
     def send_to_chat(self, chat_id: str, text: str,
                      receive_id_type: str = "chat_id") -> bool:
         """
-        发送消息到指定会话（支持交互卡片和分段发送）
+        지정한 대화로 메시지 보내기(인터랙티브 카드와 나눠 보내기 지원)
 
         Args:
-            chat_id: 会话 ID
-            text: 消息文本
-            receive_id_type: 接收者 ID 类型，默认 chat_id
+            chat_id: 대화 ID
+            text: 메시지 텍스트
+            receive_id_type: 받는 사람 ID 유형, 기본값 chat_id
 
         Returns:
-            是否发送成功
+            전송 성공 여부
         """
-        # 将文本转换为飞书 Markdown 格式
+        # 텍스트를 Feishu Markdown 형식으로 변환
         formatted_text = format_feishu_markdown(text)
 
-        # 检查是否需要分段发送
+        # 나눠 보내야 하는지 확인
         content_bytes = len(formatted_text.encode('utf-8'))
         if content_bytes > self._max_bytes:
             logger.info(
-                f"[Feishu Stream] 发送消息内容超长({content_bytes}字节)，将分批发送"
+                f"[Feishu Stream] 보낼 내용이 너무 김({content_bytes}바이트), 나눠서 보냄"
             )
             return self._send_to_chat_chunked(
                 formatted_text,
@@ -268,19 +268,19 @@ class FeishuReplyClient:
                 ),
             )
 
-        # 单条消息，使用交互卡片
+        # 메시지 하나면 인터랙티브 카드 사용
         return self._send_interactive_card(formatted_text, chat_id=chat_id, receive_id_type=receive_id_type)
 
     def _send_to_chat_chunked(self, content: str, send_func: Callable[[str], bool]) -> bool:
         """
-        分批发送消息（支持交互卡片和分段发送）
+        메시지를 나눠 보내기(인터랙티브 카드와 나눠 보내기 지원)
 
         Args:
-            content: 消息文本
-            send_func: 发送单个分片的函数，返回是否发送成功
+            content: 메시지 텍스트
+            send_func: 조각 하나를 보내는 함수, 전송 성공 여부를 반환
 
         Returns:
-            是否全部发送成功
+            모두 전송 성공했는지 여부
         """
         chunks = chunk_content_by_max_bytes(content, self._max_bytes, add_page_marker=True)
         success_count = 0
@@ -288,7 +288,7 @@ class FeishuReplyClient:
             if send_func(chunk):
                 success_count += 1
             else:
-                logger.error(f"[Feishu Stream] 发送消息失败: {chunk}")
+                logger.error(f"[Feishu Stream] 메시지 전송 실패: {chunk}")
             if i < len(chunks) - 1:
                 time.sleep(1)
         return success_count == len(chunks)
@@ -296,10 +296,10 @@ class FeishuReplyClient:
 
 class FeishuStreamHandler:
     """
-    飞书 Stream 模式消息处理器
+    Feishu Stream 방식 메시지 처리기
 
-    将 SDK 的事件转换为统一的 BotMessage 格式，
-    并调用命令分发器处理。
+    SDK 이벤트를 공통 BotMessage 형식으로 바꾸고,
+    명령 분배기를 호출해 처리합니다.
     """
 
     def __init__(
@@ -309,8 +309,8 @@ class FeishuStreamHandler:
     ):
         """
         Args:
-            on_message: 消息处理回调函数，接收 BotMessage 返回 BotResponse
-            reply_client: 飞书回复客户端
+            on_message: 메시지 처리 콜백 함수. BotMessage를 받아 BotResponse를 반환
+            reply_client: Feishu 답장 클라이언트
         """
         self._on_message = on_message
         self._reply_client = reply_client
@@ -354,7 +354,7 @@ class FeishuStreamHandler:
                 with self._queue_lock:
                     self._active_conversations.discard(conversation_key)
                     self._pending_messages.pop(conversation_key, None)
-                self._logger.error("[Feishu Stream] 无法启动消息处理线程: %s", exc)
+                self._logger.error("[Feishu Stream] 메시지 처리 스레드를 시작할 수 없음: %s", exc)
 
     def _drain_conversation(self, conversation_key: str) -> None:
         """Drain one conversation queue in FIFO order."""
@@ -382,19 +382,19 @@ class FeishuStreamHandler:
                     user_id=bot_message.user_id if response.at_user else None,
                 )
         except Exception as e:
-            self._logger.error(f"[Feishu Stream] 异步处理消息失败: {e}")
+            self._logger.error(f"[Feishu Stream] 비동기 메시지 처리 실패: {e}")
             self._logger.exception(e)
 
     @staticmethod
     def _truncate_log_content(text: str, max_len: int = 200) -> str:
-        """截断日志内容"""
+        """로그 내용 자르기"""
         cleaned = text.replace("\n", " ").strip()
         if len(cleaned) > max_len:
             return f"{cleaned[:max_len]}..."
         return cleaned
 
     def _log_incoming_message(self, message: BotMessage) -> None:
-        """记录收到的消息日志"""
+        """받은 메시지 로그 남기기"""
         content = message.raw_content or message.content or ""
         summary = self._truncate_log_content(content)
         self._logger.info(
@@ -409,13 +409,13 @@ class FeishuStreamHandler:
 
     def handle_message(self, event: 'P2ImMessageReceiveV1') -> None:
         """
-        处理接收到的消息事件
+        받은 메시지 이벤트 처리
 
         Args:
-            event: 飞书消息接收事件
+            event: Feishu 메시지 수신 이벤트
         """
         try:
-            # 解析消息
+            # 메시지 해석
             bot_message = self._parse_event_message(event)
 
             if bot_message is None:
@@ -426,15 +426,15 @@ class FeishuStreamHandler:
             self._enqueue_message(bot_message)
 
         except Exception as e:
-            self._logger.error(f"[Feishu Stream] 处理消息失败: {e}")
+            self._logger.error(f"[Feishu Stream] 메시지 처리 실패: {e}")
             self._logger.exception(e)
 
     def _parse_event_message(self, event: 'P2ImMessageReceiveV1') -> Optional[BotMessage]:
         """
-        解析飞书事件消息为统一格式
+        Feishu 이벤트 메시지를 공통 형식으로 해석
 
         Args:
-            event: P2ImMessageReceiveV1 事件对象
+            event: P2ImMessageReceiveV1 이벤트 객체
         """
         try:
             event_data = event.event
@@ -447,13 +447,13 @@ class FeishuStreamHandler:
             if message_data is None:
                 return None
 
-            # 只处理文本消息
+            # 텍스트 메시지만 처리
             message_type = message_data.message_type or ""
             if message_type != "text":
-                self._logger.debug(f"[Feishu Stream] 忽略非文本消息: {message_type}")
+                self._logger.debug(f"[Feishu Stream] 텍스트가 아닌 메시지 무시: {message_type}")
                 return None
 
-            # 解析消息内容
+            # 메시지 내용 해석
             content_str = message_data.content or "{}"
             try:
                 content_json = json.loads(content_str)
@@ -461,16 +461,16 @@ class FeishuStreamHandler:
             except json.JSONDecodeError:
                 raw_content = content_str
 
-            # 提取命令（去除 @机器人）
+            # 명령 추출(@봇 제거)
             content = self._extract_command(raw_content, message_data.mentions)
             mentioned = "@" in raw_content or bool(message_data.mentions)
 
-            # 获取发送者信息
+            # 보낸 사람 정보 가져오기
             user_id = ""
             if sender_data and sender_data.sender_id:
                 user_id = sender_data.sender_id.open_id or sender_data.sender_id.user_id or ""
 
-            # 获取会话类型
+            # 대화 유형 가져오기
             chat_type_str = message_data.chat_type or ""
             if chat_type_str == "group":
                 chat_type = ChatType.GROUP
@@ -479,7 +479,7 @@ class FeishuStreamHandler:
             else:
                 chat_type = ChatType.UNKNOWN
 
-            # 创建时间
+            # 생성 시간
             create_time = message_data.create_time
             try:
                 if create_time:
@@ -489,7 +489,7 @@ class FeishuStreamHandler:
             except (ValueError, TypeError):
                 timestamp = datetime.now()
 
-            # 构建原始数据
+            # 원본 데이터 만들기
             raw_data = {
                 "header": {
                     "event_id": event.header.event_id if event.header else "",
@@ -510,7 +510,7 @@ class FeishuStreamHandler:
                 platform="feishu",
                 message_id=message_data.message_id or "",
                 user_id=user_id,
-                user_name=user_id,  # 飞书不直接返回用户名
+                user_name=user_id,  # Feishu는 사용자 이름을 바로 주지 않음
                 chat_id=message_data.chat_id or "",
                 chat_type=chat_type,
                 content=content,
@@ -522,32 +522,32 @@ class FeishuStreamHandler:
             )
 
         except Exception as e:
-            self._logger.error(f"[Feishu Stream] 解析消息失败: {e}")
+            self._logger.error(f"[Feishu Stream] 메시지 해석 실패: {e}")
             return None
 
     def _extract_command(self, text: str, mentions: list) -> str:
         """
-        提取命令内容（去除 @机器人）
+        명령 내용 추출(@봇 제거)
 
-        飞书的 @用户 格式是：@_user_1, @_user_2 等
+        Feishu의 @사용자 형식: @_user_1, @_user_2 등
 
         Args:
-            text: 原始消息文本
-            mentions: @提及列表
+            text: 원본 메시지 텍스트
+            mentions: @멘션 목록
         """
         import re
 
-        # 方式1: 通过 mentions 列表移除（精确匹配）
+        # 방법 1: mentions 목록으로 제거(정확히 일치)
         for mention in (mentions or []):
             key = getattr(mention, 'key', '') or ''
             if key:
                 text = text.replace(key, '')
 
-        # 方式2: 正则兜底，移除飞书 @用户 格式（@_user_N）
-        # 当 mentions 为空或未正确传递时生效
+        # 방법 2: 정규식으로 보완, Feishu @사용자 형식(@_user_N) 제거
+        # mentions가 비었거나 제대로 전달되지 않았을 때 작동
         text = re.sub(r'@_user_\d+\s*', '', text)
 
-        # 清理多余空格
+        # 남는 공백 정리
         return ' '.join(text.split())
 
     def shutdown(self, wait: bool = False) -> None:
@@ -561,15 +561,15 @@ class FeishuStreamHandler:
 
 class FeishuStreamClient:
     """
-    飞书 Stream 模式客户端
+    Feishu Stream 방식 클라이언트
 
-    封装 lark-oapi SDK 的 WebSocket 客户端，提供简单的启动接口。
+    lark-oapi SDK의 WebSocket 클라이언트를 감싸 간단한 시작 함수를 제공합니다.
 
-    使用方式：
+    사용 방법:
         client = FeishuStreamClient()
-        client.start()  # 阻塞运行
+        client.start()  # 블로킹 실행
 
-        # 或者在后台运行
+        # 또는 백그라운드 실행
         client.start_background()
     """
 
@@ -581,14 +581,14 @@ class FeishuStreamClient:
     ):
         """
         Args:
-            app_id: 应用 ID（不传则从配置读取）
-            app_secret: 应用密钥（不传则从配置读取）
-            domain: 飞书 API 区域（feishu/lark）或 SDK API 域名
+            app_id: 앱 ID(안 주면 설정에서 읽음)
+            app_secret: 앱 시크릿(안 주면 설정에서 읽음)
+            domain: Feishu API 지역(feishu/lark) 또는 SDK API 도메인
         """
         if not FEISHU_SDK_AVAILABLE:
             raise ImportError(
-                "lark-oapi SDK 未安装。\n"
-                "请运行: pip install lark-oapi"
+                "lark-oapi SDK가 설치되지 않았습니다.\n"
+                "다음을 실행해 주세요: pip install lark-oapi"
             )
 
         from src.config import get_config
@@ -605,7 +605,7 @@ class FeishuStreamClient:
 
         if not self._app_id or not self._app_secret:
             raise ValueError(
-                "飞书 Stream 模式需要配置 FEISHU_APP_ID 和 FEISHU_APP_SECRET"
+                "Feishu Stream 방식에는 FEISHU_APP_ID와 FEISHU_APP_SECRET 설정이 필요합니다"
             )
 
         self._ws_client: Optional[ws.Client] = None
@@ -615,7 +615,7 @@ class FeishuStreamClient:
         self._running = False
 
     def _create_message_handler(self) -> Callable[[BotMessage], BotResponse]:
-        """创建消息处理函数"""
+        """메시지 처리 함수 만들기"""
 
         def handle_message(message: BotMessage) -> BotResponse:
             from bot.dispatcher import get_dispatcher
@@ -625,24 +625,24 @@ class FeishuStreamClient:
         return handle_message
 
     def _create_event_handler(self) -> 'lark.EventDispatcherHandler':
-        """创建事件分发处理器"""
-        # 创建回复客户端
+        """이벤트 분배 처리기 만들기"""
+        # 답장 클라이언트 만들기
         self._reply_client = FeishuReplyClient(
             self._app_id,
             self._app_secret,
             domain=self._domain,
         )
 
-        # 创建消息处理器
+        # 메시지 처리기 만들기
         handler = FeishuStreamHandler(
             self._create_message_handler(),
             self._reply_client
         )
         self._message_handler = handler
 
-        # 创建并注册事件处理器
-        # 注意：encrypt_key 和 verification_token 在长连接模式下不是必需的
-        # 但 SDK 要求传入（可以为空字符串）
+        # 이벤트 처리기 만들고 등록
+        # 참고: 상시 연결 방식에서는 encrypt_key와 verification_token이 꼭 필요하지는 않음
+        # 하지만 SDK가 값을 요구함(빈 문자열 가능)
         from src.config import get_config
         config = get_config()
 
@@ -661,16 +661,16 @@ class FeishuStreamClient:
 
     def start(self) -> None:
         """
-        启动 Stream 客户端（阻塞）
+        Stream 클라이언트 시작(블로킹)
 
-        此方法会阻塞当前线程，直到客户端停止。
+        클라이언트가 멈출 때까지 현재 스레드를 막습니다.
         """
-        logger.info("[Feishu Stream] 正在启动...")
+        logger.info("[Feishu Stream] 시작하는 중...")
 
-        # 创建事件处理器
+        # 이벤트 처리기 만들기
         event_handler = self._create_event_handler()
 
-        # 创建 WebSocket 客户端
+        # WebSocket 클라이언트 만들기
         self._ws_client = ws.Client(
             app_id=self._app_id,
             app_secret=self._app_secret,
@@ -681,19 +681,19 @@ class FeishuStreamClient:
         )
 
         self._running = True
-        logger.info("[Feishu Stream] 客户端已启动，等待消息...")
+        logger.info("[Feishu Stream] 클라이언트 시작됨, 메시지 기다리는 중...")
 
-        # 启动（阻塞）
+        # 시작(블로킹)
         self._ws_client.start()
 
     def start_background(self) -> None:
         """
-        在后台线程启动 Stream 客户端（非阻塞）
+        백그라운드 스레드에서 Stream 클라이언트 시작(논블로킹)
 
-        适用于与其他服务（如 WebUI）同时运行的场景。
+        다른 서비스(예: WebUI)와 함께 돌릴 때 씁니다.
         """
         if self._background_thread and self._background_thread.is_alive():
-            logger.warning("[Feishu Stream] 客户端已在运行")
+            logger.warning("[Feishu Stream] 클라이언트가 이미 실행 중")
             return
 
         self._running = True
@@ -703,47 +703,47 @@ class FeishuStreamClient:
             name="FeishuStreamClient"
         )
         self._background_thread.start()
-        logger.info("[Feishu Stream] 后台客户端已启动")
+        logger.info("[Feishu Stream] 백그라운드 클라이언트 시작됨")
 
     def _run_in_background(self) -> None:
-        """后台运行（处理异常和重连）"""
+        """백그라운드 실행(예외 처리와 재연결)"""
         import time
 
         while self._running:
             try:
                 self.start()
             except Exception as e:
-                logger.error(f"[Feishu Stream] 运行异常: {e}")
+                logger.error(f"[Feishu Stream] 실행 예외: {e}")
                 if self._running:
-                    logger.info("[Feishu Stream] 5 秒后重连...")
+                    logger.info("[Feishu Stream] 5초 후 재연결...")
                     time.sleep(5)
 
     def stop(self) -> None:
-        """停止客户端"""
+        """클라이언트 중지"""
         self._running = False
         if self._message_handler is not None:
             self._message_handler.shutdown(wait=False)
-        logger.info("[Feishu Stream] 客户端已停止")
+        logger.info("[Feishu Stream] 클라이언트 중지됨")
 
     @property
     def is_running(self) -> bool:
-        """是否正在运行"""
+        """실행 중인지 여부"""
         return self._running
 
 
-# 全局客户端实例
+# 전역 클라이언트 인스턴스
 _stream_client: Optional[FeishuStreamClient] = None
 
 
 def get_feishu_stream_client() -> Optional[FeishuStreamClient]:
-    """获取全局 Stream 客户端实例"""
+    """전역 Stream 클라이언트 인스턴스 가져오기"""
     global _stream_client
 
     if _stream_client is None and FEISHU_SDK_AVAILABLE:
         try:
             _stream_client = FeishuStreamClient()
         except (ImportError, ValueError) as e:
-            logger.warning(f"[Feishu Stream] 无法创建客户端: {e}")
+            logger.warning(f"[Feishu Stream] 클라이언트를 만들 수 없음: {e}")
             return None
 
     return _stream_client
@@ -751,10 +751,10 @@ def get_feishu_stream_client() -> Optional[FeishuStreamClient]:
 
 def start_feishu_stream_background() -> bool:
     """
-    在后台启动飞书 Stream 客户端
+    백그라운드에서 Feishu Stream 클라이언트 시작
 
     Returns:
-        是否成功启动
+        시작 성공 여부
     """
     client = get_feishu_stream_client()
     if client:

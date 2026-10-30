@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tushare 股票列表获取脚本
+Tushare 종목 목록 받기 스크립트
 
-从 Tushare Pro 获取 A股、港股、美股列表信息，保存为 CSV 文件
+Tushare Pro에서 중국 A주, 홍콩, 미국 주식 목록을 받아 CSV 파일로 저장합니다
 
-使用方法：
+사용법:
     python3 scripts/fetch_tushare_stock_list.py
     python3 scripts/fetch_tushare_stock_list.py --a-rk
 
-环境要求：
-    - 需要在 .env 中配置 TUSHARE_TOKEN
-    - 需要安装 tushare: pip install tushare
-    - 账号积分要求：
-        * A股/港股：2000积分
-        * 美股：120积分试用，5000积分正式权限
+필요 환경:
+    - .env에 TUSHARE_TOKEN 설정 필요
+    - tushare 설치 필요: pip install tushare
+    - 계정 포인트 조건:
+        * A주/홍콩 주식: 2000포인트
+        * 미국 주식: 120포인트 체험, 5000포인트 정식 권한
 
-输出文件：
-    - data/stock_list_a.csv      A股列表（--a-rk 时会覆盖为修正后名称）
-    - data/stock_list_hk.csv     港股列表
-    - data/stock_list_us.csv     美股列表
-    - data/README_stock_list.md  数据说明文档
+출력 파일:
+    - data/stock_list_a.csv      A주 목록 (--a-rk 사용 시 수정된 이름으로 덮어씀)
+    - data/stock_list_hk.csv     홍콩 주식 목록
+    - data/stock_list_us.csv     미국 주식 목록
+    - data/README_stock_list.md  데이터 설명 문서
 """
 
 import argparse
@@ -36,25 +36,25 @@ from typing import Optional, List, Dict
 import pandas as pd
 from dotenv import load_dotenv
 
-# 添加项目根目录到路径
+# 프로젝트 루트 폴더를 경로에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     import tushare as ts
 except ImportError:
-    print("[错误] 未安装 tushare 库")
-    print("请执行: pip install tushare")
+    print("[오류] tushare 라이브러리가 설치되어 있지 않습니다")
+    print("다음을 실행하세요: pip install tushare")
     sys.exit(1)
 
 
-# 配置
+# 설정
 load_dotenv()
 
 TUSHARE_TOKEN = os.getenv('TUSHARE_TOKEN')
 OUTPUT_DIR = Path(__file__).parent.parent / "data"
-PAGE_SIZE = 5000  # 美股每页读取数量（API 最大6000，设置5000留余量）
-SLEEP_MIN = 5     # 最小睡眠时间（秒）
-SLEEP_MAX = 10    # 最大睡眠时间（秒）
+PAGE_SIZE = 5000  # 미국 주식 한 페이지당 읽을 개수 (API 최대 6000, 여유 있게 5000)
+SLEEP_MIN = 5     # 최소 대기 시간(초)
+SLEEP_MAX = 10    # 최대 대기 시간(초)
 A_RK_BATCH_SIZE = 200
 A_RK_FIELDS = "ts_code,name,close,pre_close,trade_time"
 A_RK_NAME_PREFIX_RE = re.compile(r"^(XD|XR|DR|N|C)")
@@ -62,86 +62,86 @@ A_RK_NAME_PREFIX_RE = re.compile(r"^(XD|XR|DR|N|C)")
 
 def get_tushare_api() -> Optional[ts.pro_api]:
     """
-    获取 Tushare API 实例
+    Tushare API 객체 가져오기
 
     Returns:
-        Tushare API 实例，失败返回 None
+        Tushare API 객체, 실패하면 None
     """
     if not TUSHARE_TOKEN:
-        print("[错误] 未找到 TUSHARE_TOKEN")
-        print("请在 .env 文件中配置: TUSHARE_TOKEN=你的token")
+        print("[오류] TUSHARE_TOKEN을 찾을 수 없습니다")
+        print(".env 파일에 설정하세요: TUSHARE_TOKEN=내_토큰")
         return None
 
     try:
         api = ts.pro_api(TUSHARE_TOKEN)
-        # 测试连接
+        # 연결 테스트
         api.trade_cal(exchange='SSE', start_date='20240101', end_date='20240101')
-        print("✓ Tushare API 连接成功")
+        print("✓ Tushare API 연결 성공")
         return api
     except Exception as e:
-        print(f"[错误] Tushare API 连接失败: {e}")
-        print("请检查：")
-        print("  1. TUSHARE_TOKEN 是否正确")
-        print("  2. 账号积分是否足够（A股/港股需要2000积分）")
+        print(f"[오류] Tushare API 연결 실패: {e}")
+        print("다음을 확인하세요:")
+        print("  1. TUSHARE_TOKEN이 맞는지")
+        print("  2. 계정 포인트가 충분한지 (A주/홍콩 주식은 2000포인트 필요)")
         return None
 
 
 def random_sleep(min_seconds: int = SLEEP_MIN, max_seconds: int = SLEEP_MAX):
     """
-    随机睡眠，避免频繁请求
+    요청이 너무 잦지 않도록 무작위로 잠시 쉼
 
     Args:
-        min_seconds: 最小睡眠时间
-        max_seconds: 最大睡眠时间
+        min_seconds: 최소 대기 시간
+        max_seconds: 최대 대기 시간
     """
     sleep_time = random.uniform(min_seconds, max_seconds)
-    print(f"  ⏱  休息 {sleep_time:.1f} 秒...")
+    print(f"  ⏱  {sleep_time:.1f}초 쉬는 중...")
     time.sleep(sleep_time)
 
 
 def fetch_a_stock_list(api: ts.pro_api) -> Optional[pd.DataFrame]:
     """
-    获取 A股列表
+    A주 목록 받기
 
-    接口：stock_basic
-    限量：单次最多6000行（覆盖全市场A股）
+    API: stock_basic
+    한도: 한 번에 최대 6000행 (A주 전체 시장 포함)
 
     Args:
-        api: Tushare API 实例
+        api: Tushare API 객체
 
     Returns:
-        A股数据 DataFrame，失败返回 None
+        A주 데이터 DataFrame, 실패하면 None
     """
-    print("\n[1/3] 正在获取 A股列表...")
+    print("\n[1/3] A주 목록 받는 중...")
 
     try:
-        # 获取所有正常上市的股票
+        # 정상 상장된 종목 전체 받기
         df = api.stock_basic(
-            exchange='',        # 空：全部交易所
-            list_status='L',    # L: 上市, D: 退市, P: 暂停上市
+            exchange='',        # 빈 값: 모든 거래소
+            list_status='L',    # L: 상장, D: 상장폐지, P: 상장정지
             fields='ts_code,symbol,name,area,industry,fullname,enname,cnspell,market,exchange,curr_type,list_status,list_date,delist_date,is_hs,act_name,act_ent_type'
         )
 
         if df is not None and len(df) > 0:
-            print(f"✓ A股列表获取成功，共 {len(df)} 只股票")
-            print("  - 交易所分布：")
+            print(f"✓ A주 목록 받기 성공, 총 {len(df)}개 종목")
+            print("  - 거래소별 분포:")
             for exchange, count in df['exchange'].value_counts().items():
-                print(f"    {exchange}: {count} 只")
+                print(f"    {exchange}: {count}개")
             return df
         else:
-            print("[错误] A股数据为空")
+            print("[오류] A주 데이터가 비어 있습니다")
             return None
 
     except Exception as e:
-        print(f"[错误] 获取 A股列表失败: {e}")
+        print(f"[오류] A주 목록 받기 실패: {e}")
         return None
 
 
 def should_fix_a_stock_name(name: str) -> bool:
     """
-    判断 A 股名称是否属于需要修正的状态名。
+    A주 종목 이름이 고쳐야 하는 상태 표시 이름인지 판단합니다.
 
-    主要覆盖新股、除权除息等前缀：
+    주로 신규 상장, 권리락·배당락 등의 접두어를 다룹니다:
     XD / XR / DR / N / C
     """
     if name is None:
@@ -155,20 +155,20 @@ def should_fix_a_stock_name(name: str) -> bool:
 
 
 def chunk_list(items: List[str], chunk_size: int) -> List[List[str]]:
-    """将列表按固定大小切片。"""
+    """리스트를 정해진 크기로 나눕니다."""
     return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
 
 
 def fetch_rt_k_names(api: ts.pro_api, ts_codes: List[str]) -> Dict[str, str]:
     """
-    批量获取 rt_k 返回的股票名称。
+    rt_k가 돌려주는 종목 이름을 묶어서 받습니다.
 
-    参考官方文档：
+    공식 문서 참고:
     https://tushare.pro/wctapi/documents/372.md
 
-    rt_k 是 A 股实时日线接口，支持按股票代码和股票代码通配符提取
-    实时日 K 线行情。本脚本只把它用作名称回填的辅助来源，修正
-    stock_basic 中返回的短期交易状态前缀名称。
+    rt_k는 A주 실시간 일봉 API로, 종목 코드나 코드 와일드카드로
+    실시간 일봉 시세를 받을 수 있습니다. 이 스크립트는 이름을 채우는 보조 출처로만 써서
+    stock_basic이 돌려준 일시적 거래 상태 접두어가 붙은 이름을 고칩니다.
     """
     if not ts_codes:
         return {}
@@ -176,20 +176,20 @@ def fetch_rt_k_names(api: ts.pro_api, ts_codes: List[str]) -> Dict[str, str]:
     name_map: Dict[str, str] = {}
     batches = chunk_list(ts_codes, A_RK_BATCH_SIZE)
 
-    print(f"\n[rt_k] 待修正股票数：{len(ts_codes)}，分 {len(batches)} 批获取...")
+    print(f"\n[rt_k] 고칠 종목 수: {len(ts_codes)}, {len(batches)}번에 나눠 받는 중...")
 
     for index, batch in enumerate(batches, start=1):
         ts_code_param = ",".join(batch)
-        print(f"  [rt_k] 第 {index}/{len(batches)} 批：{len(batch)} 只股票")
+        print(f"  [rt_k] {index}/{len(batches)}번째 묶음: {len(batch)}개 종목")
 
         try:
             df = api.rt_k(ts_code=ts_code_param, fields=A_RK_FIELDS)
         except Exception as e:
-            print(f"  [警告] rt_k 批次 {index} 获取失败: {e}")
+            print(f"  [경고] rt_k {index}번째 묶음 받기 실패: {e}")
             continue
 
         if df is None or len(df) == 0:
-            print(f"  [警告] rt_k 批次 {index} 无返回数据")
+            print(f"  [경고] rt_k {index}번째 묶음에 돌아온 데이터가 없습니다")
             continue
 
         for _, row in df.iterrows():
@@ -207,37 +207,37 @@ def fetch_rt_k_names(api: ts.pro_api, ts_codes: List[str]) -> Dict[str, str]:
         if index < len(batches):
             random_sleep(1, 2)
 
-    print(f"[rt_k] 成功获取 {len(name_map)} 条名称映射")
+    print(f"[rt_k] 이름 매핑 {len(name_map)}개 받기 성공")
     return name_map
 
 
 def fix_a_stock_names_with_rt_k(api: ts.pro_api, df: pd.DataFrame) -> pd.DataFrame:
     """
-    使用 rt_k 修正 A 股名称。
+    rt_k로 A주 종목 이름을 고칩니다.
 
-    仅对名称带有 XD / XR / DR / N / C 前缀的股票进行校正。
+    이름에 XD / XR / DR / N / C 접두어가 붙은 종목만 고칩니다.
     """
     if df is None or len(df) == 0:
         return df
 
     if "name" not in df.columns or "ts_code" not in df.columns:
-        print("[警告] A股数据缺少 ts_code/name 列，跳过 rt_k 名称修正")
+        print("[경고] A주 데이터에 ts_code/name 열이 없어 rt_k 이름 수정을 건너뜁니다")
         return df
 
     fix_mask = df["name"].astype(str).map(should_fix_a_stock_name)
     fix_df = df.loc[fix_mask, ["ts_code", "name"]].copy()
 
     if fix_df.empty:
-        print("[rt_k] 未发现需要修正的 A 股名称")
+        print("[rt_k] 고칠 A주 종목 이름이 없습니다")
         return df
 
     ts_codes = fix_df["ts_code"].astype(str).tolist()
-    print(f"[rt_k] 发现 {len(ts_codes)} 只待修正 A 股：")
+    print(f"[rt_k] 고칠 A주 종목 {len(ts_codes)}개 발견:")
     print("  " + ", ".join(ts_codes[:20]) + (" ..." if len(ts_codes) > 20 else ""))
 
     name_map = fetch_rt_k_names(api, ts_codes)
     if not name_map:
-        print("[警告] rt_k 未返回可用名称，保留原始 A 股名称")
+        print("[경고] rt_k에서 쓸 수 있는 이름이 오지 않아 원래 A주 이름을 그대로 둡니다")
         return df
 
     fixed_df = df.copy()
@@ -255,57 +255,57 @@ def fix_a_stock_names_with_rt_k(api: ts.pro_api, df: pd.DataFrame) -> pd.DataFra
             fixed_count += 1
             print(f"  ✓ {code}: {old_name} -> {new_name}")
 
-    print(f"[rt_k] A 股名称修正完成，共修正 {fixed_count} 只股票")
+    print(f"[rt_k] A주 이름 수정 완료, 총 {fixed_count}개 종목 수정")
     return fixed_df
 
 
 def fetch_hk_stock_list(api: ts.pro_api) -> Optional[pd.DataFrame]:
     """
-    获取港股列表
+    홍콩 주식 목록 받기
 
-    接口：hk_basic
-    限量：单次可提取全部在交易的港股
+    API: hk_basic
+    한도: 한 번에 거래 중인 홍콩 주식 전체를 받을 수 있음
 
     Args:
-        api: Tushare API 实例
+        api: Tushare API 객체
 
     Returns:
-        港股数据 DataFrame，失败返回 None
+        홍콩 주식 데이터 DataFrame, 실패하면 None
     """
-    print("\n[2/3] 正在获取港股列表...")
+    print("\n[2/3] 홍콩 주식 목록 받는 중...")
 
     try:
-        # 获取所有正常上市的港股
+        # 정상 상장된 홍콩 주식 전체 받기
         df = api.hk_basic(
-            list_status='L'    # L: 上市, D: 退市
+            list_status='L'    # L: 상장, D: 상장폐지
         )
 
         if df is not None and len(df) > 0:
-            print(f"✓ 港股列表获取成功，共 {len(df)} 只股票")
+            print(f"✓ 홍콩 주식 목록 받기 성공, 총 {len(df)}개 종목")
             return df
         else:
-            print("[错误] 港股数据为空")
+            print("[오류] 홍콩 주식 데이터가 비어 있습니다")
             return None
 
     except Exception as e:
-        print(f"[错误] 获取港股列表失败: {e}")
+        print(f"[오류] 홍콩 주식 목록 받기 실패: {e}")
         return None
 
 
 def fetch_us_stock_list(api: ts.pro_api) -> Optional[pd.DataFrame]:
     """
-    获取美股列表（分页读取）
+    미국 주식 목록 받기 (페이지 나눠 읽기)
 
-    接口：us_basic
-    限量：单次最大6000，需要分页提取
+    API: us_basic
+    한도: 한 번에 최대 6000개라 페이지를 나눠 받아야 함
 
     Args:
-        api: Tushare API 实例
+        api: Tushare API 객체
 
     Returns:
-        美股数据 DataFrame，失败返回 None
+        미국 주식 데이터 DataFrame, 실패하면 None
     """
-    print("\n[3/3] 正在获取美股列表（分页读取）...")
+    print("\n[3/3] 미국 주식 목록 받는 중 (페이지 나눠 읽기)...")
 
     all_data = []
     offset = 0
@@ -313,7 +313,7 @@ def fetch_us_stock_list(api: ts.pro_api) -> Optional[pd.DataFrame]:
 
     try:
         while True:
-            print(f"  第 {page} 页（offset={offset}）...")
+            print(f"  {page}페이지 (offset={offset})...")
 
             df = api.us_basic(
                 offset=offset,
@@ -321,56 +321,56 @@ def fetch_us_stock_list(api: ts.pro_api) -> Optional[pd.DataFrame]:
             )
 
             if df is None or len(df) == 0:
-                print(f"  ✓ 第 {page} 页无数据，读取完成")
+                print(f"  ✓ {page}페이지에 데이터가 없어 읽기 완료")
                 break
 
             all_data.append(df)
-            print(f"  ✓ 第 {page} 页获取 {len(df)} 只股票")
+            print(f"  ✓ {page}페이지에서 {len(df)}개 종목 받음")
 
-            # 如果返回数据少于页大小，说明已经到最后一页
+            # 받은 데이터가 페이지 크기보다 적으면 마지막 페이지라는 뜻
             if len(df) < PAGE_SIZE:
                 break
 
             offset += PAGE_SIZE
             page += 1
 
-            # 随机休息（最后一页不需要休息）
+            # 무작위로 쉬기 (마지막 페이지는 쉬지 않음)
             random_sleep()
 
         if all_data:
             result_df = pd.concat(all_data, ignore_index=True)
-            print(f"✓ 美股列表获取成功，共 {len(result_df)} 只股票（{page} 页）")
+            print(f"✓ 미국 주식 목록 받기 성공, 총 {len(result_df)}개 종목 ({page}페이지)")
 
-            # 按分类统计
+            # 분류별 집계
             if 'classify' in result_df.columns:
-                print("  - 分类分布：")
+                print("  - 분류별 분포:")
                 for classify, count in result_df['classify'].value_counts().items():
-                    print(f"    {classify}: {count} 只")
+                    print(f"    {classify}: {count}개")
 
             return result_df
         else:
-            print("[错误] 美股数据为空")
+            print("[오류] 미국 주식 데이터가 비어 있습니다")
             return None
 
     except Exception as e:
-        print(f"[错误] 获取美股列表失败: {e}")
+        print(f"[오류] 미국 주식 목록 받기 실패: {e}")
         return None
 
 
 def save_to_csv(df: pd.DataFrame, filename: str, market_name: str) -> bool:
     """
-    保存数据到 CSV 文件
+    데이터를 CSV 파일로 저장
 
     Args:
-        df: 数据 DataFrame
-        filename: 文件名
-        market_name: 市场名称（用于日志）
+        df: 데이터 DataFrame
+        filename: 파일 이름
+        market_name: 시장 이름 (로그용)
 
     Returns:
-        是否保存成功
+        저장 성공 여부
     """
     if df is None or len(df) == 0:
-        print(f"[跳过] {market_name} 数据为空，不保存文件")
+        print(f"[건너뜀] {market_name} 데이터가 비어 있어 파일을 저장하지 않습니다")
         return False
 
     try:
@@ -380,11 +380,11 @@ def save_to_csv(df: pd.DataFrame, filename: str, market_name: str) -> bool:
         df.to_csv(output_path, index=False, encoding='utf-8-sig')
 
         file_size = output_path.stat().st_size / 1024  # KB
-        print(f"✓ {market_name} 数据已保存：{output_path} ({file_size:.2f} KB)")
+        print(f"✓ {market_name} 데이터 저장 완료: {output_path} ({file_size:.2f} KB)")
         return True
 
     except Exception as e:
-        print(f"[错误] 保存 {market_name} 数据失败: {e}")
+        print(f"[오류] {market_name} 데이터 저장 실패: {e}")
         return False
 
 
@@ -396,60 +396,60 @@ def generate_data_documentation(
     a_title: str = "A股列表"
 ):
     """
-    生成数据说明文档
+    데이터 설명 문서 만들기
 
     Args:
-        a_df: A股数据
-        hk_df: 港股数据
-        us_df: 美股数据
+        a_df: A주 데이터
+        hk_df: 홍콩 주식 데이터
+        us_df: 미국 주식 데이터
     """
     doc_path = OUTPUT_DIR / "README_stock_list.md"
 
-    content = f"""# Tushare 股票列表数据说明
+    content = f"""# Tushare 종목 목록 데이터 설명
 
-> 数据来源：[Tushare Pro](https://tushare.pro)
-> 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+> 데이터 출처: [Tushare Pro](https://tushare.pro)
+> 생성 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-## 文件说明
+## 파일 설명
 
-| 文件 | 说明 | 记录数 |
+| 파일 | 설명 | 항목 수 |
 |------|------|--------|
 | `{a_filename}` | {a_title} | {len(a_df) if a_df is not None else 0} |
-| `stock_list_hk.csv` | 港股列表 | {len(hk_df) if hk_df is not None else 0} |
-| `stock_list_us.csv` | 美股列表 | {len(us_df) if us_df is not None else 0} |
+| `stock_list_hk.csv` | 홍콩 주식 목록 | {len(hk_df) if hk_df is not None else 0} |
+| `stock_list_us.csv` | 미국 주식 목록 | {len(us_df) if us_df is not None else 0} |
 
 ---
 
-## A股数据（{a_filename}）
+## A주 데이터 ({a_filename})
 
-### 数据接口
-- **接口名称**：`stock_basic`
-- **数据权限**：2000积分起，每分钟请求50次
-- **数据限量**：单次最多6000行（覆盖全市场A股）
+### 데이터 API
+- **API 이름**: `stock_basic`
+- **데이터 권한**: 2000포인트부터, 분당 50회 요청
+- **데이터 한도**: 한 번에 최대 6000행 (A주 전체 시장 포함)
 
-### 字段说明
+### 필드 설명
 
-| 字段名 | 类型 | 说明 | 示例 |
+| 필드 이름 | 타입 | 설명 | 예시 |
 |--------|------|------|------|
-| ts_code | str | TS代码 | 000001.SZ |
-| symbol | str | 股票代码 | 000001 |
-| name | str | 股票名称 | 平安银行 |
-| area | str | 地域 | 深圳 |
-| industry | str | 所属行业 | 银行 |
-| fullname | str | 股票全称 | 平安银行股份有限公司 |
-| enname | str | 英文全称 | Ping An Bank Co., Ltd. |
-| cnspell | str | 拼音缩写 | PAYH |
-| market | str | 市场类型 | 主板/创业板/科创板/CDR |
-| exchange | str | 交易所代码 | SSE上交所/SZSE深交所/BSE北交所 |
-| curr_type | str | 交易货币 | CNY |
-| list_status | str | 上市状态 | L上市/D退市/P暂停上市 |
-| list_date | str | 上市日期 | 19910403 |
-| delist_date | str | 退市日期 | - |
-| is_hs | str | 是否沪深港通标的 | N否/H沪股通/S深股通 |
-| act_name | str | 实控人名称 | - |
-| act_ent_type | str | 实控人企业性质 | - |
+| ts_code | str | TS 코드 | 000001.SZ |
+| symbol | str | 종목 코드 | 000001 |
+| name | str | 종목 이름 | 平安银行 |
+| area | str | 지역 | 深圳 |
+| industry | str | 업종 | 银行 |
+| fullname | str | 종목 정식 이름 | 平安银行股份有限公司 |
+| enname | str | 영문 정식 이름 | Ping An Bank Co., Ltd. |
+| cnspell | str | 병음 약자 | PAYH |
+| market | str | 시장 구분 | 主板/创业板/科创板/CDR |
+| exchange | str | 거래소 코드 | SSE 상하이/SZSE 선전/BSE 베이징 |
+| curr_type | str | 거래 통화 | CNY |
+| list_status | str | 상장 상태 | L 상장/D 상장폐지/P 상장정지 |
+| list_date | str | 상장일 | 19910403 |
+| delist_date | str | 상장폐지일 | - |
+| is_hs | str | 후강퉁·선강퉁 대상 여부 | N 아님/H 후구퉁/S 선구퉁 |
+| act_name | str | 실제 지배자 이름 | - |
+| act_ent_type | str | 실제 지배자 기업 성격 | - |
 
-### 数据样例
+### 데이터 예시
 ```csv
 ts_code,symbol,name,area,industry,fullname,enname,cnspell,market,exchange,curr_type,list_status,list_date,delist_date,is_hs,act_name,act_ent_type
 000001.SZ,000001,平安银行,深圳,银行,平安银行股份有限公司,Ping An Bank Co., Ltd.,PAYH,主板,SZSE,CNY,L,19910403,,S,,
@@ -458,31 +458,31 @@ ts_code,symbol,name,area,industry,fullname,enname,cnspell,market,exchange,curr_t
 
 ---
 
-## 港股数据（stock_list_hk.csv）
+## 홍콩 주식 데이터 (stock_list_hk.csv)
 
-### 数据接口
-- **接口名称**：`hk_basic`
-- **数据权限**：用户需要至少2000积分才可以调取
-- **数据限量**：单次可提取全部在交易的港股列表数据
+### 데이터 API
+- **API 이름**: `hk_basic`
+- **데이터 권한**: 최소 2000포인트가 있어야 호출 가능
+- **데이터 한도**: 한 번에 거래 중인 홍콩 주식 목록 전체를 받을 수 있음
 
-### 字段说明
+### 필드 설명
 
-| 字段名 | 类型 | 说明 | 示例 |
+| 필드 이름 | 타입 | 설명 | 예시 |
 |--------|------|------|------|
-| ts_code | str | TS代码 | 00001.HK |
-| name | str | 股票简称 | 长和 |
-| fullname | str | 公司全称 | 长江和记实业有限公司 |
-| enname | str | 英文名称 | CK Hutchison Holdings Ltd. |
-| cn_spell | str | 拼音 | ZH |
-| market | str | 市场类别 | 主板/创业板 |
-| list_status | str | 上市状态 | L上市/D退市/P暂停上市 |
-| list_date | str | 上市日期 | 19720731 |
-| delist_date | str | 退市日期 | - |
-| trade_unit | float | 交易单位 | 1000 |
-| isin | str | ISIN代码 | KYG217651051 |
-| curr_type | str | 货币代码 | HKD |
+| ts_code | str | TS 코드 | 00001.HK |
+| name | str | 종목 약칭 | 长和 |
+| fullname | str | 회사 정식 이름 | 长江和记实业有限公司 |
+| enname | str | 영문 이름 | CK Hutchison Holdings Ltd. |
+| cn_spell | str | 병음 | ZH |
+| market | str | 시장 구분 | 主板/创业板 |
+| list_status | str | 상장 상태 | L 상장/D 상장폐지/P 상장정지 |
+| list_date | str | 상장일 | 19720731 |
+| delist_date | str | 상장폐지일 | - |
+| trade_unit | float | 거래 단위 | 1000 |
+| isin | str | ISIN 코드 | KYG217651051 |
+| curr_type | str | 통화 코드 | HKD |
 
-### 数据样例
+### 데이터 예시
 ```csv
 ts_code,name,fullname,enname,cn_spell,market,list_status,list_date,delist_date,trade_unit,isin,curr_type
 00001.HK,长和,长江和记实业有限公司,CK Hutchison Holdings Ltd.,ZH,主板,L,19720731,,1000,KYG217651051,HKD
@@ -491,30 +491,30 @@ ts_code,name,fullname,enname,cn_spell,market,list_status,list_date,delist_date,t
 
 ---
 
-## 美股数据（stock_list_us.csv）
+## 미국 주식 데이터 (stock_list_us.csv)
 
-### 数据接口
-- **接口名称**：`us_basic`
-- **数据权限**：120积分可以试用，5000积分有正式权限
-- **数据限量**：单次最大6000，可分页提取
+### 데이터 API
+- **API 이름**: `us_basic`
+- **데이터 권한**: 120포인트로 체험, 5000포인트부터 정식 권한
+- **데이터 한도**: 한 번에 최대 6000개, 페이지 나눠 받기 가능
 
-### 字段说明
+### 필드 설명
 
-| 字段名 | 类型 | 说明 | 示例 |
+| 필드 이름 | 타입 | 설명 | 예시 |
 |--------|------|------|------|
-| ts_code | str | 美股代码 | AAPL |
-| name | str | 中文名称 | 苹果 |
-| enname | str | 英文名称 | Apple Inc. |
-| classify | str | 分类 | ADR/GDR/EQT |
-| list_date | str | 上市日期 | 19801212 |
-| delist_date | str | 退市日期 | - |
+| ts_code | str | 미국 주식 코드 | AAPL |
+| name | str | 중국어 이름 | 苹果 |
+| enname | str | 영문 이름 | Apple Inc. |
+| classify | str | 분류 | ADR/GDR/EQT |
+| list_date | str | 상장일 | 19801212 |
+| delist_date | str | 상장폐지일 | - |
 
-### 分类说明
-- **ADR**：美国存托凭证（American Depositary Receipt）
-- **GDR**：全球存托凭证（Global Depositary Receipt）
-- **EQT**：普通股（Equity）
+### 분류 설명
+- **ADR**: 미국 예탁증서（American Depositary Receipt）
+- **GDR**: 글로벌 예탁증서（Global Depositary Receipt）
+- **EQT**: 보통주（Equity）
 
-### 数据样例
+### 데이터 예시
 ```csv
 ts_code,name,enname,classify,list_date,delist_date
 AAPL,苹果,Apple Inc.,EQT,19801212,
@@ -524,94 +524,94 @@ BABA,阿里巴巴,Alibaba Group Holding Ltd.,ADR,20140919,
 
 ---
 
-## 使用说明
+## 사용법
 
-### 读取数据
+### 데이터 읽기
 
 ```python
 import pandas as pd
 
-# 读取 A股数据
+# A주 데이터 읽기
 a_stocks = pd.read_csv('data/{a_filename}')
 
-# 读取港股数据
+# 홍콩 주식 데이터 읽기
 hk_stocks = pd.read_csv('data/stock_list_hk.csv')
 
-# 读取美股数据
+# 미국 주식 데이터 읽기
 us_stocks = pd.read_csv('data/stock_list_us.csv')
 ```
 
-### 代码格式说明
+### 코드 형식 설명
 
-**A股代码格式**：
-- 沪市：`600000.SH`（主板）、`688xxx.SH`（科创板）、`900xxx.SH`（B股）
-- 深市：`000001.SZ`（主板）、`300xxx.SZ`（创业板）、`200xxx.SZ`（B股）
-- 北交所：`8xxxxx.BJ`、`4xxxxx.BJ`、`920xxx.BJ`
+**A주 코드 형식**:
+- 상하이: `600000.SH`(메인보드), `688xxx.SH`(과창판), `900xxx.SH`(B주)
+- 선전: `000001.SZ`(메인보드), `300xxx.SZ`(창업판), `200xxx.SZ`(B주)
+- 베이징거래소: `8xxxxx.BJ`、`4xxxxx.BJ`、`920xxx.BJ`
 
-**港股代码格式**：
-- 格式：`xxxxx.HK`（5位数字 + .HK）
-- 示例：`00700.HK`（腾讯控股）
+**홍콩 주식 코드 형식**:
+- 형식: `xxxxx.HK` (숫자 5자리 + .HK)
+- 예시: `00700.HK` (텐센트)
 
-**美股代码格式**：
-- 格式：代码字母（无后缀）
-- 示例：`AAPL`（苹果）、`TSLA`（特斯拉）
-
----
-
-## 注意事项
-
-1. **数据更新**：建议定期更新数据（如每月一次）
-2. **积分要求**：
-   - A股/港股：需要2000积分
-   - 美股：120积分试用，5000积分正式权限
-3. **请求限制**：注意 API 的每分钟请求次数限制
-4. **数据完整性**：本数据仅包含基础信息，如需更多数据请参考 Tushare 官方文档
+**미국 주식 코드 형식**:
+- 형식: 영문 코드 (접미어 없음)
+- 예시: `AAPL`(애플), `TSLA`(테슬라)
 
 ---
 
-## 相关链接
+## 주의할 점
 
-- [Tushare 官网](https://tushare.pro)
-- [Tushare 文档](https://tushare.pro/document/2)
-- [积分获取办法](https://tushare.pro/document/1)
-- [API 数据调试](https://tushare.pro/document/2)
+1. **데이터 갱신**: 정기적으로 갱신하세요 (예: 한 달에 한 번)
+2. **포인트 조건**:
+   - A주/홍콩 주식: 2000포인트 필요
+   - 미국 주식: 120포인트 체험, 5000포인트 정식 권한
+3. **요청 제한**: API의 분당 요청 횟수 제한에 주의하세요
+4. **데이터 범위**: 기본 정보만 들어 있습니다. 더 필요한 데이터는 Tushare 공식 문서를 참고하세요
+
+---
+
+## 관련 링크
+
+- [Tushare 공식 사이트](https://tushare.pro)
+- [Tushare 문서](https://tushare.pro/document/2)
+- [포인트 얻는 방법](https://tushare.pro/document/1)
+- [API 데이터 테스트](https://tushare.pro/document/2)
 """
 
     try:
         with open(doc_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        print(f"✓ 数据说明文档已生成：{doc_path}")
+        print(f"✓ 데이터 설명 문서 생성 완료: {doc_path}")
     except Exception as e:
-        print(f"[错误] 生成说明文档失败: {e}")
+        print(f"[오류] 설명 문서 생성 실패: {e}")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    """构建命令行参数。"""
-    parser = argparse.ArgumentParser(description="Tushare 股票列表获取工具")
+    """명령줄 인자를 만듭니다."""
+    parser = argparse.ArgumentParser(description="Tushare 종목 목록 받기 도구")
     parser.add_argument(
         "--a-rk",
         action="store_true",
-        help="使用 rt_k 修正 A 股中带 XD/XR/DR/N/C 前缀的名称，并覆盖输出到 stock_list_a.csv",
+        help="rt_k로 A주 이름 중 XD/XR/DR/N/C 접두어가 붙은 것을 고쳐 stock_list_a.csv에 덮어씁니다",
     )
     return parser
 
 
 def main(argv: Optional[List[str]] = None):
-    """主函数"""
+    """메인 함수"""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 
     print("=" * 60)
-    print("Tushare 股票列表获取工具")
+    print("Tushare 종목 목록 받기 도구")
     print("=" * 60)
-    print(f"[信息] A股名称修正模式：{'开启' if args.a_rk else '关闭'}")
+    print(f"[정보] A주 이름 수정 모드: {'켜짐' if args.a_rk else '꺼짐'}")
 
-    # 1. 获取 API 实例
+    # 1. API 객체 가져오기
     api = get_tushare_api()
     if not api:
         return 1
 
-    # 2. 获取 A股数据
+    # 2. A주 데이터 받기
     a_df = fetch_a_stock_list(api)
     if a_df is not None:
         a_filename = 'stock_list_a.csv'
@@ -624,42 +624,42 @@ def main(argv: Optional[List[str]] = None):
 
         save_to_csv(a_df, a_filename, a_market_name)
 
-    # 3. 获取港股数据
-    random_sleep()  # 休息后再获取港股
+    # 3. 홍콩 주식 데이터 받기
+    random_sleep()  # 잠시 쉰 뒤 홍콩 주식 받기
     hk_df = fetch_hk_stock_list(api)
     if hk_df is not None:
-        save_to_csv(hk_df, 'stock_list_hk.csv', '港股')
+        save_to_csv(hk_df, 'stock_list_hk.csv', '홍콩 주식')
 
-    # 4. 获取美股数据（分页）
-    random_sleep()  # 休息后再获取美股
+    # 4. 미국 주식 데이터 받기 (페이지 나눔)
+    random_sleep()  # 잠시 쉰 뒤 미국 주식 받기
     us_df = fetch_us_stock_list(api)
     if us_df is not None:
-        save_to_csv(us_df, 'stock_list_us.csv', '美股')
+        save_to_csv(us_df, 'stock_list_us.csv', '미국 주식')
 
-    # 5. 生成数据说明文档
-    print("\n正在生成数据说明文档...")
+    # 5. 데이터 설명 문서 만들기
+    print("\n데이터 설명 문서 만드는 중...")
     a_filename = 'stock_list_a.csv'
     a_title = 'A股列表（修正后）' if args.a_rk else 'A股列表'
     generate_data_documentation(a_df, hk_df, us_df, a_filename=a_filename, a_title=a_title)
 
-    # 6. 总结
+    # 6. 요약
     print("\n" + "=" * 60)
-    print("任务完成！")
+    print("작업 완료!")
     print("=" * 60)
 
     total_count = 0
     if a_df is not None:
         total_count += len(a_df)
-        print(f"  ✓ A股：{len(a_df)} 只")
+        print(f"  ✓ A주: {len(a_df)}개")
     if hk_df is not None:
         total_count += len(hk_df)
-        print(f"  ✓ 港股：{len(hk_df)} 只")
+        print(f"  ✓ 홍콩 주식: {len(hk_df)}개")
     if us_df is not None:
         total_count += len(us_df)
-        print(f"  ✓ 美股：{len(us_df)} 只")
+        print(f"  ✓ 미국 주식: {len(us_df)}개")
 
-    print(f"\n总计：{total_count} 只股票")
-    print(f"输出目录：{OUTPUT_DIR}")
+    print(f"\n합계: {total_count}개 종목")
+    print(f"저장 폴더: {OUTPUT_DIR}")
 
     return 0
 
@@ -668,10 +668,10 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\n[中断] 用户取消操作")
+        print("\n\n[중단] 사용자가 취소했습니다")
         sys.exit(1)
     except Exception as e:
-        print(f"\n[错误] 未预期的异常: {e}")
+        print(f"\n[오류] 예상하지 못한 예외: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-分析相关模型
+분석 관련 모델
 ===================================
 
-职责：
-1. 定义分析请求和响应模型
-2. 定义任务状态模型
-3. 定义异步任务队列相关模型
+역할:
+1. 분석 요청·응답 모델 정의
+2. 작업 상태 모델 정의
+3. 비동기 작업 큐 관련 모델 정의
 """
 
 from typing import Optional, List, Any, Literal
@@ -19,7 +19,7 @@ from src.utils.market_review_region import normalize_market_review_region_strict
 
 
 class TaskStatusEnum(str, Enum):
-    """任务状态枚举"""
+    """작업 상태 열거형"""
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -36,60 +36,60 @@ class AnalyzeRequest(BaseModel):
     
     stock_code: Optional[str] = Field(
         None, 
-        description="单只股票代码", 
+        description="종목 코드 하나", 
         json_schema_extra={"example": "600519"},
     )
     stock_codes: Optional[List[str]] = Field(
         None, 
-        description="多只股票代码（与 stock_code 二选一）",
+        description="여러 종목 코드 (stock_code 와 둘 중 하나만)",
         json_schema_extra={"example": ["600519", "000858"]},
     )
     report_type: str = Field(
         "detailed",
-        description="报告类型：simple(精简) / detailed(完整) / full(完整) / brief(简洁)",
+        description="리포트 종류: simple(간단) / detailed(전체) / full(전체) / brief(요약)",
         pattern="^(simple|detailed|full|brief)$",
     )
     force_refresh: bool = Field(
         False,
-        description="是否强制刷新（忽略缓存）"
+        description="강제 새로고침 여부 (캐시 무시)"
     )
     async_mode: bool = Field(
         False,
-        description="是否使用异步模式"
+        description="비동기 모드 사용 여부"
     )
     analysis_phase: AnalysisPhase = Field(
         "auto",
-        description="分析阶段覆盖：auto(自动推断) / premarket(盘前) / intraday(盘中) / postmarket(盘后)",
+        description="분석 시점 지정: auto(자동 판단) / premarket(장 시작 전) / intraday(장중) / postmarket(장 마감 후)",
     )
     stock_name: Optional[str] = Field(
         None,
-        description="用户选中的股票名称（自动补全时提供）",
+        description="사용자가 고른 종목명 (자동완성 때 전달)",
         json_schema_extra={"example": "贵州茅台"},
     )
     original_query: Optional[str] = Field(
         None,
-        description="用户原始输入（如茅台、gzmt、600519）",
+        description="사용자가 입력한 원래 값 (예: 茅台, gzmt, 600519)",
         json_schema_extra={"example": "茅台"},
     )
     selection_source: Optional[str] = Field(
         None,
-        description="股票选择来源：manual(手动输入) | autocomplete(自动补全) | import(导入) | image(图片识别)",
+        description="종목 선택 경로: manual(직접 입력) | autocomplete(자동완성) | import(가져오기) | image(이미지 인식)",
         pattern=SELECTION_SOURCE_PATTERN,
         json_schema_extra={"example": "autocomplete"},
     )
     notify: bool = Field(
         True,
-        description="是否发送推送通知（Telegram/企业微信等）"
+        description="알림 전송 여부 (Telegram/WeCom 등)"
     )
     report_language: Optional[Literal["zh", "en", "ko"]] = Field(
         None,
         validation_alias=AliasChoices("report_language", "reportLanguage"),
-        description="本次分析报告输出语言；未传时使用全局 REPORT_LANGUAGE",
+        description="이번 분석 리포트 출력 언어. 비우면 전역 REPORT_LANGUAGE 사용",
     )
     skills: Optional[List[str]] = Field(
         None,
         validation_alias=AliasChoices("skills", "strategies"),
-        description="本次分析使用的策略 skill ID 列表；兼容 legacy strategies 字段",
+        description="이번 분석에 쓸 전략 skill ID 목록. 예전 strategies 필드와도 호환",
         json_schema_extra={"example": ["bull_trend", "growth_quality"]},
     )
 
@@ -115,12 +115,12 @@ class MarketReviewRequest(BaseModel):
 
     send_notification: bool = Field(
         True,
-        description="是否在大盘复盘完成后发送推送通知",
+        description="시장 리뷰가 끝난 뒤 알림을 보낼지 여부",
     )
     report_language: Optional[Literal["zh", "en", "ko"]] = Field(
         None,
         validation_alias=AliasChoices("report_language", "reportLanguage"),
-        description="本次大盘复盘报告输出语言；未传时使用全局 REPORT_LANGUAGE",
+        description="이번 시장 리뷰 리포트 출력 언어. 비우면 전역 REPORT_LANGUAGE 사용",
     )
     region: Optional[str] = Field(
         None,
@@ -150,34 +150,34 @@ class MarketReviewRequest(BaseModel):
 class MarketReviewAccepted(BaseModel):
     """Market review background task accepted response."""
 
-    status: str = Field("accepted", description="提交状态")
-    message: str = Field(..., description="提示信息")
-    send_notification: bool = Field(..., description="是否发送通知")
+    status: str = Field("accepted", description="제출 상태")
+    message: str = Field(..., description="안내 메시지")
+    send_notification: bool = Field(..., description="알림 전송 여부")
     region: str = Field(
         ...,
-        description="本次任务实际执行的 canonical 市场范围",
+        description="이번 작업이 실제로 실행한 canonical 시장 범위",
         examples=["us", "jp,kr"],
     )
     trace_id: Optional[str] = Field(
         None,
-        description="本次后台任务的诊断 trace ID",
+        description="이번 백그라운드 작업의 진단 trace ID",
     )
     task_id: Optional[str] = Field(
         None,
-        description="任务 ID（仅当任务实际提交时返回）",
+        description="작업 ID (작업이 실제로 제출됐을 때만 반환)",
     )
 
 
 class AnalysisResultResponse(BaseModel):
-    """分析结果响应模型"""
+    """분석 결과 응답 모델"""
     
-    query_id: str = Field(..., description="分析记录唯一标识")
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
-    stock_code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    report: Optional[Any] = Field(None, description="分析报告")
-    diagnostic_summary: Optional[Any] = Field(None, description="运行诊断摘要")
-    created_at: str = Field(..., description="创建时间")
+    query_id: str = Field(..., description="분석 기록 고유 ID")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    report: Optional[Any] = Field(None, description="분석 리포트")
+    diagnostic_summary: Optional[Any] = Field(None, description="실행 진단 요약")
+    created_at: str = Field(..., description="생성 시각")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -196,17 +196,17 @@ class AnalysisResultResponse(BaseModel):
 
 
 class TaskAccepted(BaseModel):
-    """异步任务接受响应"""
+    """비동기 작업 접수 응답"""
     
-    task_id: str = Field(..., description="任务 ID，用于查询状态")
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
+    task_id: str = Field(..., description="작업 ID (상태 조회용)")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
     status: str = Field(
         ..., 
-        description="任务状态",
+        description="작업 상태",
         pattern="^(pending|processing)$"
     )
-    message: Optional[str] = Field(None, description="提示信息")
-    analysis_phase: AnalysisPhase = Field("auto", description="请求的分析阶段")
+    message: Optional[str] = Field(None, description="안내 메시지")
+    analysis_phase: AnalysisPhase = Field("auto", description="요청한 분석 시점")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -219,21 +219,21 @@ class TaskAccepted(BaseModel):
 
 
 class BatchTaskAcceptedItem(BaseModel):
-    """批量异步任务中的单个成功提交项。"""
+    """일괄 비동기 작업 중 제출에 성공한 항목 하나."""
 
-    task_id: str = Field(..., description="任务 ID，用于查询状态")
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
-    stock_code: str = Field(..., description="股票代码")
+    task_id: str = Field(..., description="작업 ID (상태 조회용)")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
+    stock_code: str = Field(..., description="종목 코드")
     status: str = Field(
         ...,
-        description="任务状态",
+        description="작업 상태",
         pattern="^(pending|processing)$"
     )
-    message: Optional[str] = Field(None, description="提示信息")
-    analysis_phase: AnalysisPhase = Field("auto", description="请求的分析阶段")
+    message: Optional[str] = Field(None, description="안내 메시지")
+    analysis_phase: AnalysisPhase = Field("auto", description="요청한 분석 시점")
     asset_type: Optional[Literal["stock", "index"]] = Field(
         None,
-        description="parser 来源的可选资产类型（stock/index）；由已提交的 analysis_target 透传，旧客户端可缺省",
+        description="parser 가 정한 자산 유형 (stock/index, 선택). 제출된 analysis_target 에서 그대로 넘어옴. 구버전 클라이언트는 생략 가능",
     )
 
     model_config = ConfigDict(json_schema_extra={
@@ -241,18 +241,18 @@ class BatchTaskAcceptedItem(BaseModel):
             "task_id": "task_abc123",
             "stock_code": "600519",
             "status": "pending",
-            "message": "分析任务已加入队列: 600519",
+            "message": "분석 작업을 큐에 넣었어요: 600519",
             "analysis_phase": "auto"
         }
     })
 
 
 class BatchDuplicateTaskItem(BaseModel):
-    """批量异步任务中的重复提交项。"""
+    """일괄 비동기 작업 중 중복 제출된 항목."""
 
-    stock_code: str = Field(..., description="股票代码")
-    existing_task_id: str = Field(..., description="已存在的任务 ID")
-    message: str = Field(..., description="错误信息")
+    stock_code: str = Field(..., description="종목 코드")
+    existing_task_id: str = Field(..., description="이미 있는 작업 ID")
+    message: str = Field(..., description="오류 메시지")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -264,10 +264,10 @@ class BatchDuplicateTaskItem(BaseModel):
 
 
 class RejectedTaskItem(BaseModel):
-    """批量异步任务中被明确拒绝的单个目标项（如未登记 CSI 指数）。"""
+    """일괄 비동기 작업 중 명확히 거부된 대상 하나 (예: 미등록 CSI 지수)."""
 
-    stock_code: str = Field(..., description="被拒绝的目标代码")
-    message: str = Field(..., description="拒绝原因")
+    stock_code: str = Field(..., description="거부된 대상 코드")
+    message: str = Field(..., description="거부 사유")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -278,15 +278,15 @@ class RejectedTaskItem(BaseModel):
 
 
 class BatchTaskAcceptedResponse(BaseModel):
-    """批量异步任务接受响应。"""
+    """일괄 비동기 작업 접수 응답."""
 
-    accepted: List[BatchTaskAcceptedItem] = Field(default_factory=list, description="成功提交的任务列表")
-    duplicates: List[BatchDuplicateTaskItem] = Field(default_factory=list, description="重复而跳过的任务列表")
+    accepted: List[BatchTaskAcceptedItem] = Field(default_factory=list, description="제출에 성공한 작업 목록")
+    duplicates: List[BatchDuplicateTaskItem] = Field(default_factory=list, description="중복이라 건너뛴 작업 목록")
     rejected: Optional[List[RejectedTaskItem]] = Field(
         None,
-        description="批量中被明确拒绝的目标列表（如未登记 CSI 指数），仅在异步批量请求中返回",
+        description="일괄 요청 중 명확히 거부된 대상 목록 (예: 미등록 CSI 지수). 비동기 일괄 요청에서만 반환",
     )
-    message: str = Field(..., description="汇总信息")
+    message: str = Field(..., description="요약 메시지")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -295,7 +295,7 @@ class BatchTaskAcceptedResponse(BaseModel):
                     "task_id": "task_abc123",
                     "stock_code": "600519",
                     "status": "pending",
-                    "message": "分析任务已加入队列: 600519",
+                    "message": "분석 작업을 큐에 넣었어요: 600519",
                     "analysis_phase": "auto"
                 }
             ],
@@ -306,7 +306,7 @@ class BatchTaskAcceptedResponse(BaseModel):
                     "message": "股票 000858 正在分析中 (task_id: task_existing_456)"
                 }
             ],
-            "message": "已提交 1 个任务，1 个重复跳过"
+            "message": "작업 1개 제출, 중복 1개 건너뜀"
         }
     })
 
@@ -314,25 +314,25 @@ class BatchTaskAcceptedResponse(BaseModel):
 class TaskStatus(BaseModel):
     """Task status model"""
     
-    task_id: str = Field(..., description="任务 ID")
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
+    task_id: str = Field(..., description="작업 ID")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
     status: TaskStatusEnum = Field(
         ..., 
-        description="任务状态",
+        description="작업 상태",
     )
     progress: Optional[int] = Field(
         None, 
-        description="进度百分比 (0-100)",
+        description="진행률 (0-100)",
         ge=0,
         le=100
     )
     result: Optional[AnalysisResultResponse] = Field(
         None, 
-        description="分析结果（仅在 completed 时存在）"
+        description="분석 결과 (completed 일 때만 있음)"
     )
     market_review_report: Optional[str] = Field(
         None,
-        description="大盘复盘任务返回的报告文本（仅大盘复盘任务）",
+        description="시장 리뷰 작업이 돌려준 리포트 텍스트 (시장 리뷰 작업만)",
     )
     market_review_payload: Optional[Any] = Field(
         None,
@@ -340,24 +340,24 @@ class TaskStatus(BaseModel):
     )
     region: Optional[str] = Field(
         None,
-        description="大盘复盘任务实际执行的 canonical 市场范围",
+        description="시장 리뷰 작업이 실제로 실행한 canonical 시장 범위",
     )
     error: Optional[str] = Field(
         None, 
-        description="错误信息（仅在 failed 时存在）"
+        description="오류 메시지 (failed 일 때만 있음)"
     )
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    original_query: Optional[str] = Field(None, description="用户原始输入")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    original_query: Optional[str] = Field(None, description="사용자가 입력한 원래 값")
     selection_source: Optional[str] = Field(
         None,
-        description="选择来源",
+        description="선택 경로",
         pattern=SELECTION_SOURCE_PATTERN,
     )
     analysis_phase: Optional[AnalysisPhase] = Field(
         None,
-        description="请求的分析阶段；无持久化字段的历史 DB fallback 可能为空",
+        description="요청한 분석 시점. 이 필드가 저장되지 않은 예전 DB 기록에서 가져오면 비어 있을 수 있음",
     )
-    skills: Optional[List[str]] = Field(None, description="本次任务使用的策略 skill ID 列表")
+    skills: Optional[List[str]] = Field(None, description="이번 작업에 쓴 전략 skill ID 목록")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -383,33 +383,33 @@ class TaskInfo(BaseModel):
     Used for task list and SSE event delivery
     """
     
-    task_id: str = Field(..., description="任务 ID")
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
-    stock_code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    status: TaskStatusEnum = Field(..., description="任务状态")
-    progress: int = Field(0, description="进度百分比 (0-100)", ge=0, le=100)
-    message: Optional[str] = Field(None, description="状态消息")
-    report_type: str = Field("detailed", description="报告类型")
-    created_at: str = Field(..., description="创建时间")
-    started_at: Optional[str] = Field(None, description="开始执行时间")
-    completed_at: Optional[str] = Field(None, description="完成时间")
-    error: Optional[str] = Field(None, description="错误信息（仅在 failed 时存在）")
-    original_query: Optional[str] = Field(None, description="用户原始输入")
+    task_id: str = Field(..., description="작업 ID")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    status: TaskStatusEnum = Field(..., description="작업 상태")
+    progress: int = Field(0, description="진행률 (0-100)", ge=0, le=100)
+    message: Optional[str] = Field(None, description="상태 메시지")
+    report_type: str = Field("detailed", description="리포트 종류")
+    created_at: str = Field(..., description="생성 시각")
+    started_at: Optional[str] = Field(None, description="실행 시작 시각")
+    completed_at: Optional[str] = Field(None, description="완료 시각")
+    error: Optional[str] = Field(None, description="오류 메시지 (failed 일 때만 있음)")
+    original_query: Optional[str] = Field(None, description="사용자가 입력한 원래 값")
     selection_source: Optional[str] = Field(
         None,
-        description="选择来源",
+        description="선택 경로",
         pattern=SELECTION_SOURCE_PATTERN,
     )
-    analysis_phase: AnalysisPhase = Field("auto", description="请求的分析阶段")
-    skills: Optional[List[str]] = Field(None, description="本次任务使用的策略 skill ID 列表")
+    analysis_phase: AnalysisPhase = Field("auto", description="요청한 분석 시점")
+    skills: Optional[List[str]] = Field(None, description="이번 작업에 쓴 전략 skill ID 목록")
     region: Optional[str] = Field(
         None,
-        description="大盘复盘任务实际执行的 canonical 市场范围",
+        description="시장 리뷰 작업이 실제로 실행한 canonical 시장 범위",
     )
     asset_type: Optional[Literal["stock", "index"]] = Field(
         None,
-        description="parser 来源的可选资产类型（stock/index）；由已提交的 analysis_target 透传，旧客户端可缺省",
+        description="parser 가 정한 자산 유형 (stock/index, 선택). 제출된 analysis_target 에서 그대로 넘어옴. 구버전 클라이언트는 생략 가능",
     )
     
     model_config = ConfigDict(json_schema_extra={
@@ -434,12 +434,12 @@ class TaskInfo(BaseModel):
 
 
 class TaskListResponse(BaseModel):
-    """任务列表响应模型"""
+    """작업 목록 응답 모델"""
     
-    total: int = Field(..., description="任务总数")
-    pending: int = Field(..., description="等待中的任务数")
-    processing: int = Field(..., description="处理中的任务数")
-    tasks: List[TaskInfo] = Field(..., description="任务列表")
+    total: int = Field(..., description="전체 작업 수")
+    pending: int = Field(..., description="대기 중인 작업 수")
+    processing: int = Field(..., description="처리 중인 작업 수")
+    tasks: List[TaskInfo] = Field(..., description="작업 목록")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -452,12 +452,12 @@ class TaskListResponse(BaseModel):
 
 
 class DuplicateTaskErrorResponse(BaseModel):
-    """重复任务错误响应模型"""
+    """중복 작업 오류 응답 모델"""
     
-    error: str = Field("duplicate_task", description="错误类型")
-    message: str = Field(..., description="错误信息")
-    stock_code: str = Field(..., description="股票代码")
-    existing_task_id: str = Field(..., description="已存在的任务 ID")
+    error: str = Field("duplicate_task", description="오류 종류")
+    message: str = Field(..., description="오류 메시지")
+    stock_code: str = Field(..., description="종목 코드")
+    existing_task_id: str = Field(..., description="이미 있는 작업 ID")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {

@@ -46,12 +46,12 @@ def _validate_analysis_date_range(
     "/run",
     response_model=BacktestRunResponse,
     responses={
-        200: {"description": "回测执行完成"},
-        400: {"description": "请求参数错误", "model": ErrorResponse},
-        500: {"description": "服务器错误", "model": ErrorResponse},
+        200: {"description": "백테스트 실행 완료"},
+        400: {"description": "요청 파라미터 오류", "model": ErrorResponse},
+        500: {"description": "서버 오류", "model": ErrorResponse},
     },
-    summary="触发回测",
-    description="对历史分析记录进行回测评估，并写入 backtest_results/backtest_summaries",
+    summary="백테스트 실행",
+    description="과거 분석 기록으로 백테스트 평가를 하고 backtest_results/backtest_summaries 에 기록",
 )
 def run_backtest(
     request: BacktestRunRequest,
@@ -78,10 +78,10 @@ def run_backtest(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"回测执行失败: {exc}", exc_info=True)
+        logger.error(f"백테스트 실행 실패: {exc}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_error", "message": f"回测执行失败: {str(exc)}"},
+            detail={"error": "internal_error", "message": f"백테스트 실행 실패: {str(exc)}"},
         )
 
 
@@ -89,21 +89,21 @@ def run_backtest(
     "/results",
     response_model=BacktestResultsResponse,
     responses={
-        200: {"description": "回测结果列表"},
-        400: {"description": "请求参数错误", "model": ErrorResponse},
-        500: {"description": "服务器错误", "model": ErrorResponse},
+        200: {"description": "백테스트 결과 목록"},
+        400: {"description": "요청 파라미터 오류", "model": ErrorResponse},
+        500: {"description": "서버 오류", "model": ErrorResponse},
     },
-    summary="获取回测结果",
-    description="分页获取回测结果，支持按股票代码过滤",
+    summary="백테스트 결과 조회",
+    description="백테스트 결과를 페이지 단위로 조회. 종목 코드로 거를 수 있음",
 )
 def get_backtest_results(
-    code: Optional[str] = Query(None, description="股票代码筛选"),
-    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="评估窗口过滤"),
-    analysis_date_from: Optional[date] = Query(None, description="分析日期起始（含）"),
-    analysis_date_to: Optional[date] = Query(None, description="分析日期结束（含）"),
-    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="分析阶段过滤：premarket/intraday/postmarket/unknown"),
-    page: int = Query(1, ge=1, description="页码"),
-    limit: int = Query(20, ge=1, le=200, description="每页数量"),
+    code: Optional[str] = Query(None, description="종목 코드 필터"),
+    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="평가 기간 필터"),
+    analysis_date_from: Optional[date] = Query(None, description="분석일 시작 (포함)"),
+    analysis_date_to: Optional[date] = Query(None, description="분석일 끝 (포함)"),
+    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="분석 시점 필터: premarket/intraday/postmarket/unknown"),
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    limit: int = Query(20, ge=1, le=200, description="페이지당 개수"),
     db_manager: DatabaseManager = Depends(get_database_manager),
 ) -> BacktestResultsResponse:
     try:
@@ -133,10 +133,10 @@ def get_backtest_results(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"查询回测结果失败: {exc}", exc_info=True)
+        logger.error(f"백테스트 결과 조회 실패: {exc}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_error", "message": f"查询回测结果失败: {str(exc)}"},
+            detail={"error": "internal_error", "message": f"백테스트 결과 조회 실패: {str(exc)}"},
         )
 
 
@@ -144,18 +144,18 @@ def get_backtest_results(
     "/performance",
     response_model=PerformanceMetrics,
     responses={
-        200: {"description": "整体回测表现"},
-        400: {"description": "请求参数错误", "model": ErrorResponse},
-        404: {"description": "无回测汇总", "model": ErrorResponse},
-        500: {"description": "服务器错误", "model": ErrorResponse},
+        200: {"description": "전체 백테스트 성과"},
+        400: {"description": "요청 파라미터 오류", "model": ErrorResponse},
+        404: {"description": "백테스트 요약 없음", "model": ErrorResponse},
+        500: {"description": "서버 오류", "model": ErrorResponse},
     },
-    summary="获取整体回测表现",
+    summary="전체 백테스트 성과 조회",
 )
 def get_overall_performance(
-    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="评估窗口过滤"),
-    analysis_date_from: Optional[date] = Query(None, description="分析日期起始（含）"),
-    analysis_date_to: Optional[date] = Query(None, description="分析日期结束（含）"),
-    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="分析阶段过滤：premarket/intraday/postmarket/unknown"),
+    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="평가 기간 필터"),
+    analysis_date_from: Optional[date] = Query(None, description="분석일 시작 (포함)"),
+    analysis_date_to: Optional[date] = Query(None, description="분석일 끝 (포함)"),
+    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="분석 시점 필터: premarket/intraday/postmarket/unknown"),
     db_manager: DatabaseManager = Depends(get_database_manager),
 ) -> PerformanceMetrics:
     try:
@@ -172,7 +172,7 @@ def get_overall_performance(
         if summary is None:
             raise HTTPException(
                 status_code=404,
-                detail={"error": "not_found", "message": "未找到整体回测汇总"},
+                detail={"error": "not_found", "message": "전체 백테스트 요약이 없어요"},
             )
         return PerformanceMetrics(**summary)
     except ValueError as exc:
@@ -183,10 +183,10 @@ def get_overall_performance(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"查询整体表现失败: {exc}", exc_info=True)
+        logger.error(f"전체 성과 조회 실패: {exc}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_error", "message": f"查询整体表现失败: {str(exc)}"},
+            detail={"error": "internal_error", "message": f"전체 성과 조회 실패: {str(exc)}"},
         )
 
 
@@ -194,19 +194,19 @@ def get_overall_performance(
     "/performance/{code}",
     response_model=PerformanceMetrics,
     responses={
-        200: {"description": "单股回测表现"},
-        400: {"description": "请求参数错误", "model": ErrorResponse},
-        404: {"description": "无回测汇总", "model": ErrorResponse},
-        500: {"description": "服务器错误", "model": ErrorResponse},
+        200: {"description": "종목별 백테스트 성과"},
+        400: {"description": "요청 파라미터 오류", "model": ErrorResponse},
+        404: {"description": "백테스트 요약 없음", "model": ErrorResponse},
+        500: {"description": "서버 오류", "model": ErrorResponse},
     },
-    summary="获取单股回测表现",
+    summary="종목별 백테스트 성과 조회",
 )
 def get_stock_performance(
     code: str,
-    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="评估窗口过滤"),
-    analysis_date_from: Optional[date] = Query(None, description="分析日期起始（含）"),
-    analysis_date_to: Optional[date] = Query(None, description="分析日期结束（含）"),
-    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="分析阶段过滤：premarket/intraday/postmarket/unknown"),
+    eval_window_days: Optional[int] = Query(None, ge=1, le=120, description="평가 기간 필터"),
+    analysis_date_from: Optional[date] = Query(None, description="분석일 시작 (포함)"),
+    analysis_date_to: Optional[date] = Query(None, description="분석일 끝 (포함)"),
+    analysis_phase: Optional[BacktestAnalysisPhaseQuery] = Query(None, description="분석 시점 필터: premarket/intraday/postmarket/unknown"),
     db_manager: DatabaseManager = Depends(get_database_manager),
 ) -> PerformanceMetrics:
     try:
@@ -223,7 +223,7 @@ def get_stock_performance(
         if summary is None:
             raise HTTPException(
                 status_code=404,
-                detail={"error": "not_found", "message": f"未找到 {code} 的回测汇总"},
+                detail={"error": "not_found", "message": f"{code} 의 백테스트 요약이 없어요"},
             )
         return PerformanceMetrics(**summary)
     except ValueError as exc:
@@ -234,8 +234,8 @@ def get_stock_performance(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"查询单股表现失败: {exc}", exc_info=True)
+        logger.error(f"종목별 성과 조회 실패: {exc}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_error", "message": f"查询单股表现失败: {str(exc)}"},
+            detail={"error": "internal_error", "message": f"종목별 성과 조회 실패: {str(exc)}"},
         )

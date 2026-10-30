@@ -127,7 +127,7 @@ def determine_market_and_type(code: str) -> tuple:
             # Four digits: likely a US symbol or special market code.
             return 'US', 'stock'
 
-    # 字母代码，美股或其他
+    # 영문 코드: 미국 주식 또는 기타
     return 'US', 'stock'
 
 
@@ -142,7 +142,7 @@ def market_to_suffix(market: str) -> str:
         Market suffix
     """
     suffix_map = {
-        'CN': 'SH',  # 简化处理，默认上海
+        'CN': 'SH',  # 단순 처리: 기본값은 상하이
         'HK': 'HK',
         'US': 'US',
         'INDEX': 'SH',
@@ -194,7 +194,7 @@ def generate_aliases(name: str) -> List[str]:
     """
     aliases = []
 
-    # 常见简称映射
+    # 자주 쓰는 약칭 매핑
     alias_map = {
         '贵州茅台': ['茅台'],
         '中国平安': ['平安'],
@@ -256,63 +256,63 @@ def compress_index(index: List[Dict[str, Any]]) -> List[List]:
 
 def main():
     """Main function"""
-    # 解析命令行参数
+    # 명령줄 인자 읽기
     parser = argparse.ArgumentParser(
-        description='生成股票自动补全索引文件',
+        description='종목 자동완성 인덱스 파일 만들기',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例:
-  python3 scripts/generate_stock_index.py              # 默认：生成索引文件
-  python3 scripts/generate_stock_index.py --test       # 测试模式：只读取不写入
-  python3 scripts/generate_stock_index.py --test -v    # 测试模式 + 显示详细数据
+예시:
+  python3 scripts/generate_stock_index.py              # 기본: 인덱스 파일 만들기
+  python3 scripts/generate_stock_index.py --test       # 테스트 모드: 읽기만 하고 저장 안 함
+  python3 scripts/generate_stock_index.py --test -v    # 테스트 모드 + 자세한 데이터 보기
         """
     )
     parser.add_argument(
         '--test', '-t',
         action='store_true',
-        help='测试模式：只读取和验证数据，不写入文件'
+        help='테스트 모드: 데이터를 읽고 확인만 하며 파일은 저장하지 않음'
     )
     parser.add_argument(
         '--verbose', '-v',
         action='store_true',
-        help='详细模式：显示前10条数据预览'
+        help='자세히 보기: 앞 10개 데이터 미리 보기'
     )
     args = parser.parse_args()
 
-    print("开始生成股票索引...")
+    print("종목 인덱스 만들기 시작...")
 
-    # 生成索引（MVP：使用现有映射）
+    # 인덱스 생성 (MVP: 기존 매핑 사용)
     index = generate_stock_index_from_map()
-    print(f"共生成 {len(index)} 条索引")
+    print(f"인덱스 {len(index)}개 생성")
 
-    # 按市场统计
+    # 시장별 집계
     market_stats = {}
     for item in index:
         market = item['market']
         market_stats[market] = market_stats.get(market, 0) + 1
-    print(f"市场分布：{market_stats}")
+    print(f"시장별 분포: {market_stats}")
 
-    # 压缩格式（减少文件大小）
+    # 압축 형식 (파일 크기 줄이기)
     compressed = compress_index(index)
 
-    # 测试模式：不写入文件
+    # 테스트 모드: 파일 저장 안 함
     if args.test:
-        print("\n[测试模式] 不会写入文件")
-        print(f"预计文件大小：{len(json.dumps(compressed, ensure_ascii=False, separators=(',', ':'))) / 1024:.2f} KB")
+        print("\n[테스트 모드] 파일을 저장하지 않습니다")
+        print(f"예상 파일 크기: {len(json.dumps(compressed, ensure_ascii=False, separators=(',', ':'))) / 1024:.2f} KB")
 
         if args.verbose:
-            print("\n前10条数据预览：")
+            print("\n앞 10개 데이터 미리 보기:")
             for i, item in enumerate(index[:10]):
                 print(f"  {i + 1}. {item['canonicalCode']} - {item['nameZh']} ({item['market']})")
 
-        print("\n✓ 测试通过，数据格式正确")
+        print("\n✓ 테스트 통과, 데이터 형식 정상")
         return 0
 
-    # 输出路径
+    # 저장 경로
     output_path = Path(__file__).parent.parent / "apps" / "dsa-web" / "public" / "stocks.index.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 写入文件
+    # 파일 저장
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('[\n')
         for i, item in enumerate(compressed):
@@ -324,13 +324,13 @@ def main():
         f.write(']\n')
 
     file_size = output_path.stat().st_size
-    print(f"索引已生成：{output_path}")
-    print(f"文件大小：{file_size / 1024:.2f} KB")
+    print(f"인덱스 생성 완료: {output_path}")
+    print(f"파일 크기: {file_size / 1024:.2f} KB")
 
-    # 验证文件可读
+    # 파일을 읽을 수 있는지 확인
     with open(output_path, 'r', encoding='utf-8') as f:
         test_data = json.load(f)
-        print(f"验证通过：{len(test_data)} 条记录")
+        print(f"확인 완료: {len(test_data)}개 항목")
 
     return 0
 

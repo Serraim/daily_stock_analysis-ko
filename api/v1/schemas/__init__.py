@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-API v1 Schemas 模块初始化
+API v1 Schemas 모듈 초기화
 ===================================
 
-职责：
-1. 导出所有 Pydantic 模型
+역할:
+1. Pydantic 모델 전부 내보내기
 """
 
 from api.v1.schemas.common import (

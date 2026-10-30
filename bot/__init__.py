@@ -1,34 +1,34 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-机器人命令触发系统
+봇 명령 실행 시스템
 ===================================
 
-通过 @机器人 或发送命令触发股票分析等功能。
-支持飞书、钉钉、企业微信、Telegram 等多平台。
+@봇 멘션이나 명령으로 주식 분석 등을 실행합니다.
+Feishu, DingTalk, WeCom(기업 위챗), Telegram 등 여러 플랫폼을 지원합니다.
 
-模块结构：
-- models.py: 统一的消息/响应模型
-- dispatcher.py: 命令分发器
-- commands/: 命令处理器
-- platforms/: 平台适配器
-- handler.py: Webhook 处理器
+모듈 구성:
+- models.py: 공통 메시지/응답 모델
+- dispatcher.py: 명령 분배기
+- commands/: 명령 처리기
+- platforms/: 플랫폼 어댑터
+- handler.py: Webhook 처리기
 
-使用方式：
-1. 配置环境变量（各平台的 Token 等）
-2. 启动 WebUI 服务
-3. 在各平台配置 Webhook URL：
-   - 飞书: http://your-server/bot/feishu
-   - 钉钉: http://your-server/bot/dingtalk
-   - 企业微信: http://your-server/bot/wecom
+사용 방법:
+1. 환경 변수 설정(플랫폼별 Token 등)
+2. WebUI 서비스 시작
+3. 각 플랫폼에 Webhook URL 등록:
+   - Feishu: http://your-server/bot/feishu
+   - DingTalk: http://your-server/bot/dingtalk
+   - WeCom: http://your-server/bot/wecom
    - Telegram: http://your-server/bot/telegram
 
-支持的命令：
-- /analyze <股票代码>  - 分析指定股票
-- /market             - 大盘复盘
-- /batch              - 批量分析自选股
-- /help               - 显示帮助
-- /status             - 系统状态
+지원 명령:
+- /analyze <종목코드>  - 지정 종목 분석
+- /market             - 시장 전체 복기
+- /batch              - 관심 종목 일괄 분석
+- /help               - 도움말 보기
+- /status             - 시스템 상태
 """
 
 from bot.models import BotMessage, BotResponse, ChatType, WebhookResponse

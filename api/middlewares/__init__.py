@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-API 中间件模块初始化
+API 미들웨어 모듈 초기화
 ===================================
 
-职责：
-1. 导出所有中间件
+역할:
+1. 미들웨어 전부 내보내기
 """
 
 from api.middlewares.error_handler import ErrorHandlerMiddleware

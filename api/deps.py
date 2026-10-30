@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-API 依赖注入模块
+API 의존성 주입 모듈
 ===================================
 
-职责：
-1. 提供数据库 Session 依赖
-2. 提供配置依赖
-3. 提供服务层依赖
+역할:
+1. DB Session 의존성 제공
+2. 설정 의존성 제공
+3. 서비스 계층 의존성 제공
 """
 
 from typing import Generator
@@ -24,12 +24,12 @@ from src.services.agent_chat_session_service import AgentChatSessionService
 
 def get_db() -> Generator[Session, None, None]:
     """
-    获取数据库 Session 依赖
+    DB Session 의존성 가져오기
     
-    使用 FastAPI 依赖注入机制，确保请求结束后自动关闭 Session
+    FastAPI 의존성 주입을 써서 요청이 끝나면 Session 을 자동으로 닫음
     
     Yields:
-        Session: SQLAlchemy Session 对象
+        Session: SQLAlchemy Session 객체
         
     Example:
         @router.get("/items")
@@ -46,20 +46,20 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_config_dep() -> Config:
     """
-    获取配置依赖
+    설정 의존성 가져오기
     
     Returns:
-        Config: 配置单例对象
+        Config: 설정 싱글턴 객체
     """
     return get_config()
 
 
 def get_database_manager() -> DatabaseManager:
     """
-    获取数据库管理器依赖
+    DB 관리자 의존성 가져오기
     
     Returns:
-        DatabaseManager: 数据库管理器单例对象
+        DatabaseManager: DB 관리자 싱글턴 객체
     """
     return DatabaseManager.get_instance()
 

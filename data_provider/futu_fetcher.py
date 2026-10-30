@@ -99,7 +99,7 @@ class FutuFetcher(BaseFetcher):
             self._available = self.has_configured_endpoint()
         except ImportError:
             self._available = False
-            logger.warning("[Futu] futu-api 未安装")
+            logger.warning("[Futu] futu-api가 설치되어 있지 않습니다")
         return self._available
 
     def is_available_for_request(self, capability: str = "") -> bool:
@@ -115,10 +115,10 @@ class FutuFetcher(BaseFetcher):
                 try:
                     from futu import OpenQuoteContext
                     self._ctx = OpenQuoteContext(host=self._host, port=self._port)
-                    logger.info("[Futu] OpenQuoteContext 初始化成功: %s:%s", self._host, self._port)
+                    logger.info("[Futu] OpenQuoteContext 초기화 성공: %s:%s", self._host, self._port)
                 except Exception as exc:
                     self._available = False
-                    logger.warning("[Futu] OpenQuoteContext 初始化失败: %s", exc)
+                    logger.warning("[Futu] OpenQuoteContext 초기화 실패: %s", exc)
         return self._ctx
 
     @staticmethod

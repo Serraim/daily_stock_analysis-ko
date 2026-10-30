@@ -1,4 +1,4 @@
-# MA Golden Cross Strategy / 均线金叉
+# MA Golden Cross Strategy / 이동평균선 골든크로스
 # MA5 crosses above MA10 (or MA10 above MA20) with volume confirmation.
 
 name: ma_golden_cross

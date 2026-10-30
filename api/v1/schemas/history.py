@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-历史记录相关模型
+분석 기록 관련 모델
 ===================================
 
-职责：
-1. 定义历史记录列表和详情模型
-2. 定义分析报告完整模型
+역할:
+1. 기록 목록·상세 모델 정의
+2. 분석 리포트 전체 모델 정의
 """
 
 from typing import Optional, List, Any, Dict, Literal
@@ -19,42 +19,42 @@ from src.schemas.decision_action import DecisionAction
 
 
 class HistoryItem(BaseModel):
-    """历史记录摘要（列表展示用）"""
+    """분석 기록 요약 (목록 표시용)"""
 
-    id: Optional[int] = Field(None, description="分析历史记录主键 ID")
-    query_id: str = Field(..., description="分析记录关联 query_id（批量分析时重复）")
-    stock_code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    report_type: Optional[str] = Field(None, description="报告类型")
+    id: Optional[int] = Field(None, description="분석 기록 기본키 ID")
+    query_id: str = Field(..., description="분석 기록에 연결된 query_id (일괄 분석 시 중복됨)")
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    report_type: Optional[str] = Field(None, description="리포트 종류")
     region: Optional[str] = Field(
         None,
-        description="大盘复盘实际执行的 canonical 市场范围",
+        description="시장 리뷰가 실제로 실행된 canonical 시장 범위",
     )
-    trend_prediction: Optional[str] = Field(None, description="趋势预测")
-    analysis_summary: Optional[str] = Field(None, description="分析摘要")
+    trend_prediction: Optional[str] = Field(None, description="추세 예측")
+    analysis_summary: Optional[str] = Field(None, description="분석 요약")
     sentiment_score: Optional[int] = Field(
         None,
-        description="情绪评分（历史数据可能超出 0-100 范围，读取时不做约束）",
+        description="심리 점수 (과거 데이터는 0-100을 벗어날 수 있으며, 읽을 때 제한하지 않음)",
     )
-    operation_advice: Optional[str] = Field(None, description="操作建议")
-    action: Optional[DecisionAction] = Field(None, description="结构化建议动作 taxonomy")
-    action_label: Optional[str] = Field(None, description="建议动作展示标签")
-    current_price: Optional[float] = Field(None, description="分析时股价")
-    change_pct: Optional[float] = Field(None, description="分析时涨跌幅(%)")
-    volume_ratio: Optional[float] = Field(None, description="分析时量比")
-    turnover_rate: Optional[float] = Field(None, description="分析时换手率")
+    operation_advice: Optional[str] = Field(None, description="매매 의견")
+    action: Optional[DecisionAction] = Field(None, description="구조화된 추천 행동 taxonomy")
+    action_label: Optional[str] = Field(None, description="추천 행동 표시 라벨")
+    current_price: Optional[float] = Field(None, description="분석 시점 주가")
+    change_pct: Optional[float] = Field(None, description="분석 시점 등락률(%)")
+    volume_ratio: Optional[float] = Field(None, description="분석 시점 거래량 비율")
+    turnover_rate: Optional[float] = Field(None, description="분석 시점 회전율")
     model_used: Optional[str] = Field(
         None,
-        description="分析历史记录中的模型快照，仅用于展示历史元数据；不参与模型配置或运行时路由决策",
+        description="분석 기록에 남은 모델 스냅샷. 기록 메타데이터 표시용일 뿐, 모델 설정이나 실행 중 라우팅에는 쓰지 않음",
     )
     market_phase_summary: Optional[MarketPhaseSummary] = Field(
         None,
-        description="本次分析市场阶段低敏摘要",
+        description="이번 분석의 시장 국면 요약 (민감 정보 제외)",
     )
-    created_at: Optional[str] = Field(None, description="创建时间")
+    created_at: Optional[str] = Field(None, description="생성 시각")
     asset_type: Optional[Literal["stock", "index"]] = Field(
         None,
-        description="后端权威资产类型（stock/index）；由持久化代码经 parser 生成。旧客户端与 market review 可缺省。",
+        description="백엔드 기준 자산 유형 (stock/index). 저장된 코드를 parser로 해석해 만듦. 구버전 클라이언트와 market review에서는 생략 가능.",
     )
 
     model_config = ConfigDict(json_schema_extra={
@@ -72,12 +72,12 @@ class HistoryItem(BaseModel):
 
 
 class HistoryListResponse(BaseModel):
-    """历史记录列表响应"""
+    """분석 기록 목록 응답"""
 
-    total: int = Field(..., description="总记录数")
-    page: int = Field(..., description="当前页码")
-    limit: int = Field(..., description="每页数量")
-    items: List[HistoryItem] = Field(default_factory=list, description="记录列表")
+    total: int = Field(..., description="전체 기록 수")
+    page: int = Field(..., description="현재 페이지 번호")
+    limit: int = Field(..., description="페이지당 개수")
+    items: List[HistoryItem] = Field(default_factory=list, description="기록 목록")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -90,23 +90,23 @@ class HistoryListResponse(BaseModel):
 
 
 class DeleteHistoryRequest(BaseModel):
-    """删除历史记录请求"""
+    """분석 기록 삭제 요청"""
 
-    record_ids: List[int] = Field(default_factory=list, description="要删除的历史记录主键 ID 列表")
+    record_ids: List[int] = Field(default_factory=list, description="삭제할 분석 기록 기본키 ID 목록")
 
 
 class DeleteHistoryResponse(BaseModel):
-    """删除历史记录响应"""
+    """분석 기록 삭제 응답"""
 
-    deleted: int = Field(..., description="实际删除的历史记录数量")
+    deleted: int = Field(..., description="실제로 삭제된 기록 수")
 
 
 class NewsIntelItem(BaseModel):
-    """新闻情报条目"""
+    """뉴스 정보 항목"""
 
-    title: str = Field(..., description="新闻标题")
-    snippet: str = Field("", description="新闻摘要（最多200字）")
-    url: str = Field(..., description="新闻链接")
+    title: str = Field(..., description="뉴스 제목")
+    snippet: str = Field("", description="뉴스 요약 (최대 200자)")
+    url: str = Field(..., description="뉴스 링크")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -118,10 +118,10 @@ class NewsIntelItem(BaseModel):
 
 
 class NewsIntelResponse(BaseModel):
-    """新闻情报响应"""
+    """뉴스 정보 응답"""
 
-    total: int = Field(..., description="新闻条数")
-    items: List[NewsIntelItem] = Field(default_factory=list, description="新闻列表")
+    total: int = Field(..., description="뉴스 개수")
+    items: List[NewsIntelItem] = Field(default_factory=list, description="뉴스 목록")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -132,63 +132,63 @@ class NewsIntelResponse(BaseModel):
 
 
 class ReportMeta(BaseModel):
-    """报告元信息"""
+    """리포트 메타 정보"""
 
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
 
-    id: Optional[int] = Field(None, description="分析历史记录主键 ID（仅历史报告有此字段）")
-    query_id: str = Field(..., description="分析记录关联 query_id（批量分析时重复）")
-    stock_code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    report_type: Optional[str] = Field(None, description="报告类型")
-    report_language: Optional[str] = Field(None, description="报告输出语言（zh/en/ko）")
-    created_at: Optional[str] = Field(None, description="创建时间")
-    current_price: Optional[float] = Field(None, description="分析时股价")
-    change_pct: Optional[float] = Field(None, description="分析时涨跌幅(%)")
+    id: Optional[int] = Field(None, description="분석 기록 기본키 ID (기록에서 불러온 리포트에만 있음)")
+    query_id: str = Field(..., description="분석 기록에 연결된 query_id (일괄 분석 시 중복됨)")
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    report_type: Optional[str] = Field(None, description="리포트 종류")
+    report_language: Optional[str] = Field(None, description="리포트 출력 언어 (zh/en/ko)")
+    created_at: Optional[str] = Field(None, description="생성 시각")
+    current_price: Optional[float] = Field(None, description="분석 시점 주가")
+    change_pct: Optional[float] = Field(None, description="분석 시점 등락률(%)")
     model_used: Optional[str] = Field(
         None,
-        description="历史报告元数据中的模型快照，仅用于展示；不参与运行时模型调用路径或配置路由",
+        description="기록 리포트 메타데이터의 모델 스냅샷. 표시용일 뿐, 실행 중 모델 호출이나 설정 라우팅에는 쓰지 않음",
     )
     market_phase_summary: Optional[MarketPhaseSummary] = Field(
         None,
-        description="本次分析市场阶段低敏摘要",
+        description="이번 분석의 시장 국면 요약 (민감 정보 제외)",
     )
     asset_type: Optional[Literal["stock", "index"]] = Field(
         None,
-        description="后端权威资产类型（stock/index）；指数报告用于隐藏 stock-only 自选操作。market review 与旧客户端可缺省。",
+        description="백엔드 기준 자산 유형 (stock/index). 지수 리포트에서는 종목 전용 관심종목 버튼을 숨기는 데 씀. market review와 구버전 클라이언트에서는 생략 가능.",
     )
 
 
 class ReportSummary(BaseModel):
-    """报告概览区"""
+    """리포트 개요 영역"""
 
-    analysis_summary: Optional[str] = Field(None, description="关键结论")
-    operation_advice: Optional[str] = Field(None, description="操作建议")
-    action: Optional[DecisionAction] = Field(None, description="结构化建议动作 taxonomy")
-    action_label: Optional[str] = Field(None, description="建议动作展示标签")
-    trend_prediction: Optional[str] = Field(None, description="趋势预测")
+    analysis_summary: Optional[str] = Field(None, description="핵심 결론")
+    operation_advice: Optional[str] = Field(None, description="매매 의견")
+    action: Optional[DecisionAction] = Field(None, description="구조화된 추천 행동 taxonomy")
+    action_label: Optional[str] = Field(None, description="추천 행동 표시 라벨")
+    trend_prediction: Optional[str] = Field(None, description="추세 예측")
     sentiment_score: Optional[int] = Field(
         None,
-        description="情绪评分（历史数据可能超出 0-100 范围，读取时不做约束）",
+        description="심리 점수 (과거 데이터는 0-100을 벗어날 수 있으며, 읽을 때 제한하지 않음)",
     )
-    sentiment_label: Optional[str] = Field(None, description="情绪标签")
+    sentiment_label: Optional[str] = Field(None, description="심리 라벨")
 
 
 class ReportStrategy(BaseModel):
-    """策略点位区"""
+    """매매 가격대 영역"""
 
-    ideal_buy: Optional[str] = Field(None, description="理想买入价")
-    secondary_buy: Optional[str] = Field(None, description="第二买入价")
-    stop_loss: Optional[str] = Field(None, description="止损价")
-    take_profit: Optional[str] = Field(None, description="止盈价")
+    ideal_buy: Optional[str] = Field(None, description="적정 매수가")
+    secondary_buy: Optional[str] = Field(None, description="2차 매수가")
+    stop_loss: Optional[str] = Field(None, description="손절가")
+    take_profit: Optional[str] = Field(None, description="익절가")
 
 
 class AnalysisContextPackOverviewSubject(BaseModel):
-    """AnalysisContextPack 可见摘要标的信息"""
+    """AnalysisContextPack 공개 요약 - 종목 정보"""
 
-    code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    market: Optional[str] = Field(None, description="市场")
+    code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    market: Optional[str] = Field(None, description="시장")
 
 
 class AnalysisContextPackOverviewBlock(BaseModel):
@@ -215,7 +215,7 @@ class AnalysisContextPackOverviewBlock(BaseModel):
 
 
 class AnalysisContextPackOverviewCounts(BaseModel):
-    """AnalysisContextPack 可见摘要状态计数"""
+    """AnalysisContextPack 공개 요약 - 상태별 개수"""
 
     available: int = 0
     missing: int = 0
@@ -228,60 +228,60 @@ class AnalysisContextPackOverviewCounts(BaseModel):
 
 
 class AnalysisContextPackOverviewMetadata(BaseModel):
-    """AnalysisContextPack 可见摘要元数据"""
+    """AnalysisContextPack 공개 요약 - 메타데이터"""
 
-    trigger_source: Optional[str] = Field(None, description="触发来源")
-    news_result_count: Optional[int] = Field(None, description="新闻结果数量")
+    trigger_source: Optional[str] = Field(None, description="실행 경로")
+    news_result_count: Optional[int] = Field(None, description="뉴스 검색 결과 수")
 
 
 class AnalysisContextPackOverviewDataQuality(BaseModel):
-    """AnalysisContextPack 可见摘要数据质量评分"""
+    """AnalysisContextPack 공개 요약 - 데이터 품질 점수"""
 
-    overall_score: Optional[int] = Field(None, ge=0, le=100, description="输入数据质量总分")
+    overall_score: Optional[int] = Field(None, ge=0, le=100, description="입력 데이터 품질 총점")
     level: Optional[Literal["good", "usable", "limited", "poor"]] = Field(
         None,
-        description="输入数据质量等级",
+        description="입력 데이터 품질 등급",
     )
-    block_scores: Dict[str, int] = Field(default_factory=dict, description="固定数据块质量分")
-    limitations: List[str] = Field(default_factory=list, description="低敏数据限制说明")
+    block_scores: Dict[str, int] = Field(default_factory=dict, description="고정 데이터 블록별 품질 점수")
+    limitations: List[str] = Field(default_factory=list, description="데이터 한계 설명 (민감 정보 제외)")
 
 
 class AnalysisContextPackOverview(BaseModel):
-    """历史/API 可见的低敏 AnalysisContextPack 摘要"""
+    """기록/API에 공개되는 AnalysisContextPack 요약 (민감 정보 제외)"""
 
-    pack_version: str = Field(..., description="AnalysisContextPack 版本")
-    created_at: Optional[str] = Field(None, description="创建时间")
+    pack_version: str = Field(..., description="AnalysisContextPack 버전")
+    created_at: Optional[str] = Field(None, description="생성 시각")
     subject: AnalysisContextPackOverviewSubject
     blocks: List[AnalysisContextPackOverviewBlock] = Field(default_factory=list)
     counts: AnalysisContextPackOverviewCounts
     data_quality: Optional[AnalysisContextPackOverviewDataQuality] = Field(
         None,
-        description="本次分析输入数据质量低敏摘要",
+        description="이번 분석 입력 데이터 품질 요약 (민감 정보 제외)",
     )
-    warnings: List[str] = Field(default_factory=list, description="顶层数据质量提醒")
+    warnings: List[str] = Field(default_factory=list, description="전체 데이터 품질 알림")
     metadata: AnalysisContextPackOverviewMetadata = Field(default_factory=AnalysisContextPackOverviewMetadata)
 
 
 class ReportDetails(BaseModel):
-    """报告详情区"""
+    """리포트 상세 영역"""
 
-    news_content: Optional[str] = Field(None, description="新闻摘要")
+    news_content: Optional[str] = Field(None, description="뉴스 요약")
     empty_news_disclosure: Optional[str] = Field(
         None,
-        description="新闻检索未执行或零命中时的用户可见披露",
+        description="뉴스 검색을 안 했거나 결과가 0건일 때 사용자에게 보여 줄 안내",
     )
-    raw_result: Optional[Any] = Field(None, description="原始分析结果（JSON）")
-    context_snapshot: Optional[Any] = Field(None, description="分析时上下文快照（JSON）")
+    raw_result: Optional[Any] = Field(None, description="원본 분석 결과 (JSON)")
+    context_snapshot: Optional[Any] = Field(None, description="분석 시점 컨텍스트 스냅샷 (JSON)")
     analysis_context_pack_overview: Optional[AnalysisContextPackOverview] = Field(
         None,
-        description="本次分析输入上下文包低敏摘要",
+        description="이번 분석 입력 컨텍스트 묶음 요약 (민감 정보 제외)",
     )
-    financial_report: Optional[Any] = Field(None, description="结构化财报摘要（来自 fundamental_context）")
-    dividend_metrics: Optional[Any] = Field(None, description="结构化分红指标（含 TTM 口径）")
-    belong_boards: Optional[Any] = Field(None, description="关联板块列表")
-    sector_rankings: Optional[Any] = Field(None, description="板块涨跌榜（结构 {top, bottom}）")
-    concept_rankings: Optional[Any] = Field(None, description="概念板块涨跌榜（结构 {top, bottom}）")
-    market_structure: Optional[Any] = Field(None, description="市场结构上下文（题材层 + 个股位置层）")
+    financial_report: Optional[Any] = Field(None, description="구조화된 재무제표 요약 (fundamental_context에서 가져옴)")
+    dividend_metrics: Optional[Any] = Field(None, description="구조화된 배당 지표 (TTM 기준 포함)")
+    belong_boards: Optional[Any] = Field(None, description="관련 업종 목록")
+    sector_rankings: Optional[Any] = Field(None, description="업종 등락 순위 (구조 {top, bottom})")
+    concept_rankings: Optional[Any] = Field(None, description="테마 업종 등락 순위 (구조 {top, bottom})")
+    market_structure: Optional[Any] = Field(None, description="시장 구조 컨텍스트 (테마 층 + 개별 종목 위치 층)")
 
     @model_validator(mode="after")
     def populate_context_derived_details(self) -> "ReportDetails":
@@ -307,12 +307,12 @@ class ReportDetails(BaseModel):
 
 
 class AnalysisReport(BaseModel):
-    """完整分析报告"""
+    """분석 리포트 전체"""
 
-    meta: ReportMeta = Field(..., description="元信息")
-    summary: ReportSummary = Field(..., description="概览区")
-    strategy: Optional[ReportStrategy] = Field(None, description="策略点位区")
-    details: Optional[ReportDetails] = Field(None, description="详情区")
+    meta: ReportMeta = Field(..., description="메타 정보")
+    summary: ReportSummary = Field(..., description="개요 영역")
+    strategy: Optional[ReportStrategy] = Field(None, description="매매 가격대 영역")
+    details: Optional[ReportDetails] = Field(None, description="상세 영역")
     structured_report: Optional[ResearchArtifact] = Field(
         None,
         description="结构化研究产物，供看板、个股研究页、监控和 Copilot 复用",
@@ -347,9 +347,9 @@ class AnalysisReport(BaseModel):
 
 
 class MarkdownReportResponse(BaseModel):
-    """Markdown 格式报告响应"""
+    """Markdown 형식 리포트 응답"""
 
-    content: str = Field(..., description="Markdown 格式的完整报告内容")
+    content: str = Field(..., description="Markdown 형식의 리포트 전체 내용")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -359,32 +359,32 @@ class MarkdownReportResponse(BaseModel):
 
 
 class StockBarItem(BaseModel):
-    """个股栏条目（去重后的股票维度摘要）"""
+    """종목 목록 항목 (중복 제거 후 종목별 요약)"""
 
-    id: int = Field(..., description="该股最新一次分析的历史记录主键 ID")
-    stock_code: str = Field(..., description="股票代码")
-    stock_name: Optional[str] = Field(None, description="股票名称")
-    report_type: Optional[str] = Field(None, description="报告类型")
+    id: int = Field(..., description="이 종목의 가장 최근 분석 기록 기본키 ID")
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: Optional[str] = Field(None, description="종목명")
+    report_type: Optional[str] = Field(None, description="리포트 종류")
     sentiment_score: Optional[int] = Field(
         None,
-        description="最新情绪评分",
+        description="최신 심리 점수",
     )
-    operation_advice: Optional[str] = Field(None, description="最新操作建议")
-    action: Optional[DecisionAction] = Field(None, description="结构化建议动作 taxonomy")
-    action_label: Optional[str] = Field(None, description="建议动作展示标签")
-    analysis_count: int = Field(..., description="该股票的历史分析总次数")
-    last_analysis_time: Optional[str] = Field(None, description="最近一次分析时间")
+    operation_advice: Optional[str] = Field(None, description="최신 매매 의견")
+    action: Optional[DecisionAction] = Field(None, description="구조화된 추천 행동 taxonomy")
+    action_label: Optional[str] = Field(None, description="추천 행동 표시 라벨")
+    analysis_count: int = Field(..., description="이 종목의 누적 분석 횟수")
+    last_analysis_time: Optional[str] = Field(None, description="최근 분석 시각")
     model_used: Optional[str] = Field(
         None,
-        description="最新分析使用的模型快照，仅用于列表展示；不改动运行时调用与配置路径",
+        description="최근 분석에 쓴 모델 스냅샷. 목록 표시용일 뿐, 실행 중 호출이나 설정에는 영향 없음",
     )
     market_phase_summary: Optional[MarketPhaseSummary] = Field(
         None,
-        description="最新分析市场阶段低敏摘要",
+        description="최근 분석의 시장 국면 요약 (민감 정보 제외)",
     )
     asset_type: Optional[Literal["stock", "index"]] = Field(
         None,
-        description="后端权威资产类型（stock/index）；由持久化代码经 parser 生成。旧客户端可缺省。",
+        description="백엔드 기준 자산 유형 (stock/index). 저장된 코드를 parser로 해석해 만듦. 구버전 클라이언트에서는 생략 가능.",
     )
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -402,48 +402,48 @@ class StockBarItem(BaseModel):
 
 
 class StockBarResponse(BaseModel):
-    """个股栏列表响应"""
+    """종목 목록 응답"""
 
-    total: int = Field(..., description="不重复个股数")
-    items: List[StockBarItem] = Field(default_factory=list, description="个股列表")
+    total: int = Field(..., description="중복 제외 종목 수")
+    items: List[StockBarItem] = Field(default_factory=list, description="종목 목록")
 
 
 class WatchlistRequest(BaseModel):
-    """自选队列操作请求"""
+    """관심종목 목록 변경 요청"""
 
-    stock_code: str = Field(..., description="股票代码", min_length=1)
+    stock_code: str = Field(..., description="종목 코드", min_length=1)
 
 
 class WatchlistResponse(BaseModel):
-    """自选队列响应"""
+    """관심종목 목록 응답"""
 
-    stock_codes: List[str] = Field(default_factory=list, description="当前自选队列股票代码列表")
-    message: str = Field(..., description="操作结果描述")
+    stock_codes: List[str] = Field(default_factory=list, description="현재 관심종목 코드 목록")
+    message: str = Field(..., description="처리 결과 설명")
 
 
 class RunDiagnosticComponent(BaseModel):
-    """单个运行诊断组件摘要。"""
+    """실행 진단 구성 요소 하나의 요약."""
 
-    key: str = Field(..., description="组件键")
-    label: str = Field(..., description="组件显示名称")
-    status: str = Field(..., description="组件状态：ok/degraded/failed/unknown/not_configured/skipped")
-    message: str = Field(..., description="用户可读摘要")
-    details: Optional[Dict[str, Any]] = Field(None, description="折叠展示的诊断细节")
+    key: str = Field(..., description="구성 요소 키")
+    label: str = Field(..., description="구성 요소 표시 이름")
+    status: str = Field(..., description="구성 요소 상태: ok/degraded/failed/unknown/not_configured/skipped")
+    message: str = Field(..., description="사용자용 요약")
+    details: Optional[Dict[str, Any]] = Field(None, description="접어서 보여 주는 진단 세부 정보")
 
 
 class RunDiagnosticSummaryResponse(BaseModel):
-    """历史报告运行诊断摘要。"""
+    """기록 리포트의 실행 진단 요약."""
 
-    trace_id: Optional[str] = Field(None, description="诊断 trace ID")
-    task_id: Optional[str] = Field(None, description="任务 ID")
-    query_id: Optional[str] = Field(None, description="分析 query ID")
-    stock_code: Optional[str] = Field(None, description="股票代码")
-    trigger_source: Optional[str] = Field(None, description="触发来源")
-    status: str = Field(..., description="总体状态：normal/degraded/failed/unknown")
-    status_label: str = Field(..., description="总体状态中文标签")
-    reason: str = Field(..., description="最主要的诊断原因")
-    components: Dict[str, RunDiagnosticComponent] = Field(default_factory=dict, description="关键链路诊断组件")
-    copy_text: str = Field(..., description="可复制的脱敏排障文本")
+    trace_id: Optional[str] = Field(None, description="진단 trace ID")
+    task_id: Optional[str] = Field(None, description="작업 ID")
+    query_id: Optional[str] = Field(None, description="분석 query ID")
+    stock_code: Optional[str] = Field(None, description="종목 코드")
+    trigger_source: Optional[str] = Field(None, description="실행 경로")
+    status: str = Field(..., description="전체 상태: normal/degraded/failed/unknown")
+    status_label: str = Field(..., description="전체 상태 표시 라벨")
+    reason: str = Field(..., description="가장 주요한 진단 원인")
+    components: Dict[str, RunDiagnosticComponent] = Field(default_factory=dict, description="핵심 경로 진단 구성 요소")
+    copy_text: str = Field(..., description="복사해 쓸 수 있는 문제 해결용 텍스트 (민감 정보 제거됨)")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {

@@ -49,7 +49,7 @@ class ChatCommand(BotCommand):
     Chat command handler.
     
     Usage: /chat <message>
-    Example: /chat 帮我分析一下茅台最近的走势
+    Example: /chat 마오타이 최근 흐름 좀 분석해줘
     """
     
     @property
@@ -58,11 +58,11 @@ class ChatCommand(BotCommand):
         
     @property
     def description(self) -> str:
-        return "与 AI 助手进行自由对话 (需开启 Agent 模式)"
+        return "AI 도우미와 자유롭게 대화 (Agent 모드 필요)"
         
     @property
     def usage(self) -> str:
-        return "/chat <问题>"
+        return "/chat <질문>"
         
     @property
     def aliases(self) -> list[str]:
@@ -71,7 +71,7 @@ class ChatCommand(BotCommand):
     def validate_args(self, args: List[str]) -> Optional[str]:
         """Require at least one argument (the question)."""
         if not args:
-            return "请提供要询问的问题。"
+            return "질문 내용을 입력해 주세요."
         return None
 
     def execute(self, message: BotMessage, args: list[str]) -> BotResponse:
@@ -80,12 +80,12 @@ class ChatCommand(BotCommand):
 
         if not config.agent_mode:
             return BotResponse.text_response(
-                "⚠️ Agent 模式未开启，无法使用对话功能。\n请在配置中设置 `AGENT_MODE=true`。"
+                "⚠️ Agent 모드가 꺼져 있어 대화 기능을 쓸 수 없습니다.\n설정에서 `AGENT_MODE=true`로 바꿔 주세요."
             )
             
         if not args:
             return BotResponse.text_response(
-                "⚠️ 请提供要询问的问题。\n用法: `/chat <问题>`\n示例: `/chat 帮我分析一下茅台最近的走势`"
+                "⚠️ 질문 내용을 입력해 주세요.\n사용법: `/chat <질문>`\n예시: `/chat 마오타이 최근 흐름 좀 분석해줘`"
             )
             
         user_message = " ".join(args)

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-健康检查接口
+헬스 체크 API
 ===================================
 
-职责：
-1. 提供 /api/v1/health 健康检查接口
-2. 用于负载均衡器和监控系统
+역할:
+1. /api/v1/health 헬스 체크 API 제공
+2. 로드 밸런서와 모니터링 시스템용
 """
 
 from datetime import datetime
@@ -21,12 +21,12 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """
-    健康检查接口
+    헬스 체크 API
     
-    用于负载均衡器或监控系统检查服务状态
+    로드 밸런서나 모니터링 시스템이 서비스 상태를 확인하는 용도
     
     Returns:
-        HealthResponse: 包含服务状态和时间戳
+        HealthResponse: 서비스 상태와 타임스탬프 포함
     """
     return HealthResponse(
         status="ok",

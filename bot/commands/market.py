@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-大盘复盘命令
+시장 복기 명령
 ===================================
 
-执行大盘复盘分析，生成市场概览报告。
+시장 전체 복기 분석을 실행하고 시장 개요 보고서를 만듭니다.
 """
 
 import logging
@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 
 class MarketCommand(BotCommand):
     """
-    大盘复盘命令
+    시장 복기 명령
 
-    执行大盘复盘分析，包括：
-    - 主要指数表现
-    - 板块热点
-    - 市场情绪
-    - 后市展望
+    시장 전체 복기 분석을 실행합니다. 포함 내용:
+    - 주요 지수 흐름
+    - 업종별 이슈
+    - 시장 심리
+    - 향후 전망
 
-    用法：
-        /market - 执行大盘复盘
+    사용법:
+        /market - 시장 복기 실행
     """
 
     @property
@@ -41,18 +41,18 @@ class MarketCommand(BotCommand):
 
     @property
     def description(self) -> str:
-        return "大盘复盘分析"
+        return "시장 전체 복기 분석"
 
     @property
     def usage(self) -> str:
         return "/market"
 
     def execute(self, message: BotMessage, args: List[str]) -> BotResponse:
-        """执行大盘复盘命令"""
+        """시장 복기 명령 실행"""
         config = self._get_config()
         lock_token = self._try_acquire_market_review_lock(config)
         if lock_token is None:
-            return BotResponse.markdown_response("⚠️ 大盘复盘正在执行中，请稍后再试。")
+            return BotResponse.markdown_response("⚠️ 시장 복기가 이미 실행 중입니다. 잠시 후 다시 시도해 주세요.")
 
         thread = threading.Thread(
             target=self._run_market_review,
@@ -63,7 +63,7 @@ class MarketCommand(BotCommand):
             thread.start()
         except Exception as exc:
             logger.error(
-                "[MarketCommand] 大盘复盘后台线程启动失败: %s",
+                "[MarketCommand] 시장 복기 백그라운드 스레드 시작 실패: %s",
                 exc,
             )
             self._release_market_review_lock(lock_token)
@@ -72,13 +72,13 @@ class MarketCommand(BotCommand):
             )
 
         return BotResponse.markdown_response(
-            "✅ **大盘复盘任务已启动**\n\n"
-            "正在分析：\n"
-            "• 主要指数表现\n"
-            "• 板块热点分析\n"
-            "• 市场情绪判断\n"
-            "• 后市展望\n\n"
-            "分析完成后将自动推送结果。"
+            "✅ **시장 복기 작업을 시작했습니다**\n\n"
+            "분석 중:\n"
+            "• 주요 지수 흐름\n"
+            "• 업종별 이슈 분석\n"
+            "• 시장 심리 판단\n"
+            "• 향후 전망\n\n"
+            "분석이 끝나면 결과를 자동으로 보내 드립니다."
         )
 
     def _get_config(self):
@@ -109,7 +109,7 @@ class MarketCommand(BotCommand):
                 open_markets,
             )
         except Exception as exc:
-            logger.warning("交易日过滤失败，按配置继续执行大盘复盘: %s", exc)
+            logger.warning("거래일 확인 실패, 설정대로 시장 복기를 계속 진행: %s", exc)
             return None
 
     def _run_market_review(
@@ -118,13 +118,13 @@ class MarketCommand(BotCommand):
         config,
         lock_token: Optional[Any],
     ) -> None:
-        """后台执行大盘复盘"""
+        """백그라운드에서 시장 복기 실행"""
         try:
             override_region = self._compute_market_review_override_region(config)
             if override_region == "":
                 from src.notification import NotificationService
                 notifier = NotificationService(source_message=message)
-                logger.info("[MarketCommand] 今日相关市场休市，跳过大盘复盘")
+                logger.info("[MarketCommand] 오늘 해당 시장 휴장, 시장 복기 건너뜀")
                 if notifier.is_available():
                     notifier.send(
                         "🎯 大盘复盘\n\n今日相关市场休市，已跳过大盘复盘。",
@@ -149,11 +149,11 @@ class MarketCommand(BotCommand):
                 trigger_source="bot",
             )
             if review_report:
-                logger.info("[MarketCommand] 大盘复盘完成并已推送")
+                logger.info("[MarketCommand] 시장 복기 완료, 발송함")
             else:
-                logger.warning("[MarketCommand] 大盘复盘返回空结果")
+                logger.warning("[MarketCommand] 시장 복기 결과가 비어 있음")
         except Exception as e:
-            logger.error("[MarketCommand] 大盘复盘失败: %s", e)
+            logger.error("[MarketCommand] 시장 복기 실패: %s", e)
             logger.exception(e)
         finally:
             self._release_market_review_lock(lock_token)

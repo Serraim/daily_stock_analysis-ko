@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-API v1 路由聚合
+API v1 라우트 모음
 ===================================
 
-职责：
-1. 聚合 v1 版本的所有 endpoint 路由
-2. 统一添加 /api/v1 前缀
+역할:
+1. v1 버전 endpoint 라우트를 모두 모음
+2. /api/v1 접두사를 한곳에서 붙임
 """
 
 from fastapi import APIRouter
@@ -29,8 +29,8 @@ from api.v1.endpoints import (
     usage,
 )
 
-# 创建 v1 版本主路由。
-# /api/v1 前缀在 api.app 挂载，避免新版 FastAPI 误判子路由 "" 为 empty path。
+# v1 버전 메인 라우터 생성.
+# /api/v1 접두사는 api.app 에서 붙임. 최신 FastAPI 가 하위 라우트 "" 를 empty path 로 잘못 보는 것을 막기 위함.
 router = APIRouter()
 
 router.include_router(

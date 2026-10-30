@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票分析命令
+종목 분석 명령
 ===================================
 
-分析指定股票或已登记指数，调用 AI 生成分析报告。
+지정한 종목이나 등록된 지수를 분석하고 AI로 분석 보고서를 만듭니다.
 """
 
 import logging
@@ -28,16 +28,16 @@ logger = logging.getLogger(__name__)
 
 class AnalyzeCommand(BotCommand):
     """
-    股票分析命令
+    종목 분석 명령
     
-    分析指定股票代码或已登记指数，生成 AI 分析报告并推送。
+    지정한 종목코드나 등록된 지수를 분석해 AI 보고서를 만들고 보냅니다.
     
-    用法：
-        /analyze 600519       - 分析贵州茅台（精简报告）
-        /analyze 600519 full  - 分析并生成完整报告
-        /analyze sh000016     - 分析上证50指数
-        /analyze 930955.CSI   - 分析红利低波100指数（alias 收敛）
-        /analyze 上证50       - 按注册名称分析上证50指数
+    사용법:
+        /analyze 600519       - 贵州茅台 분석(간단 보고서)
+        /analyze 600519 full  - 분석 후 전체 보고서 생성
+        /analyze sh000016     - 上证50 지수 분석
+        /analyze 930955.CSI   - 红利低波100 지수 분석(alias 통합)
+        /analyze 上证50       - 등록 이름으로 上证50 지수 분석
     """
     
     @property
@@ -50,25 +50,25 @@ class AnalyzeCommand(BotCommand):
     
     @property
     def description(self) -> str:
-        return "分析指定股票或指数"
+        return "지정한 종목이나 지수 분석"
     
     @property
     def usage(self) -> str:
-        return "/analyze <股票代码/指数代码/指数名称> [full]"
+        return "/analyze <종목코드/지수코드/지수이름> [full]"
     
     def validate_args(self, args: List[str]) -> Optional[str]:
-        """验证参数（仅结构检查；语义校验在 execute 中完成）"""
+        """인자 검증(형식만 확인, 의미 검증은 execute에서 함)"""
         if not args:
             return "请输入股票代码或指数名称"
         return None
     
     def execute(self, message: BotMessage, args: List[str]) -> BotResponse:
-        """执行分析命令"""
+        """분석 명령 실행"""
         raw = (args[0] or "").strip()
         if not raw:
             return BotResponse.error_response("请输入股票代码或指数名称")
 
-        # 检查是否需要完整报告（默认精简，传 full/完整/详细 切换）
+        # 전체 보고서가 필요한지 확인(기본은 간단, full/完整/详细 입력 시 전환)
         report_type = "simple"
         if len(args) > 1 and args[1].lower() in ["full", "完整", "详细"]:
             report_type = "full"
@@ -83,15 +83,15 @@ class AnalyzeCommand(BotCommand):
             if isinstance(analysis_target, str):
                 return BotResponse.error_response(analysis_target)
 
-            logger.info(f"[AnalyzeCommand] 分析标的: {code}, 报告类型: {report_type}")
+            logger.info(f"[AnalyzeCommand] 분석 대상: {code}, 보고서 유형: {report_type}")
 
-            # 调用分析服务
+            # 분석 서비스 호출
             from src.services.task_service import get_task_service
             from src.enums import ReportType
 
             service = get_task_service()
 
-            # 提交异步分析任务
+            # 비동기 분석 작업 제출
             result = service.submit_analysis(
                 code=code,
                 report_type=ReportType.from_str(report_type),
@@ -101,8 +101,8 @@ class AnalyzeCommand(BotCommand):
 
             if result.get("success"):
                 task_id = result.get("task_id", "")
-                # ``extra`` 仅供内部任务 identity 透传（transport-independent
-                # 消费者，如 E2E smoke），文本保持既有契约不变，平台适配器可忽略。
+                # ``extra`` 는 내부 작업 identity 전달 전용(transport-independent
+                # 소비자, 예: E2E smoke). 텍스트는 기존 계약 그대로이며 플랫폼 어댑터는 무시해도 됨.
                 response = BotResponse.markdown_response(
                     f"✅ **分析任务已提交**\n\n"
                     f"• 标的: `{code}`\n"
@@ -119,8 +119,8 @@ class AnalyzeCommand(BotCommand):
             return BotResponse.error_response(f"提交分析任务失败: {error}")
 
         except Exception as e:
-            logger.error(f"[AnalyzeCommand] 执行失败: {e}")
-            return BotResponse.error_response(f"分析失败: {str(e)[:100]}")
+            logger.error(f"[AnalyzeCommand] 실행 실패: {e}")
+            return BotResponse.error_response(f"분석 실패: {str(e)[:100]}")
 
     def _resolve_analysis_input(
         self, raw: str
@@ -234,7 +234,7 @@ class AnalyzeCommand(BotCommand):
         if is_code_like(raw) or re.fullmatch(r"(?:sh|sz)\d{6}", normalized):
             return None, (
                 f"无效的标的代码: `{raw}`"
-                f"（A股6位数字 / HK+5位数字 / 美股1-5个字母 / 已登记指数代码或名称）"
+                f"(A주 숫자 6자리 / HK+숫자 5자리 / 미국 주식 영문 1-5자 / 등록된 지수 코드나 이름)"
             )
 
         # 8) Name input → stock-name fallback.

@@ -41,11 +41,11 @@ class AskCommand(BotCommand):
 
     @property
     def description(self) -> str:
-        return "使用 Agent 技能分析股票"
+        return "Agent 스킬로 종목 분석"
 
     @property
     def usage(self) -> str:
-        return "/ask <股票代码[,代码2,...]> [技能名称]"
+        return "/ask <종목코드[,코드2,...]> [스킬이름]"
 
     def _merge_code_args(self, args: List[str]) -> tuple[str, List[str]]:
         """Merge stock code arguments separated by commas or explicit ``vs`` markers."""
@@ -98,18 +98,18 @@ class AskCommand(BotCommand):
         is_us_stock = re.match(r"^[A-Z]{1,5}(\.[A-Z]{1,2})?$", normalized)
 
         if not (is_a_stock or is_hk_stock or is_us_stock):
-            return f"无效的股票代码: {normalized}（A股6位数字 / 港股HK+5位数字 / 美股1-5个字母）"
+            return f"잘못된 종목코드: {normalized} (A주 숫자 6자리 / 홍콩 HK+숫자 5자리 / 미국 주식 영문 1-5자)"
         return None
 
     def validate_args(self, args: List[str]) -> Optional[str]:
         """Validate arguments."""
         if not args:
-            return "请输入股票代码。用法: /ask <股票代码[,代码2,...]> [技能名称]"
+            return "종목코드를 입력해 주세요. 사용법: /ask <종목코드[,코드2,...]> [스킬이름]"
 
         raw_code_str, _ = self._merge_code_args(args)
         codes = self._parse_stock_codes(raw_code_str)
         if not codes:
-            return "请输入至少一个有效的股票代码"
+            return "올바른 종목코드를 하나 이상 입력해 주세요"
 
         for code in codes:
             error = self._validate_single_code(code)
@@ -117,7 +117,7 @@ class AskCommand(BotCommand):
                 return error
 
         if len(codes) > 5:
-            return "一次最多分析 5 只股票"
+            return "한 번에 최대 5개 종목까지 분석할 수 있습니다"
 
         return None
 
@@ -209,7 +209,7 @@ class AskCommand(BotCommand):
 
         if not config.agent_mode:
             return BotResponse.text_response(
-                "⚠️ Agent 模式未开启，无法使用问股功能。\n请在配置中设置 `AGENT_MODE=true`。"
+                "⚠️ Agent 모드가 꺼져 있어 종목 질문 기능을 쓸 수 없습니다.\n설정에서 `AGENT_MODE=true`로 바꿔 주세요."
             )
 
         raw_code_str, remaining_args = self._merge_code_args(args)
@@ -247,14 +247,14 @@ class AskCommand(BotCommand):
 
             if result.success:
                 skill_name = self._resolve_skill_name(skill_id)
-                header = f"📊 {code} | 技能: {skill_name}\n{'─' * 30}\n"
+                header = f"📊 {code} | 스킬: {skill_name}\n{'─' * 30}\n"
                 return BotResponse.text_response(header + result.content)
             return BotResponse.text_response(f"⚠️ 分析失败: {result.error}")
 
         except Exception as exc:
             logger.error("Ask command failed: %s", exc)
             logger.exception("Ask error details:")
-            return BotResponse.text_response(f"⚠️ 问股执行出错: {str(exc)}")
+            return BotResponse.text_response(f"⚠️ 종목 질문 처리 중 오류: {str(exc)}")
 
     def _analyze_multi(
         self,
@@ -309,9 +309,9 @@ class AskCommand(BotCommand):
                         None,
                     )
 
-                error_note = f"[分析失败] {result.error or '未知错误'}"
+                error_note = f"[분석 실패] {result.error or '알 수 없는 오류'}"
                 conversation_manager.add_message(session_id, "assistant", error_note)
-                return (stock_code, None, result.error or "未知错误")
+                return (stock_code, None, result.error or "알 수 없는 오류")
             except Exception as exc:
                 return (stock_code, None, str(exc))
 
@@ -326,10 +326,10 @@ class AskCommand(BotCommand):
                     if content is not None:
                         results[code] = content
                     else:
-                        errors[code] = error or "未知错误"
+                        errors[code] = error or "알 수 없는 오류"
                 except Exception as exc:
                     code = future_map[future]
-                    errors[code] = f"执行异常: {exc}"
+                    errors[code] = f"실행 예외: {exc}"
         except FutureTimeoutError:
             logger.warning("[AskCommand] Multi-stock analysis hit overall timeout (%.1fs)", overall_timeout_s)
             for future, code in future_map.items():
@@ -341,19 +341,19 @@ class AskCommand(BotCommand):
                         if content is not None:
                             results[code_done] = content
                         else:
-                            errors[code] = error or "未知错误"
+                            errors[code] = error or "알 수 없는 오류"
                     except Exception as exc:
-                        errors[code] = f"执行异常: {exc}"
+                        errors[code] = f"실행 예외: {exc}"
                 else:
-                    errors[code] = "分析超时（未在 150 秒内完成）"
+                    errors[code] = "분석 시간 초과(150초 안에 끝나지 않음)"
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
         for code in codes:
             if code not in results and code not in errors:
-                errors[code] = "分析超时"
+                errors[code] = "분석 시간 초과"
 
-        parts = [f"📊 **多股对比分析** | 技能: {skill_name}", f"{'─' * 30}", ""]
+        parts = [f"📊 **여러 종목 비교 분석** | 스킬: {skill_name}", f"{'─' * 30}", ""]
 
         remaining_timeout_s = max(0.0, overall_timeout_s - (time.monotonic() - started_at))
         portfolio_section = self._build_portfolio_section(
@@ -367,7 +367,7 @@ class AskCommand(BotCommand):
             parts.append("")
 
         if len(results) >= 2:
-            parts.append("| 股票 | 信号 | 置信度 | 摘要 |")
+            parts.append("| 종목 | 신호 | 신뢰도 | 요약 |")
             parts.append("|------|------|--------|------|")
             for code in codes:
                 if code in results:
@@ -375,7 +375,7 @@ class AskCommand(BotCommand):
                     signal = item.get("signal") or "unknown"
                     confidence = item.get("confidence")
                     confidence_text = f"{confidence:.0%}" if isinstance(confidence, (int, float)) else "-"
-                    summary_line = str(item.get("summary") or "分析完成").replace("|", "/")[:80]
+                    summary_line = str(item.get("summary") or "분석 완료").replace("|", "/")[:80]
                     parts.append(f"| {code} | {signal} | {confidence_text} | {summary_line} |")
                 elif code in errors:
                     parts.append(f"| {code} | error | - | ⚠️ {errors[code][:40]} |")
@@ -457,7 +457,7 @@ class AskCommand(BotCommand):
             stripped = line.strip()
             if stripped and len(stripped) > 4 and not stripped.startswith(("{", "}", "\"")):
                 return stripped[:120]
-        return f"{stock_code} 分析完成"
+        return f"{stock_code} 분석 완료"
 
     @staticmethod
     def _extract_risk_flags(dashboard: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
@@ -511,13 +511,13 @@ class AskCommand(BotCommand):
         if not isinstance(dashboard, dict):
             content = raw_content
             if len(content) > 800:
-                content = content[:800] + "\n... (已截断，完整分析请单独查询)"
+                content = content[:800] + "\n... (잘림, 전체 분석은 따로 조회해 주세요)"
             return content
 
         lines = []
         stock_name = dashboard.get("stock_name")
         if isinstance(stock_name, str) and stock_name.strip() and stock_name.strip() != stock_code:
-            lines.append(f"**名称**: {stock_name.strip()}")
+            lines.append(f"**이름**: {stock_name.strip()}")
 
         decision = dashboard.get("decision_type")
         confidence = AskCommand._extract_confidence(dashboard)
@@ -525,21 +525,21 @@ class AskCommand(BotCommand):
         if isinstance(decision, str):
             lines.append(
                 f"**结论**: {decision}"
-                + (f" | **置信度**: {confidence:.0%}" if isinstance(confidence, (int, float)) else "")
-                + (f" | **趋势**: {trend}" if isinstance(trend, str) and trend.strip() else "")
+                + (f" | **신뢰도**: {confidence:.0%}" if isinstance(confidence, (int, float)) else "")
+                + (f" | **추세**: {trend}" if isinstance(trend, str) and trend.strip() else "")
             )
 
         summary = AskCommand._extract_summary(stock_code, dashboard, raw_content)
         if summary:
-            lines.append(f"**摘要**: {summary}")
+            lines.append(f"**요약**: {summary}")
 
         operation = dashboard.get("operation_advice")
         if isinstance(operation, str) and operation.strip():
-            lines.append(f"**操作建议**: {operation.strip()}")
+            lines.append(f"**매매 의견**: {operation.strip()}")
 
         risk_warning = dashboard.get("risk_warning")
         if isinstance(risk_warning, str) and risk_warning.strip():
-            lines.append(f"**风险提示**: {risk_warning.strip()}")
+            lines.append(f"**위험 안내**: {risk_warning.strip()}")
 
         dashboard_block = dashboard.get("dashboard")
         if not isinstance(dashboard_block, dict):
@@ -621,16 +621,16 @@ class AskCommand(BotCommand):
 
             risk_score = assessment.get("portfolio_risk_score")
             if risk_score is not None:
-                lines.append(f"- 组合风险分: {risk_score}")
+                lines.append(f"- 포트폴리오 위험 점수: {risk_score}")
             sector_warnings = assessment.get("sector_warnings") or []
             if sector_warnings:
-                lines.append(f"- 行业集中: {'；'.join(str(item) for item in sector_warnings[:3])}")
+                lines.append(f"- 업종 쏠림: {'；'.join(str(item) for item in sector_warnings[:3])}")
             correlation_warnings = assessment.get("correlation_warnings") or []
             if correlation_warnings:
-                lines.append(f"- 相关性风险: {'；'.join(str(item) for item in correlation_warnings[:3])}")
+                lines.append(f"- 상관관계 위험: {'；'.join(str(item) for item in correlation_warnings[:3])}")
             rebalance = assessment.get("rebalance_suggestions") or []
             if rebalance:
-                lines.append(f"- 调仓建议: {'；'.join(str(item) for item in rebalance[:3])}")
+                lines.append(f"- 비중 조정 제안: {'；'.join(str(item) for item in rebalance[:3])}")
             positions = assessment.get("positions") or []
             if positions:
                 position_parts = []

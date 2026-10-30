@@ -58,7 +58,7 @@ class HistoryCommand(BotCommand):
 
     @property
     def description(self) -> str:
-        return "查看 Agent 对话历史"
+        return "Agent 대화 기록 보기"
 
     @property
     def usage(self) -> str:
@@ -71,7 +71,7 @@ class HistoryCommand(BotCommand):
             db = get_db()
         except Exception as e:
             logger.error(f"History: storage unavailable: {e}")
-            return BotResponse.text_response("⚠️ 存储模块不可用，无法查询对话历史。")
+            return BotResponse.text_response("⚠️ 저장소 모듈을 쓸 수 없어 대화 기록을 조회할 수 없습니다.")
 
         prefix = _user_prefix(message)
         legacy_chat_session_id = _legacy_chat_session_id(message)
@@ -88,20 +88,20 @@ class HistoryCommand(BotCommand):
                 )
             except Exception as e:
                 logger.error(f"History clear failed: {e}")
-                return BotResponse.text_response(f"⚠️ 清除失败: {str(e)}")
+                return BotResponse.text_response(f"⚠️ 삭제 실패: {str(e)}")
 
         # /history <session_id> — show messages for a specific session
         # Only allow access if the session belongs to the requesting user.
         if args and not args[0].isdigit():
             session_id = args[0]
             if not (session_id.startswith(prefix) or session_id == legacy_chat_session_id):
-                return BotResponse.text_response("⚠️ 你只能查看自己的会话记录。")
+                return BotResponse.text_response("⚠️ 내 대화 기록만 볼 수 있습니다.")
             try:
                 messages_list = db.get_conversation_messages(session_id, limit=20)
                 if not messages_list:
-                    return BotResponse.text_response(f"📭 会话 `{session_id}` 无消息记录")
+                    return BotResponse.text_response(f"📭 대화 `{session_id}`에 메시지가 없습니다")
 
-                lines = [f"💬 **会话详情**: `{session_id}`", ""]
+                lines = [f"💬 **대화 상세**: `{session_id}`", ""]
                 for msg in messages_list:
                     role_icon = "👤" if msg["role"] == "user" else "🤖"
                     content_preview = msg["content"][:200]
@@ -115,7 +115,7 @@ class HistoryCommand(BotCommand):
                 return BotResponse.markdown_response("\n".join(lines))
             except Exception as e:
                 logger.error(f"History detail failed: {e}")
-                return BotResponse.text_response(f"⚠️ 获取会话详情失败: {str(e)}")
+                return BotResponse.text_response(f"⚠️ 대화 상세를 가져오지 못했습니다: {str(e)}")
 
         # /history [count] — list recent sessions for this user only
         limit = 10
@@ -129,22 +129,22 @@ class HistoryCommand(BotCommand):
                 extra_session_ids=[legacy_chat_session_id],
             )
             if not sessions:
-                return BotResponse.text_response("📭 暂无对话历史记录")
+                return BotResponse.text_response("📭 아직 대화 기록이 없습니다")
 
-            lines = ["📋 **最近对话会话**", ""]
+            lines = ["📋 **최근 대화 목록**", ""]
             for i, sess in enumerate(sessions, 1):
                 title = sess.get("title", "新对话")
                 msg_count = sess.get("message_count", 0)
                 last_active = sess.get("last_active", "")[:16] if sess.get("last_active") else ""
                 sid = sess["session_id"]
                 lines.append(f"**{i}.** {title}")
-                lines.append(f"   💬 {msg_count} 条消息 | 🕐 {last_active}")
+                lines.append(f"   💬 메시지 {msg_count}개 | 🕐 {last_active}")
                 lines.append(f"   ID: `{sid}`")
                 lines.append("")
 
-            lines.append(f"💡 使用 `/history <session_id>` 查看具体会话内容")
+            lines.append(f"💡 `/history <session_id>`로 대화 내용을 자세히 볼 수 있습니다")
             return BotResponse.markdown_response("\n".join(lines))
 
         except Exception as e:
             logger.error(f"History list failed: {e}")
-            return BotResponse.text_response(f"⚠️ 获取会话列表失败: {str(e)}")
+            return BotResponse.text_response(f"⚠️ 대화 목록을 가져오지 못했습니다: {str(e)}")

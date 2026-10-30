@@ -9,6 +9,7 @@ import {
   type ParsedApiError,
 } from '../api/error';
 import { generateUUID } from '../utils/uuid';
+import { koOrZh } from '../utils/uiLanguage';
 
 const STORAGE_KEY_SESSION = 'dsa_chat_session_id';
 
@@ -339,7 +340,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
     };
     const skillNames = meta?.skillNames?.length
       ? meta.skillNames
-      : [meta?.skillName ?? '通用'];
+      : [meta?.skillName ?? koOrZh('通用', '일반')];
     const skillName = skillNames.join('、');
 
     const userMessage: Message = {
@@ -373,8 +374,8 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
       let acceptedEvent: StreamAcceptedEvent | null = null;
       const currentProgressSteps: ProgressStep[] = [];
       const protocolError = (message: string) => createParsedApiError({
-        title: '请求未被接受',
-        message: 'Agent 没有确认接收本次问题，请保留当前内容后重试。',
+        title: koOrZh('请求未被接受', '요청이 접수되지 않았어요'),
+        message: koOrZh('Agent 没有确认接收本次问题，请保留当前内容后重试。', 'Agent가 이번 질문을 받았다고 확인하지 않았어요. 입력한 내용은 그대로 두고 다시 시도해 주세요.'),
         rawMessage: message,
         category: 'upstream_network',
       });
@@ -429,7 +430,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
           const failureEvent = event as unknown as StreamFailureEvent;
           throw getStreamFailureError(
             failureEvent,
-            '分析出错',
+            koOrZh('分析出错', '분석 중 오류가 났어요'),
           );
         }
         if (!acceptedEvent) {
@@ -445,7 +446,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
           if (doneEvent.success === false) {
             throw getStreamFailureError(
               doneEvent,
-              '大模型调用出错，请检查 API Key 配置',
+              koOrZh('大模型调用出错，请检查 API Key 配置', 'AI 모델 호출에 실패했어요. API 키 설정을 확인해 주세요'),
             );
           }
           finalContent = doneEvent.content ?? '';
@@ -490,8 +491,8 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
 
       if (!receivedDoneEvent && !ac.signal.aborted) {
         throw createParsedApiError({
-          title: '回复未完整返回',
-          message: 'Agent 流式响应在完成前中断，请重试。',
+          title: koOrZh('回复未完整返回', '답변이 끝까지 오지 않았어요'),
+          message: koOrZh('Agent 流式响应在完成前中断，请重试。', 'Agent 응답이 끝나기 전에 끊겼어요. 다시 시도해 주세요.'),
           rawMessage: 'Agent stream ended before a done event was received.',
           category: 'upstream_network',
         });
@@ -507,7 +508,7 @@ export const useAgentChatStore = create<AgentChatState & AgentChatActions>((set,
             {
               id: (Date.now() + 1).toString(),
               role: 'assistant',
-              content: finalContent || '（无内容）',
+              content: finalContent || koOrZh('（无内容）', '(내용 없음)'),
               skills: payload.skills,
               skill: payload.skills?.[0],
               skillNames,

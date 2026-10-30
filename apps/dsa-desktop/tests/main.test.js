@@ -688,7 +688,8 @@ test('evaluateReleaseUpdate reports update-available when release is newer', (t)
   assert.equal(state.releaseUrl, 'https://github.com/ZhuLinsen/daily_stock_analysis/releases/tag/v3.13.0');
   assert.equal(state.checkedAt, '2026-04-25T01:02:00Z');
   assert.equal(state.publishedAt, '2026-04-25T01:00:00Z');
-  assert.match(state.message, /发现新版本 3\.13\.0/);
+  // 한국어 포크 기본 문구 (DSA_DESKTOP_LANGUAGE=zh 이면 중국어 원문)
+  assert.match(state.message, /새 버전 3\.13\.0|发现新版本 3\.13\.0/);
 });
 
 test('evaluateReleaseUpdate reports up-to-date when version is current', (t) => {
@@ -721,7 +722,7 @@ test('evaluateReleaseUpdate reports error when current version is invalid', (t) 
   });
 
   assert.equal(state.status, mainModule.UPDATE_STATUS.ERROR);
-  assert.match(state.message, /不是有效的语义化版本/);
+  assert.match(state.message, /버전 형식이 올바르지 않아|不是有效的语义化版本/);
 });
 
 test('checkForDesktopUpdates delegates to release fetcher', async (t) => {
@@ -860,7 +861,7 @@ test('auto download prompt falls back to error when install path fails', async (
   }
 
   assert.equal(state.status, mainModule.UPDATE_STATUS.ERROR);
-  assert.match(state.message, /更新安装失败/);
+  assert.match(state.message, /업데이트 설치에 실패했어요|更新安装失败/);
   assert.equal(state.updateMode, mainModule.UPDATE_MODE.AUTO);
   assert.deepEqual(quitAndInstallArgs, [true, true]);
   assert.equal(fakeUpdater.installDirectory, exeDir);

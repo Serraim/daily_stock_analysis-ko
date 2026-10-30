@@ -240,10 +240,12 @@ export const SettingsField: React.FC<SettingsFieldProps> = ({
   const fallbackTitle = schema?.title ?? item.key;
   const title = language === 'zh'
     ? getFieldTitleZh(localizationKey, getFieldTitleZh(item.key, fallbackTitle))
-    : fallbackTitle;
-  const description = language === 'en'
-    ? helpContent?.summary ?? schema?.description ?? ''
-    : getFieldDescriptionZh(localizationKey, getFieldDescriptionZh(item.key, schema?.description));
+    : language === 'ko'
+      ? helpContent?.title ?? fallbackTitle
+      : fallbackTitle;
+  const description = language === 'zh'
+    ? getFieldDescriptionZh(localizationKey, getFieldDescriptionZh(item.key, schema?.description))
+    : helpContent?.summary ?? schema?.description ?? '';
   const hasError = issues.some((issue) => issue.severity === 'error');
   const [isPasswordEditable, setIsPasswordEditable] = useState(false);
   const controlId = `setting-${item.key}`;

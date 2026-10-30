@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../utils/constants';
 import { createApiError, createParsedApiError, isApiRequestError, parseApiError } from './error';
 import { toCamelCase } from './utils';
 import type { AgentBackendStatusResponse } from '../types/systemConfig';
+import { koOrZh } from '../utils/uiLanguage';
 
 export interface ChatStreamOptions {
   signal?: AbortSignal;
@@ -56,7 +57,7 @@ function record(value: unknown): value is Record<string, unknown> {
 
 export function decodeChatState(payload: unknown, source: 'detail' | 'accepted' | 'response'): DecodedChatState {
   const invalid = () => createParsedApiError({
-    title: '会话状态响应不完整', message: '请刷新会话后重试；本次响应不能确认讨论对象。',
+    title: koOrZh('会话状态响应不完整', '대화 상태 응답이 완전하지 않아요'), message: koOrZh('请刷新会话后重试；本次响应不能确认讨论对象。', '대화를 새로고침한 뒤 다시 시도해 주세요. 이번 응답으로는 어떤 종목 이야기인지 확인할 수 없어요.'),
     code: 'chat_state_protocol_error', category: 'http_error',
   });
   if (!record(payload)) throw invalid();
@@ -176,7 +177,7 @@ export const agentApi = {
     }>('/api/v1/agent/chat/send', { content });
     const data = response.data;
     if (data.success === false) {
-      throw new Error(data.message || '发送失败');
+      throw new Error(data.message || koOrZh('发送失败', '보내지 못했어요'));
     }
     return { success: true };
   },

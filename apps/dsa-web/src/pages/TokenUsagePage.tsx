@@ -4,7 +4,7 @@ import { usageApi, type UsageDashboard, type UsageModelBreakdown, type UsagePeri
 import type { ParsedApiError } from '../api/error';
 import { ApiErrorAlert, AppPage, Card, EmptyState, PageHeader, StatCard } from '../components/common';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
-import type { UiLanguage, UiTextKey, UiTextParams } from '../i18n/uiText';
+import { UI_LOCALE, type UiLanguage, type UiTextKey, type UiTextParams } from '../i18n/uiText';
 import { cn } from '../utils/cn';
 
 type Translate = (key: UiTextKey, params?: UiTextParams) => string;
@@ -24,7 +24,7 @@ const CALL_TYPE_LABEL_KEYS: Record<string, UiTextKey> = {
 };
 
 function getLocale(language: UiLanguage): string {
-  return language === 'en' ? 'en-US' : 'zh-CN';
+  return UI_LOCALE[language];
 }
 
 function formatNumber(value: number | null | undefined, language: UiLanguage): string {

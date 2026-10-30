@@ -22,6 +22,16 @@ const categoryTitleMap: Record<UiLanguage, Record<SystemConfigCategory, string>>
     backtest: 'Backtest',
     uncategorized: 'Other',
   },
+  ko: {
+    base: '기본 설정',
+    data_source: '데이터 소스',
+    ai_model: 'AI 모델',
+    notification: '알림 채널',
+    system: '시스템 설정',
+    agent: 'AI 에이전트',
+    backtest: '백테스트',
+    uncategorized: '기타',
+  },
 };
 
 const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCategory, string>>> = {
@@ -44,6 +54,16 @@ const categoryDescriptionMap: Record<UiLanguage, Partial<Record<SystemConfigCate
     agent: 'Manage Agent mode, strategies, and multi-agent orchestration.',
     backtest: 'Manage backtest switches, evaluation windows, and engine parameters.',
     uncategorized: 'Other uncategorized settings.',
+  },
+  ko: {
+    base: '관심종목과 기본 실행 설정을 관리해요.',
+    data_source: '시세 데이터 소스와 우선순위를 관리해요.',
+    ai_model: 'AI 모델 서비스, 모델 이름, 추론 설정을 관리해요.',
+    notification: '봇, 웹훅, 메시지 알림 설정을 관리해요.',
+    system: '예약 실행, 로그, 포트 같은 시스템 설정을 관리해요.',
+    agent: 'AI 에이전트 모드, 전략, 다중 에이전트 구성을 관리해요.',
+    backtest: '백테스트 사용 여부, 평가 기간, 엔진 설정을 관리해요.',
+    uncategorized: '분류되지 않은 기타 설정이에요.',
   },
 };
 
@@ -553,6 +573,96 @@ const fieldOptionLabelMapEn: Record<string, Record<string, string>> = {
   },
 };
 
+const fieldOptionLabelMapKo: Record<string, Record<string, string>> = {
+  NEWS_STRATEGY_PROFILE: {
+    ultra_short: '초단기 (1일)',
+    short: '단기 (3일)',
+    medium: '중기 (7일)',
+    long: '장기 (30일)',
+  },
+  REPORT_TYPE: {
+    simple: '간단',
+    full: '전체',
+    brief: '요약',
+  },
+  REPORT_LANGUAGE: {
+    zh: '중국어',
+    en: '영어',
+    ko: '한국어',
+    chinese: '중국어',
+    english: '영어',
+    korean: '한국어',
+  },
+  NOTIFICATION_MIN_SEVERITY: {
+    '': '설정 안 함',
+    'not set': '설정 안 함',
+    info: '안내',
+    warning: '주의',
+    error: '오류',
+    critical: '긴급',
+  },
+  MARKET_REVIEW_COLOR_SCHEME: {
+    green_up: '상승 초록 / 하락 빨강',
+    red_up: '상승 빨강 / 하락 초록',
+    'green up / red down': '상승 초록 / 하락 빨강',
+    'red up / green down': '상승 빨강 / 하락 초록',
+  },
+  GENERATION_BACKEND: {
+    litellm: '기본 모델 설정',
+    codex_cli: 'Codex CLI (실험)',
+    claude_code_cli: 'Claude Code CLI (실험)',
+    opencode_cli: 'OpenCode CLI (실험)',
+  },
+  GENERATION_FALLBACK_BACKEND: {
+    '': '사용 안 함',
+    litellm: '기본 모델 설정',
+  },
+  AGENT_GENERATION_BACKEND: {
+    auto: '자동',
+    litellm: '기본 모델 설정',
+  },
+  AGENT_BACKEND: {
+    auto: '자동 (추천)',
+    litellm: '기본 모델 설정',
+  },
+  LOG_LEVEL: {
+    debug: '디버그',
+    info: '안내',
+    warning: '주의',
+    error: '오류',
+    critical: '긴급',
+  },
+  LLM_PROMPT_CACHE_DIAGNOSTICS_LEVEL: {
+    off: '끔',
+    basic: '기본',
+    debug: '디버그',
+  },
+  AGENT_ARCH: {
+    single: '단일 에이전트',
+    multi: '다중 에이전트 (오케스트레이터)',
+    'single agent': '단일 에이전트',
+    'multi agent (orchestrator)': '다중 에이전트 (오케스트레이터)',
+  },
+  AGENT_ORCHESTRATOR_MODE: {
+    quick: '빠르게',
+    standard: '보통',
+    full: '전체',
+    specialist: '전문가',
+  },
+  AGENT_SKILL_ROUTING: {
+    auto: '자동 (시장 상황 기준)',
+    manual: '수동 (AGENT_SKILLS 사용)',
+    'auto (regime-based)': '자동 (시장 상황 기준)',
+    'manual (use agent_skills)': '수동 (AGENT_SKILLS 사용)',
+  },
+};
+
+const FIELD_OPTION_LABEL_MAPS: Record<UiLanguage, Record<string, Record<string, string>>> = {
+  zh: fieldOptionLabelMap,
+  en: fieldOptionLabelMapEn,
+  ko: fieldOptionLabelMapKo,
+};
+
 function normalizeOptionToken(raw: string): string {
   return raw.trim().toLowerCase();
 }
@@ -591,7 +701,7 @@ export function getFieldOptionLabel(
   fallbackLabel?: string,
   locale: UiLanguage = 'zh',
 ): string {
-  const map = locale === 'en' ? fieldOptionLabelMapEn[key] : fieldOptionLabelMap[key];
+  const map = FIELD_OPTION_LABEL_MAPS[locale][key];
   if (!map) {
     return fallbackLabel ?? value;
   }

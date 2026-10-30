@@ -61,6 +61,7 @@ const OUTCOME_VARIANTS: Record<DecisionSignalOutcomeValue, BadgeVariant> = {
 const LOCALE_BY_LANGUAGE: Record<UiLanguage, string> = {
   zh: 'zh-CN',
   en: 'en-US',
+  ko: 'ko-KR',
 };
 
 function formatDateTime(value: string | null | undefined, language: UiLanguage): string {

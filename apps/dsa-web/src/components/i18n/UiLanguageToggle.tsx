@@ -1,7 +1,16 @@
 import type React from 'react';
 import { Languages } from 'lucide-react';
 import { useUiLanguage } from '../../contexts/UiLanguageContext';
+import type { UiLanguage, UiTextKey } from '../../i18n/uiText';
 import { cn } from '../../utils/cn';
+
+// 버튼을 누를 때마다 zh → en → ko → zh 순서로 바뀐다.
+const NEXT_LANGUAGE: Record<UiLanguage, UiLanguage> = { zh: 'en', en: 'ko', ko: 'zh' };
+const SHORT_LABEL_KEY: Record<UiLanguage, UiTextKey> = {
+  zh: 'language.short.zh',
+  en: 'language.short.en',
+  ko: 'language.short.ko',
+};
 
 type UiLanguageToggleVariant = 'default' | 'nav' | 'rail';
 
@@ -25,7 +34,7 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
   labelClassName,
 }) => {
   const { language, setLanguage, t } = useUiLanguage();
-  const nextLanguage = language === 'zh' ? 'en' : 'zh';
+  const nextLanguage = NEXT_LANGUAGE[language];
   const isNavVariant = variant === 'nav';
   const isRailVariant = variant === 'rail';
   const label = language === 'zh' ? t('language.uiLanguage') : t('language.current');
@@ -51,7 +60,7 @@ export const UiLanguageToggle: React.FC<UiLanguageToggleProps> = ({
       >
         <Languages className={iconClassName ?? cn('shrink-0', isRailVariant ? 'h-[18px] w-[18px]' : isNavVariant ? 'h-5 w-5' : 'h-4 w-4')} />
         {isRailVariant ? (
-          <span className={labelClassName}>{language === 'zh' ? t('language.short.zh') : t('language.short.en')}</span>
+          <span className={labelClassName}>{t(SHORT_LABEL_KEY[language])}</span>
         ) : isNavVariant ? (
           collapsed ? null : <span className="truncate text-[1.02rem] font-medium">{label}</span>
         ) : (

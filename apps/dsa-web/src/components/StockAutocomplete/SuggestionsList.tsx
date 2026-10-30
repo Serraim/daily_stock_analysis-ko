@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import type { StockSuggestion } from '../../types/stockIndex';
 import { Badge } from '../common';
 import { cn } from '../../utils/cn';
+import { useUiLanguage } from '../../contexts/UiLanguageContext';
 
 export interface SuggestionsListProps {
   /** Suggestion list */
@@ -87,7 +88,27 @@ const MARKET_BADGE_CONFIG = {
   BSE: { label: '北交所', className: 'border-orange-500/25 bg-orange-500/10 text-orange-500' },
 } as const;
 
+// 한국어 화면용 시장 배지 이름
+const MARKET_BADGE_LABEL_KO: Record<keyof typeof MARKET_BADGE_CONFIG, string> = {
+  CN: '중국 A주',
+  HK: '홍콩',
+  US: '미국',
+  JP: '일본',
+  KR: '한국',
+  INDEX: '지수',
+  ETF: 'ETF',
+  BSE: '베이징거래소',
+};
+
+const MATCH_TYPE_LABEL_KO: Record<string, string> = {
+  exact: '일치',
+  prefix: '앞부분',
+  contains: '포함',
+  fuzzy: '유사',
+};
+
 function MarketBadge({ market }: { market: string }) {
+  const { language } = useUiLanguage();
   const config = MARKET_BADGE_CONFIG[market as keyof typeof MARKET_BADGE_CONFIG];
 
   if (!config) {
@@ -96,12 +117,13 @@ function MarketBadge({ market }: { market: string }) {
 
   return (
     <Badge variant="default" size="sm" className={cn('min-w-[3rem] justify-center shadow-none', config.className)}>
-      {config.label}
+      {language === 'ko' ? MARKET_BADGE_LABEL_KO[market as keyof typeof MARKET_BADGE_CONFIG] : config.label}
     </Badge>
   );
 }
 
 function MatchTypeBadge({ matchType }: { matchType: string }) {
+  const { language } = useUiLanguage();
   const configMap = {
     exact: { label: '精确', className: 'border-cyan/25 bg-cyan/10 text-cyan' },
     prefix: { label: '前缀', className: 'border-purple/25 bg-purple/10 text-purple' },
@@ -110,10 +132,11 @@ function MatchTypeBadge({ matchType }: { matchType: string }) {
   };
 
   const config = configMap[matchType as keyof typeof configMap] || configMap.fuzzy;
+  const label = language === 'ko' ? MATCH_TYPE_LABEL_KO[matchType] ?? MATCH_TYPE_LABEL_KO.fuzzy : config.label;
 
   return (
     <Badge variant="default" size="sm" className={cn('shrink-0 shadow-none', config.className)}>
-      {config.label}
+      {label}
     </Badge>
   );
 }

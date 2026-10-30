@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { systemConfigApi } from '../api/systemConfig';
 import { findMatchingStockCode, includesStockCode } from '../utils/stockCode';
+import { koOrZh } from '../utils/uiLanguage';
 
 export interface UseWatchlistReturn {
   watchlistCodes: string[];
@@ -76,10 +77,10 @@ export function useWatchlist(): UseWatchlistReturn {
       const result = await systemConfigApi.addToWatchlist(stockCode);
       if (mountedRef.current) {
         setCodes(result);
-        showMessage(`已加入自选 ${stockCode}`);
+        showMessage(koOrZh(`已加入自选 ${stockCode}`, `관심종목에 추가했어요: ${stockCode}`));
       }
     } catch {
-      if (mountedRef.current) showMessage('操作失败');
+      if (mountedRef.current) showMessage(koOrZh('操作失败', '처리하지 못했어요'));
     } finally {
       if (mountedRef.current) setIsActioning(false);
     }
@@ -92,10 +93,10 @@ export function useWatchlist(): UseWatchlistReturn {
       const result = await systemConfigApi.removeFromWatchlist(stockCode);
       if (mountedRef.current) {
         setCodes(result);
-        showMessage(`已从自选移除 ${stockCode}`);
+        showMessage(koOrZh(`已从自选移除 ${stockCode}`, `관심종목에서 뺐어요: ${stockCode}`));
       }
     } catch {
-      if (mountedRef.current) showMessage('操作失败');
+      if (mountedRef.current) showMessage(koOrZh('操作失败', '처리하지 못했어요'));
     } finally {
       if (mountedRef.current) setIsActioning(false);
     }

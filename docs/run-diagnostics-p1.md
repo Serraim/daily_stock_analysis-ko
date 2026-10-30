@@ -1,21 +1,21 @@
-# 运行诊断与数据可靠性 1.0（Phase 1）
+# 실행 진단과 데이터 신뢰성 1.0 (Phase 1)
 
-本文档记录 #1391 Phase 1 的最小运行时落地范围：统一 `trace_id`，并为首批关键数据链路记录结构化 provider 尝试。
+이 문서는 #1391 Phase 1에서 실제로 반영하는 최소 런타임 범위를 정리합니다. 핵심은 `trace_id`를 통일하고, 1차 핵심 데이터 경로에 대해 provider 시도 내역을 구조화해 기록하는 것입니다.
 
-## 本轮范围
+## 이번 범위
 
-- API / Web 异步任务创建时，`TaskInfo` 使用 `task_id` 作为默认 `trace_id`。
-- 任务列表、任务状态与 SSE 事件追加 `trace_id` 字段；旧客户端可忽略该字段。
-- 同步分析使用本次 `query_id` 作为默认 `trace_id`。
-- pipeline 运行时建立轻量诊断上下文，贯穿日线准备与单股分析。
-- `data_provider/base.py` 对以下链路记录 `ProviderRun` 风格事件：
+- API / Web 비동기 작업을 만들 때 `TaskInfo`는 `task_id`를 기본 `trace_id`로 사용합니다.
+- 작업 목록, 작업 상태, SSE 이벤트에 `trace_id` 필드가 추가됩니다. 기존 클라이언트는 이 필드를 무시해도 됩니다.
+- 동기 분석은 해당 요청의 `query_id`를 기본 `trace_id`로 사용합니다.
+- pipeline 실행 중에는 가벼운 진단 컨텍스트를 만들어 일봉 데이터 준비부터 개별 종목 분석까지 이어서 사용합니다.
+- `data_provider/base.py`는 다음 경로에 대해 `ProviderRun` 형식의 이벤트를 기록합니다.
   - `daily_data`
   - `realtime_quote`
-- 诊断记录写入内存上下文，随分析 `context_snapshot.diagnostics` 保存；旧历史记录缺少该字段时保持兼容。
+- 진단 기록은 메모리 컨텍스트에 쌓였다가 분석의 `context_snapshot.diagnostics`에 함께 저장됩니다. 이 필드가 없는 예전 이력 기록도 그대로 읽을 수 있습니다.
 
-## `ProviderRun` 字段
+## `ProviderRun` 필드
 
-首版字段保持最小：
+첫 버전은 필드를 최소한으로 유지합니다.
 
 - `trace_id`
 - `data_type`
@@ -29,15 +29,15 @@
 - `record_count`
 - `created_at`
 
-错误摘要会做基础脱敏，避免输出 token、API key、Authorization、Cookie、包含敏感参数的 webhook URL 等内容。
+오류 요약에는 기본적인 마스킹이 적용되어 token, API key, Authorization, Cookie, 민감한 매개변수가 들어 있는 webhook URL 등이 출력되지 않습니다.
 
-## 稳定性边界
+## 안정성 경계
 
-- 诊断记录失败只记录 warning，不影响主分析、数据源 fallback 或历史保存。
-- 本轮不新增配置项，不改变数据源优先级，不改变 fallback 策略。
-- 本轮不新增 Web 展示组件；`trace_id` 和 provider runs 先进入 API/SSE/历史快照，供后续 Phase 2/3 聚合与展示复用。
+- 진단 기록이 실패해도 warning만 남기며, 주 분석, 데이터 소스 fallback, 이력 저장에는 영향을 주지 않습니다.
+- 이번에는 설정 항목을 새로 만들지 않고, 데이터 소스 우선순위와 fallback 전략도 바꾸지 않습니다.
+- 이번에는 Web 표시 컴포넌트를 추가하지 않습니다. `trace_id`와 provider 실행 기록은 먼저 API/SSE/이력 스냅샷에 담아 두고, 이후 Phase 2/3에서 집계와 표시에 재사용합니다.
 
-## 验证建议
+## 검증 방법
 
 ```bash
 python -m pytest tests/test_run_diagnostics_p1.py tests/test_analysis_api_contract.py::AnalysisApiContractTestCase::test_get_analysis_status_normalizes_completed_queue_result_contract

@@ -1,60 +1,60 @@
-# 运行诊断与数据可靠性 1.0（Phase 0）
+# 실행 진단과 데이터 신뢰성 1.0 (Phase 0)
 
-本文档定义 #1391 的 **Phase 0（P0）**：在不引入新页面、不改变全局分析策略与 fallback 核心语义前提下，收敛契约边界并限定本轮运行时修复范围。
+이 문서는 #1391의 **Phase 0(P0)** 를 정의합니다. 새 페이지를 추가하지 않고, 전체 분석 전략과 fallback(대체 데이터 소스 전환)의 핵심 의미도 바꾸지 않는다는 전제에서 계약 경계를 정리하고, 이번에 손볼 런타임 수정 범위를 한정합니다.
 
-## 目标
+## 목표
 
-- 给后续实现提供统一术语：`trace_id`、关键链路记录、诊断摘要、脱敏排障信息。
-- 明确第一阶段范围，避免把需求扩成“完整可观测平台”。
-- 固化 fail-open、安全与 retention 基线，降低回归风险。
+- 이후 구현에서 함께 쓸 용어를 통일합니다: `trace_id`, 핵심 경로 기록, 진단 요약, 마스킹된 문제 해결 정보.
+- 1단계 범위를 분명히 하여 요구 사항이 "완전한 관측(observability) 플랫폼"으로 커지지 않게 합니다.
+- fail-open, 보안, retention(보존 기간) 기준을 고정해 회귀 위험을 줄입니다.
 
-## 当前文档范围（本轮）
+## 현재 문서 범위 (이번 작업)
 
-- 本文件为 Phase 0 合同与验收边界文档，当前 PR 为 docs + runtime fix，本轮同步补齐 `baostock_fetcher.py`、`pytdx_fetcher.py`、`tushare_fetcher.py` 的 A 股代码归属边界，并配套由 `tests/test_a_share_fetcher_code_conversion.py` 做回归验证。
-- 归属边界必须覆盖裸码与前缀码（如 `000001`、`000001.SZ`、`SH000001`、`SH.000001`、`SZ000001`、`SZ.000001`），避免把 SH/SZ 前缀语义误归类。
-- 若无新增 LLM 相关 provider/model/Base URL 语义迁移需求，本轮收敛 Tushare A 股归属范围至：`600/601/603/605/688`、`000/001/002/003/300/301`，并同步回归 `605`、`001`、`003`、`301` 场景；该范围变更不视为 provider 配置/路由策略扩展。
+- 이 파일은 Phase 0의 계약과 인수 경계를 정리한 문서입니다. 현재 PR은 docs + runtime fix이며, 이번에 `baostock_fetcher.py`, `pytdx_fetcher.py`, `tushare_fetcher.py`의 A주(중국 본토 증시 상장 주식) 종목 코드 판별 경계를 함께 보완하고, `tests/test_a_share_fetcher_code_conversion.py`로 회귀 검증합니다.
+- 판별 경계는 접두어 없는 코드와 접두어가 붙은 코드(예: `000001`, `000001.SZ`, `SH000001`, `SH.000001`, `SZ000001`, `SZ.000001`)를 모두 다뤄야 하며, SH(상하이)/SZ(선전) 접두어의 의미를 잘못 분류하지 않도록 합니다.
+- LLM 관련 provider/model/Base URL 의미를 옮길 필요가 새로 생기지 않는 한, 이번 작업에서는 Tushare의 A주 판별 범위를 `600/601/603/605/688`, `000/001/002/003/300/301`로 정리하고 `605`, `001`, `003`, `301` 사례를 함께 회귀 검증합니다. 이 범위 변경은 provider 설정이나 라우팅 전략의 확장으로 보지 않습니다.
 
-## 非目标
+## 비목표
 
-- 不做 OpenTelemetry / APM / Grafana 风格监控系统。
-- 不在首版展示 p95、全量 Provider 调用明细、完整运维面板。
-- 不改变现有数据源优先级、分析策略、通知策略。
-- 不变更 LLM provider 列表、Base URL、`llm_call` 运行时参数、`REPORT_*` 配置语义与迁移路径；本轮改动限定在 A 股代码归属解析与诊断字段边界。
+- OpenTelemetry / APM / Grafana 같은 모니터링 시스템은 만들지 않습니다.
+- 첫 버전에서는 p95, 전체 Provider 호출 상세, 완전한 운영 대시보드를 보여 주지 않습니다.
+- 기존 데이터 소스 우선순위, 분석 전략, 알림 전략은 바꾸지 않습니다.
+- LLM provider 목록, Base URL, `llm_call` 런타임 매개변수, `REPORT_*` 설정의 의미와 마이그레이션 경로는 바꾸지 않습니다. 이번 변경은 A주 종목 코드 판별과 진단 필드 경계에 한정됩니다.
 
-### 验收边界（本轮）
+### 인수 경계 (이번 작업)
 
-- 本轮为 `fix`（docs + runtime fix），变更仅收敛 A 股代码归属语义，不改 provider 列表、Base URL、`llm_call` 运行时语义与 `REPORT_*` 配置迁移路径。
-- `data_provider/baostock_fetcher.py`、`data_provider/pytdx_fetcher.py`、`data_provider/tushare_fetcher.py` 本轮只处理：
-  - 裸码与后缀码：`000001`、`000001.SH`、`000001.SZ`
-  - 前缀码：`SH000001`、`SH.000001`、`SZ000001`、`SZ.000001`
-- `SH000001`/`SH.000001`/`SZ000001`/`SZ.000001` 场景为 correctness blocker，需由 `tests/test_a_share_fetcher_code_conversion.py` 覆盖回归。
-- 回归最小口径为 `python -m pytest tests/test_a_share_fetcher_code_conversion.py` 与 `./scripts/ci_gate.sh`，并在 PR 描述同步结果与阻塞。
-- 回滚优先级为恢复本轮三文件变更到合并前提交；其余范围不应一并回退。
+- 이번 작업은 `fix`(docs + runtime fix)이며, A주 종목 코드 판별 의미만 정리합니다. provider 목록, Base URL, `llm_call` 런타임 의미, `REPORT_*` 설정 마이그레이션 경로는 바꾸지 않습니다.
+- `data_provider/baostock_fetcher.py`, `data_provider/pytdx_fetcher.py`, `data_provider/tushare_fetcher.py`는 이번에 다음만 처리합니다.
+  - 접두어 없는 코드와 접미어 코드: `000001`, `000001.SH`, `000001.SZ`
+  - 접두어 코드: `SH000001`, `SH.000001`, `SZ000001`, `SZ.000001`
+- `SH000001`/`SH.000001`/`SZ000001`/`SZ.000001` 사례는 정확성 차단 요소(correctness blocker)이며, `tests/test_a_share_fetcher_code_conversion.py`로 회귀를 막아야 합니다.
+- 최소 회귀 확인 기준은 `python -m pytest tests/test_a_share_fetcher_code_conversion.py`와 `./scripts/ci_gate.sh`이며, 결과와 막힌 지점을 PR 설명에 함께 적습니다.
+- 롤백할 때는 이번에 바뀐 세 파일을 병합 전 커밋으로 되돌리는 것을 우선합니다. 다른 범위는 함께 되돌리지 않습니다.
 
-## 术语与契约（P0 草案）
+## 용어와 계약 (P0 초안)
 
 ### 1) `trace_id`
 
-- 含义：一次分析运行链路的统一关联 ID。
-- 要求：
-  - 每次分析任务仅有一个 `trace_id`。
-  - 可由入口生成，或由已有任务 ID 映射（例如 Web 任务）。
-  - 出现在日志/结构化诊断中用于排障关联。
+- 의미: 분석 실행 한 번의 전체 경로를 묶는 공통 연결 ID입니다.
+- 요구 사항:
+  - 분석 작업 하나에는 `trace_id`가 하나만 있습니다.
+  - 진입점에서 새로 만들거나, 기존 작업 ID(예: Web 작업)에서 매핑할 수 있습니다.
+  - 로그와 구조화된 진단 정보에 함께 남겨 문제를 추적할 때 연결 고리로 씁니다.
 
 ### 2) `RunDiagnosticSummary`
 
-- 含义：给用户看的简短运行诊断摘要。
-- 建议字段（首版保持最小）：
+- 의미: 사용자에게 보여 주는 짧은 실행 진단 요약입니다.
+- 권장 필드(첫 버전은 최소로 유지):
   - `trace_id`
-  - `status`：`ok` / `degraded` / `failed`
-  - `data_status`：关键数据路径是否降级
-  - `notify_status`：通知结果摘要
-  - `error_hint`：脱敏后的简要原因
-- 说明：这是用户可感知能力，不等于内部全量事件日志。
+  - `status`: `ok` / `degraded` / `failed`
+  - `data_status`: 핵심 데이터 경로가 성능 저하(degraded) 상태인지 여부
+  - `notify_status`: 알림 결과 요약
+  - `error_hint`: 마스킹한 간단한 원인
+- 참고: 사용자가 직접 확인하는 기능이며, 내부 전체 이벤트 로그와는 다릅니다.
 
-### 3) 关键链路记录（最小集合）
+### 3) 핵심 경로 기록 (최소 범위)
 
-首版只要求记录以下关键节点结果（成功/失败/降级 + 简短原因）：
+첫 버전은 다음 핵심 노드의 결과(성공/실패/성능 저하 + 짧은 원인)만 기록하면 됩니다.
 
 - `realtime_quote`
 - `daily_data`
@@ -62,39 +62,39 @@
 - `report_persist`
 - `notification_dispatch`
 
-> 说明：`news`、`fundamental`、`capital_flow` 等放到后续扩展，不作为首版阻断项。
+> 참고: `news`, `fundamental`, `capital_flow` 등은 이후 확장 대상이며, 첫 버전의 차단 항목이 아닙니다.
 
-## 安全与稳定性边界（P0 必须遵守）
+## 보안과 안정성 경계 (P0에서 반드시 지킬 것)
 
 ### Fail-open
 
-- 诊断记录失败不应阻断主分析流程。
-- 即使诊断写入失败，也必须继续产出分析结果（除非主流程本身失败）。
+- 진단 기록이 실패해도 주 분석 흐름을 막아서는 안 됩니다.
+- 진단 쓰기가 실패하더라도 분석 결과는 계속 만들어야 합니다(주 흐름 자체가 실패한 경우는 예외).
 
-### 脱敏
+### 마스킹
 
-- 复制排障信息中禁止包含密钥、token、完整 webhook URL、用户账号标识。
-- 错误文案输出以摘要为主，避免泄露第三方返回的敏感原文。
+- 복사용 문제 해결 정보에는 키, token, 전체 webhook URL, 사용자 계정 식별자를 넣지 않습니다.
+- 오류 문구는 요약 위주로 출력하여 외부 서비스가 돌려준 민감한 원문이 새지 않게 합니다.
 
 ### Retention
 
-- 诊断数据保留周期应可配置或可统一清理。
-- 默认策略优先保守（例如仅保留必要时间窗），避免无限增长。
+- 진단 데이터 보존 기간은 설정할 수 있거나 한꺼번에 정리할 수 있어야 합니다.
+- 기본 정책은 보수적으로 잡습니다(예: 필요한 기간만 보존). 데이터가 끝없이 쌓이지 않게 합니다.
 
-### 兼容性
+### 호환성
 
-- 新字段应优先追加，不破坏现有 API / Web / Desktop 读取路径。
-- 旧历史记录缺少新字段时应可安全回退。
+- 새 필드는 가능하면 뒤에 추가하는 방식으로 넣어 기존 API / Web / Desktop 읽기 경로를 깨뜨리지 않습니다.
+- 새 필드가 없는 예전 이력 기록도 안전하게 처리되어야 합니다.
 
-## Phase 0 交付清单
+## Phase 0 산출물 목록
 
-- [x] 明确目标/非目标，防止范围失控。
-- [x] 定义 `trace_id` 与 `RunDiagnosticSummary` 最小契约。
-- [x] 明确首版关键链路覆盖范围。
-- [x] 固化 fail-open、脱敏、retention、兼容性基线。
+- [x] 목표와 비목표를 정해 범위가 커지는 것을 막았습니다.
+- [x] `trace_id`와 `RunDiagnosticSummary`의 최소 계약을 정의했습니다.
+- [x] 첫 버전에서 다룰 핵심 경로 범위를 정했습니다.
+- [x] fail-open, 마스킹, retention, 호환성 기준을 고정했습니다.
 
-## 后续阶段（仅说明，不在 P0 实现）
+## 이후 단계 (설명만, P0에서는 구현하지 않음)
 
-- Phase 1：`trace_id` 贯通与关键链路最小记录落地。
-- Phase 2：生成并持久化 `RunDiagnosticSummary`，支持复制脱敏排障信息。
-- Phase 3：Web 侧最小展示（默认折叠），并补齐文档和回滚说明。
+- Phase 1: `trace_id`를 전체 경로에 연결하고 핵심 경로를 최소한으로 기록합니다.
+- Phase 2: `RunDiagnosticSummary`를 만들어 저장하고, 마스킹된 문제 해결 정보를 복사할 수 있게 합니다.
+- Phase 3: Web에서 최소한으로 표시하고(기본 접힘), 문서와 롤백 안내를 보완합니다.

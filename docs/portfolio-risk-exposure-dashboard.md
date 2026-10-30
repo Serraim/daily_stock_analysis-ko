@@ -1,50 +1,50 @@
-# 组合风险与暴露看板
+# 포트폴리오 위험·노출 대시보드
 
-Web 持仓页新增“风险与暴露看板”，放在组合总览指标和持仓明细之间，用于提供一眼可读的组合风险状态。
+Web 보유 종목 페이지에 "위험·노출 대시보드"를 추가했습니다. 포트폴리오 개요 지표와 보유 종목 상세 사이에 배치해, 포트폴리오의 위험 상태를 한눈에 볼 수 있게 합니다.
 
-## 风险旗标
+## 위험 플래그
 
-| 旗标 | 数据来源 | 触发语义 |
+| 플래그 | 데이터 출처 | 발생 조건 |
 | --- | --- | --- |
-| 个股集中 | `risk.concentration` | Top1 个股权重触发 concentration alert |
-| 行业集中 | `risk.sectorConcentration` | Top1 行业权重触发 sector alert |
-| 回撤 | `risk.drawdown` | 当前或最大回撤触发 drawdown alert |
-| 止损 | `risk.stopLoss` | 存在接近或已触发止损标的 |
-| AI 信号 | `risk.decisionSignalRisk` | 存在 sell / reduce / alert 等防御型建议 |
-| 价格质量 | `snapshot.accounts[].positions[]` | 缺价或价格过期 |
+| 개별 종목 집중 | `risk.concentration` | 비중 1위 종목의 비중이 concentration alert를 발생시킴 |
+| 업종 집중 | `risk.sectorConcentration` | 비중 1위 업종의 비중이 sector alert를 발생시킴 |
+| 낙폭 | `risk.drawdown` | 현재 또는 최대 낙폭이 drawdown alert를 발생시킴 |
+| 손절 | `risk.stopLoss` | 손절가에 가까워졌거나 이미 도달한 종목이 있음 |
+| AI 신호 | `risk.decisionSignalRisk` | sell / reduce / alert 등 방어적 제안이 있음 |
+| 가격 품질 | `snapshot.accounts[].positions[]` | 가격이 없거나 오래됨 |
 
-## 暴露看板
+## 노출 대시보드
 
-| 暴露维度 | 聚合方式 |
+| 노출 기준 | 집계 방식 |
 | --- | --- |
-| 市场暴露 | 先将 `position.marketValueBase` 从账户基准币折算到快照聚合币种，再按 `position.market` 聚合 |
-| 币种暴露 | 先将 `position.marketValueBase` 从账户基准币折算到快照聚合币种，再按 `position.currency` 聚合 |
+| 시장 노출 | `position.marketValueBase`를 계좌 기준 통화에서 스냅샷 집계 통화로 환산한 뒤 `position.market`별로 집계 |
+| 통화 노출 | `position.marketValueBase`를 계좌 기준 통화에서 스냅샷 집계 통화로 환산한 뒤 `position.currency`별로 집계 |
 
-权重使用当前快照 `totalMarketValue` 作为分母。快照请求失败时，看板总市值、持仓数量、明细数量和账户数显示 `--`，汇率状态不可用，持仓区域提示快照不可用，不将未知数据当作空组合；成功加载的空组合仍显示零与真正空态。
-市场与币种暴露渲染全部非零分组，不截断 Top N，保证页面展示的权重不会因静默丢弃尾部分组而少于实际覆盖。
-合法零市值账户不会阻断其他账户的暴露展示；持仓估值缺失、非有限或为负时，整个暴露降级为不可用，避免静默丢弃异常持仓。
-缺价、过期汇率、缺少换算证据等降级场景显示“暴露不可用”；成功加载且汇率证据完整的空组合显示“暂无暴露数据”。
+비중은 현재 스냅샷의 `totalMarketValue`를 분모로 사용합니다. 스냅샷 요청이 실패하면 대시보드의 총 평가액, 보유 종목 수, 상세 행 수, 계좌 수는 `--`로 표시하고, 환율 상태는 사용할 수 없음으로, 보유 종목 영역은 스냅샷을 사용할 수 없다는 안내로 표시합니다. 알 수 없는 데이터를 빈 포트폴리오로 취급하지 않습니다. 정상적으로 불러온 빈 포트폴리오는 여전히 0과 실제 빈 상태를 표시합니다.
+시장·통화 노출은 0이 아닌 그룹을 모두 표시하며 상위 N개로 자르지 않습니다. 끝부분 그룹을 조용히 버려서 화면에 보이는 비중이 실제 범위보다 작아지는 일을 막기 위해서입니다.
+평가액이 정당하게 0인 계좌는 다른 계좌의 노출 표시를 막지 않습니다. 반면 보유 종목 평가액이 없거나, 유한한 값이 아니거나, 음수이면 전체 노출을 사용할 수 없음으로 낮춥니다. 비정상 보유 종목을 조용히 버리지 않기 위해서입니다.
+가격 없음, 오래된 환율, 환산 근거 없음 등 품질이 떨어지는 경우에는 "노출 정보를 사용할 수 없음"을 표시합니다. 정상적으로 불러왔고 환율 근거도 완전한 빈 포트폴리오는 "노출 데이터 없음"을 표시합니다.
 
-## 边界
+## 범위
 
-- 数据来自 snapshot 和 risk 响应。snapshot 追加可选字段 `accounts[].totalMarketValueAggregate`（API 原始字段 `total_market_value_aggregate`），复用现有汇率换算结果，表示该账户以顶层 `snapshot.currency` 计价的市值；原有账户与持仓本币金额保持不变，无数据库变更。
-- `/api/v1/portfolio/risk` 不可用或返回空风险块时，依赖服务端风险结果的旗标显示为“不可用”，不伪装成“正常”。
-- 个股集中度只有在 `topWeightPct`、block-level `alert`、数组 `topPositions` 以及完整有效的 `topPositions` 同时存在时才可用：每行必须有有效 symbol 和有限非负权重，首行权重必须为正；后台四位小数舍入后的零权重尾行仍有效（绘图时省略零面积扇区），权重不超过 100，按权重降序排列，首行权重必须与 `topWeightPct` 一致；不得过滤坏行后将另一只股票冒充 Top1；不得在显示 `Top1: --` 时宣称“正常”或“需处理”。`UNCLASSIFIED`、非数组 `topSectors`、无效行业标签、非 number/非有限/负数的 `weightPct`、`coverage.unclassifiedCount`、`coverage.failedCount` 或行业错误表示行业分类覆盖不完整，不作为完整行业风险展示；`coverage.classifiedCount` 必须为正数，`unclassifiedCount` 和 `failedCount` 必须为零，三个 coverage counter 与 `errors` 数组都必须显式存在，缺字段也按不可用处理。全未分类、无效行或部分覆盖时，仅在个股集中度块自身完整可用时回退到个股饼图；个股集中度也缺字段时显示空态，避免把局部 `topPositions` 伪装成有效图表。行业行同样必须按权重降序，首行权重与 `sectorConcentration.topWeightPct` 一致且每行权重不超过 100，允许有效分类的舍入零权重尾行；乱序或不一致时行业旗标/图表降级，并仅在个股证据完整时显示个股饼图。行业风险 badge 与详情统一使用已校验的 block-level `sectorConcentration.alert`，不依赖可能缺失或不一致的 top-row `isAlert`。
-- 市场与币种暴露在多账户基准币混合时，使用各账户 `totalMarketValueAggregate` 与持仓本币市值合计的比例，逐账户折算后聚合；单一估值币种兼容旧响应，使用快照总市值与持仓市值合计推算换算比例。仅在 `snapshot.fxStale=false`、每个 `snapshot.accounts[].fxStale=false`，并且所有持仓都显式满足 `priceAvailable=true`、`priceSource` 不是 `missing`、`lastPrice` 为有限正数时展示；多基准币账户的换算字段缺失（例如旧版后端）、持仓估值币种与账户基准币不一致，或任一持仓缺价时，暴露行降级为不可用；有效 CNY/USD 混合账户正常展示各市场和币种金额及权重。个股与行业集中度同样要求完整价格覆盖：后端会把缺价持仓用零市值占位，前端不能据此把剩余持仓误报为完整 Top1/行业风险。多基准币但 FX 和持仓价格证据完整时仍可展示；顶层或任一账户 FX stale 时均降级，避免 aggregate 未传播子账户质量时展示 fallback 1:1 产生的错误权重或告警。
-- 原有持仓明细、集中度饼图、回撤、止损、AI 风险小卡继续保留。
-- 价格质量使用与集中度、暴露及止损一致的报价校验：`priceAvailable=true`、`priceSource` 不是 `missing`、`lastPrice` 为有限正数；不满足时计为缺价，可用但 `priceStale=true` 时计为过期价。同一持仓只按“缺价或过期”计数一次，不额外请求行情；快照不可用时价格质量也显示“不可用”，不以空持仓误报为零问题。
-- 止损计数只有在当前作用域内每个持仓都显式满足 `priceAvailable=true`、`priceSource` 不是 `missing`、`lastPrice` 为有限正数时展示；任一持仓缺价都会让止损旗标和详情降级为“不可用”，避免把占位价 `0` 误报为触发止损。历史收盘价仍属于可用但可能过期的证据，其时效性由独立价格质量旗标披露。
-- 回撤至少需要两个估值观测点且历史估值未使用 stale/fallback FX；零个、单个观测点或 `fxStale=true` 都无法形成可靠比较，统一显示“不可用”。
+- 데이터는 snapshot과 risk 응답에서 가져옵니다. snapshot에는 선택 필드 `accounts[].totalMarketValueAggregate`(API 원본 필드 `total_market_value_aggregate`)를 추가했습니다. 기존 환율 환산 결과를 재사용하며, 해당 계좌를 최상위 `snapshot.currency`로 표시한 평가액을 뜻합니다. 기존 계좌와 보유 종목의 현지 통화 금액은 바뀌지 않으며, 데이터베이스 변경도 없습니다.
+- `/api/v1/portfolio/risk`를 사용할 수 없거나 빈 위험 블록을 반환하면, 서버 측 위험 결과에 의존하는 플래그는 "사용할 수 없음"으로 표시합니다. "정상"으로 꾸며 보이지 않습니다.
+- 개별 종목 집중도는 `topWeightPct`, block-level `alert`, 배열 `topPositions`, 그리고 완전하고 유효한 `topPositions`가 모두 있을 때만 사용할 수 있습니다. 각 행은 유효한 symbol과 유한한 0 이상의 비중을 가져야 하고, 첫 행 비중은 양수여야 합니다. 백엔드에서 소수 넷째 자리로 반올림해 0이 된 끝 행은 유효합니다(차트를 그릴 때 면적이 0인 조각은 생략). 비중은 100을 넘지 않아야 하고, 비중 내림차순으로 정렬돼야 하며, 첫 행 비중은 `topWeightPct`와 같아야 합니다. 잘못된 행을 걸러 낸 뒤 다른 종목을 1위인 것처럼 내세우면 안 되고, `Top1: --`를 표시하면서 "정상"이나 "조치 필요"라고 주장해서도 안 됩니다. `UNCLASSIFIED`, 배열이 아닌 `topSectors`, 유효하지 않은 업종 라벨, number가 아니거나 유한하지 않거나 음수인 `weightPct`, `coverage.unclassifiedCount`, `coverage.failedCount`, 업종 오류는 업종 분류가 완전하지 않다는 뜻이므로 완전한 업종 위험으로 표시하지 않습니다. `coverage.classifiedCount`는 양수여야 하고, `unclassifiedCount`와 `failedCount`는 0이어야 하며, 세 coverage counter와 `errors` 배열은 모두 명시적으로 있어야 합니다. 필드가 빠져도 사용할 수 없음으로 처리합니다. 전부 미분류이거나, 유효하지 않은 행이 있거나, 일부만 분류된 경우에는 개별 종목 집중도 블록 자체가 완전히 사용 가능할 때만 개별 종목 파이 차트로 대신합니다. 개별 종목 집중도에도 필드가 빠졌다면 빈 상태를 표시해, 일부 `topPositions`를 유효한 차트처럼 보이게 하지 않습니다. 업종 행도 마찬가지로 비중 내림차순이어야 하고, 첫 행 비중이 `sectorConcentration.topWeightPct`와 같아야 하며, 각 행 비중이 100을 넘지 않아야 합니다. 유효하게 분류됐고 반올림으로 0이 된 끝 행은 허용합니다. 순서가 어긋나거나 값이 일치하지 않으면 업종 플래그와 차트를 낮추고, 개별 종목 근거가 완전할 때만 개별 종목 파이 차트를 표시합니다. 업종 위험 badge와 상세는 검증을 마친 block-level `sectorConcentration.alert`를 함께 사용하며, 빠지거나 일치하지 않을 수 있는 첫 행의 `isAlert`에 의존하지 않습니다.
+- 여러 계좌의 기준 통화가 섞여 있으면, 시장·통화 노출은 각 계좌의 `totalMarketValueAggregate`와 보유 종목 현지 통화 평가액 합계의 비율로 계좌별 환산 후 집계합니다. 평가 통화가 하나뿐이면 예전 응답과 호환되도록 스냅샷 총 평가액과 보유 종목 평가액 합계로 환산 비율을 추정합니다. 노출은 `snapshot.fxStale=false`이고, 모든 `snapshot.accounts[].fxStale=false`이며, 모든 보유 종목이 `priceAvailable=true`, `priceSource`가 `missing`이 아님, `lastPrice`가 유한한 양수라는 조건을 명시적으로 만족할 때만 표시합니다. 여러 기준 통화 계좌의 환산 필드가 없거나(예: 예전 백엔드), 보유 종목 평가 통화가 계좌 기준 통화와 다르거나, 어느 한 종목이라도 가격이 없으면 노출 행을 사용할 수 없음으로 낮춥니다. 유효한 CNY/USD 혼합 계좌는 시장별·통화별 금액과 비중을 정상적으로 표시합니다. 개별 종목·업종 집중도도 완전한 가격 범위가 필요합니다. 백엔드가 가격 없는 보유 종목을 평가액 0으로 채워 넣기 때문에, 프런트엔드가 이를 근거로 나머지 종목을 완전한 1위 종목·업종 위험으로 잘못 보고하면 안 됩니다. 여러 기준 통화를 쓰더라도 FX와 보유 종목 가격 근거가 완전하면 표시할 수 있습니다. 최상위 또는 어느 한 계좌라도 FX가 stale(오래됨)이면 낮춥니다. aggregate가 하위 계좌의 품질 정보를 전달하지 않을 때 fallback 1:1 환산으로 잘못된 비중이나 경보가 표시되는 것을 막기 위해서입니다.
+- 기존 보유 종목 상세, 집중도 파이 차트, 낙폭, 손절, AI 위험 카드는 그대로 유지합니다.
+- 가격 품질은 집중도, 노출, 손절과 같은 시세 검증을 사용합니다. `priceAvailable=true`, `priceSource`가 `missing`이 아님, `lastPrice`가 유한한 양수라는 조건을 만족하지 않으면 가격 없음으로 셉니다. 사용할 수는 있지만 `priceStale=true`이면 오래된 가격으로 셉니다. 한 보유 종목은 "가격 없음 또는 오래됨"으로 한 번만 세며, 추가로 시세를 요청하지 않습니다. 스냅샷을 사용할 수 없으면 가격 품질도 "사용할 수 없음"으로 표시하고, 빈 보유 목록을 근거로 문제가 0건이라고 잘못 보고하지 않습니다.
+- 손절 건수는 현재 범위의 모든 보유 종목이 `priceAvailable=true`, `priceSource`가 `missing`이 아님, `lastPrice`가 유한한 양수라는 조건을 명시적으로 만족할 때만 표시합니다. 어느 한 종목이라도 가격이 없으면 손절 플래그와 상세를 "사용할 수 없음"으로 낮춥니다. 자리 채움 가격 `0`을 손절 도달로 잘못 보고하지 않기 위해서입니다. 과거 종가는 여전히 사용할 수 있지만 오래됐을 수 있는 근거이며, 그 시의성은 별도의 가격 품질 플래그가 알려 줍니다.
+- 낙폭은 평가 관측 지점이 최소 두 개 있어야 하고, 과거 평가에 stale/fallback FX를 쓰지 않았어야 합니다. 관측 지점이 0개나 1개이거나 `fxStale=true`이면 믿을 만한 비교를 할 수 없으므로 모두 "사용할 수 없음"으로 표시합니다.
 
-## 后续扩展
+## 향후 확장
 
-- 按账户、行业、货币和市场增加可切换暴露视图。
-- 接入 PersonalFinanceCalendar 后，在旗标中显示即将到期的分红、财报、期权或融资事件。
-- 接入 ResearchArtifact 后，展示每只重仓股的 thesis 是否被风险旗标触发。
+- 계좌, 업종, 통화, 시장별로 전환할 수 있는 노출 보기를 추가합니다.
+- PersonalFinanceCalendar를 연결한 뒤, 다가오는 배당, 실적 발표, 옵션 또는 신용·자금 조달 이벤트를 플래그에 표시합니다.
+- ResearchArtifact를 연결한 뒤, 비중이 큰 각 종목의 thesis(투자 논리)가 위험 플래그에 걸렸는지 표시합니다.
 
-## 确定性视觉验证
+## 결정적 시각 검증
 
 `cd apps/dsa-web && npx playwright install chromium && npx playwright test --config playwright.fixture.config.ts`
-运行真实组合页面的 mock API 浏览器用例，覆盖完整多市场数据、缺价、快照失败、错误个股/行业 Top1、真实空组合以及合法零权重尾行。
-每种状态生成 1440px 桌面与 390px 窄屏截图，校验无页面横向溢出。截图前逐个验证完整数据、无效行业回退及舍入零尾行的扇区数量与最终 SVG 弧长，避免 Recharts JavaScript 动画的中间帧进入证据；无有效集中度的状态必须没有扇区。
-产物在 `apps/dsa-web/test-results/fixtures/`，CI 的 `web-gate` 同步上传 `web-ui-evidence-<head SHA>` artifact；一次性截图不入库。
+실제 포트폴리오 페이지를 mock API로 띄우는 브라우저 테스트를 실행합니다. 완전한 다중 시장 데이터, 가격 없음, 스냅샷 실패, 잘못된 1위 종목·업종, 실제 빈 포트폴리오, 정당한 0 비중 끝 행을 다룹니다.
+상태마다 1440px 데스크톱과 390px 좁은 화면 스크린샷을 만들고, 페이지에 가로 넘침이 없는지 확인합니다. 스크린샷을 찍기 전에 완전한 데이터, 유효하지 않은 업종의 대체 표시, 반올림 0 끝 행의 조각 수와 최종 SVG 호 길이를 하나씩 검증합니다. Recharts JavaScript 애니메이션의 중간 프레임이 증거에 들어가지 않도록 하기 위해서입니다. 유효한 집중도가 없는 상태에는 조각이 하나도 없어야 합니다.
+결과물은 `apps/dsa-web/test-results/fixtures/`에 생기며, CI의 `web-gate`가 `web-ui-evidence-<head SHA>` artifact로 함께 업로드합니다. 일회성 스크린샷은 저장소에 커밋하지 않습니다.

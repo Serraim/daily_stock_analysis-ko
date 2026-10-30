@@ -1,66 +1,72 @@
-# Tushare 股票列表获取工具使用说明
+# Tushare 종목 목록 수집 도구 사용 안내
 
-## 功能概述
+## 기능 개요
 
-从 Tushare Pro 获取 A股、港股、美股列表信息，保存为 CSV 文件到本地。
+Tushare Pro에서 A주(중국 본토 주식), 홍콩 주식, 미국 주식 목록 정보를 받아 로컬에 CSV 파일로 저장합니다.
 
-## 快速开始
+Tushare는 중국 시장 데이터 서비스이며, 한국 주식 목록은 제공하지 않습니다.
 
-### 1. 配置 Token
+## 빠른 시작
 
-在项目根目录的 `.env` 文件中添加 Tushare Token：
+### 1. Token 설정
+
+프로젝트 루트 디렉터리의 `.env` 파일에 Tushare Token을 추가합니다.
 
 ```bash
 TUSHARE_TOKEN=你的tushare_token
 ```
 
-> 获取 Token：访问 [Tushare Pro](https://tushare.pro/weborder/#/login) 注册并获取
+(`你的tushare_token`은 "본인의 tushare_token" 자리이므로 실제 Token으로 바꿔 넣습니다.)
 
-### 2. 运行脚本
+> Token 받기: [Tushare Pro](https://tushare.pro/weborder/#/login)에 가입한 뒤 받을 수 있습니다
+
+### 2. 스크립트 실행
 
 ```bash
 python3 scripts/fetch_tushare_stock_list.py
 ```
 
-如需针对 A 股名称状态做修正，可以加上 `--a-rk`，脚本会保持 `stock_basic` 作为基础来源，再用 `rt_k` 对带 `XD`、`XR`、`DR`、`N`、`C` 前缀的名称进行回填，并覆盖输出到 `data/stock_list_a.csv`：
+A주 종목 이름의 상태 표시를 바로잡으려면 `--a-rk`를 붙이세요. 스크립트는 `stock_basic`을 기본 출처로 유지하면서, `rt_k`로 `XD`, `XR`, `DR`, `N`, `C` 접두사가 붙은 이름을 채워 넣고 결과를 `data/stock_list_a.csv`에 덮어씁니다.
 
 ```bash
 python3 scripts/fetch_tushare_stock_list.py --a-rk
 ```
 
-### 3. 查看输出
+### 3. 결과 확인
 
-数据将保存到 `data/` 目录：
+데이터는 `data/` 디렉터리에 저장됩니다.
 
 ```
 data/
-├── stock_list_a.csv       # A股列表（--a-rk 时为修正后名称）
-├── stock_list_hk.csv      # 港股列表
-├── stock_list_us.csv      # 美股列表
-└── README_stock_list.md   # 数据说明文档
+├── stock_list_a.csv       # A주 목록(--a-rk를 쓰면 보정된 이름)
+├── stock_list_hk.csv      # 홍콩 주식 목록
+├── stock_list_us.csv      # 미국 주식 목록
+└── README_stock_list.md   # 데이터 설명 문서
 ```
 
-## 功能特性
+## 기능 특징
 
-✅ **自动分页**：美股数据自动分页读取（每页5000条）
-✅ **智能限流**：每次请求之间随机休息5-10秒
-✅ **错误处理**：单个市场失败不影响其他市场
-✅ **进度提示**：实时显示读取进度
-✅ **自动文档**：生成详细的数据说明文档
+✅ **자동 페이지 나누기**: 미국 주식 데이터는 페이지를 나눠 자동으로 읽습니다(페이지당 5000건)
+✅ **요청 속도 조절**: 요청 사이마다 5~10초를 무작위로 쉽니다
+✅ **오류 처리**: 한 시장이 실패해도 다른 시장에는 영향을 주지 않습니다
+✅ **진행 상황 표시**: 읽기 진행 상황을 실시간으로 보여 줍니다
+✅ **자동 문서화**: 자세한 데이터 설명 문서를 만듭니다
 
-## 市场说明
+## 시장별 안내
 
-| 市场 | 接口 | 积分要求 | 数据量 |
+Tushare는 계정의 포인트(积分)에 따라 쓸 수 있는 API가 달라집니다.
+
+| 시장 | API | 필요 포인트 | 데이터 양 |
 |------|------|----------|--------|
-| A股 | stock_basic | 2000积分 | ~5000只 |
-| 港股 | hk_basic | 2000积分 | ~2000只 |
-| 美股 | us_basic | 120试用/5000正式 | ~10000只 |
+| A주 | stock_basic | 2000포인트 | 약 5000종목 |
+| 홍콩 주식 | hk_basic | 2000포인트 | 약 2000종목 |
+| 미국 주식 | us_basic | 체험 120 / 정식 5000 | 약 10000종목 |
 
-## 输出文件格式
+## 출력 파일 형식
 
-### A股（stock_list_a.csv）
+### A주(stock_list_a.csv)
 
-执行 `--a-rk` 时，这个文件会写入修正后的 A 股名称。
+`--a-rk`로 실행하면 이 파일에 보정된 A주 종목 이름이 기록됩니다.
 
 ```csv
 ts_code,symbol,name,area,industry,market,exchange,list_date,...
@@ -68,7 +74,7 @@ ts_code,symbol,name,area,industry,market,exchange,list_date,...
 600519.SH,600519,贵州茅台,贵州,白酒,主板,SSE,20010827,...
 ```
 
-### 港股（stock_list_hk.csv）
+### 홍콩 주식(stock_list_hk.csv)
 
 ```csv
 ts_code,name,fullname,market,list_date,trade_unit,curr_type,...
@@ -76,7 +82,7 @@ ts_code,name,fullname,market,list_date,trade_unit,curr_type,...
 00005.HK,汇丰控股,汇丰控股有限公司,主板,19750401,100,HKD,...
 ```
 
-### 美股（stock_list_us.csv）
+### 미국 주식(stock_list_us.csv)
 
 ```csv
 ts_code,name,enname,classify,list_date,...
@@ -85,96 +91,98 @@ TSLA,特斯拉,Tesla Inc.,EQT,20100629,...
 BABA,阿里巴巴,Alibaba Group,ADR,20140919,...
 ```
 
-## 使用示例
+CSV 안의 중국어 값(종목명, 지역, 업종, `主板`(메인보드) 등)은 Tushare가 돌려주는 원본 데이터입니다.
 
-### Python 读取数据
+## 사용 예시
+
+### Python으로 데이터 읽기
 
 ```python
 import pandas as pd
 
-# 读取 A股
+# A주 읽기
 a_stocks = pd.read_csv('data/stock_list_a.csv')
 print(f"A股数量: {len(a_stocks)}")
 
-# 筛选主板股票
+# 메인보드 종목만 고르기
 main_board = a_stocks[a_stocks['market'] == '主板']
 print(f"主板数量: {len(main_board)}")
 
-# 查找特定股票
+# 특정 종목 찾기
 stock = a_stocks[a_stocks['ts_code'] == '600519.SH']
 print(stock[['name', 'industry', 'list_date']])
 ```
 
-### 刷新股票自动补全索引
+### 종목 자동 완성 인덱스 새로 고침
 
-推荐直接使用一键刷新脚本，它会默认在抓取 A 股时使用 `--a-rk`，然后生成并同步自动补全索引：
+한 번에 새로 고치는 스크립트를 쓰는 것을 권장합니다. 이 스크립트는 A주를 가져올 때 기본으로 `--a-rk`를 쓰고, 이어서 자동 완성 인덱스를 만들어 동기화합니다.
 
 ```bash
 pip install -r requirements.txt
 python3 scripts/refresh_stock_index.py
 ```
 
-生成自动补全索引依赖 `pypinyin` 写入中文股票的完整拼音和拼音首字母字段；缺少该依赖时脚本会直接失败，避免生成无法支持拼音搜索的降级索引。
+자동 완성 인덱스를 만들 때는 `pypinyin`으로 중국어 종목 이름의 전체 병음과 병음 첫 글자 필드를 기록합니다. 이 의존성이 없으면 스크립트는 바로 실패합니다. 병음 검색을 지원하지 못하는 불완전한 인덱스가 만들어지지 않게 하기 위해서입니다.
 
-如果你只想单独更新 CSV，可以先抓取数据：
+CSV만 따로 업데이트하려면 먼저 데이터를 가져옵니다.
 
 ```bash
 python3 scripts/fetch_tushare_stock_list.py --a-rk
 ```
 
-如果已经有新的 CSV，只想重新生成索引：
+이미 새 CSV가 있고 인덱스만 다시 만들려면:
 
 ```bash
-python3 scripts/generate_index_from_csv.py --test  # 先测试
-python3 scripts/generate_index_from_csv.py         # 确认后生成
+python3 scripts/generate_index_from_csv.py --test  # 먼저 테스트
+python3 scripts/generate_index_from_csv.py         # 확인한 뒤 생성
 ```
 
-### 本地客户端自动获取最新索引
+### 로컬 클라이언트의 최신 인덱스 자동 받기
 
-新版客户端默认会从项目 GitHub `main` 分支读取最新的 `apps/dsa-web/public/stocks.index.json`，并缓存到本地 `data/cache/stocks.index.json`。前端仍访问本地 `/stocks.index.json`，不需要直接跨域请求 GitHub。
+새 버전 클라이언트는 기본적으로 프로젝트 GitHub `main` 브랜치에서 최신 `apps/dsa-web/public/stocks.index.json`을 읽어 로컬 `data/cache/stocks.index.json`에 캐시합니다. 프런트엔드는 여전히 로컬 `/stocks.index.json`에 접근하므로 GitHub에 직접 교차 출처 요청을 보낼 필요가 없습니다.
 
-远程索引地址、检查频率和网络超时时间为系统内置值，不提供用户配置项；用户只需要决定是否启用：
+원격 인덱스 주소, 확인 주기, 네트워크 타임아웃은 시스템에 내장된 값이며 사용자가 설정할 수 없습니다. 사용자는 켤지 말지만 정하면 됩니다.
 
 ```bash
 STOCK_INDEX_REMOTE_UPDATE_ENABLED=true
 ```
 
-默认开启时，系统最多每 48 小时检查一次更新。若运行环境无法访问 GitHub raw、请求超时、返回内容不是合法股票索引，应用会保留已有缓存；如果没有远程缓存，则继续使用随应用打包的内置索引。远程更新失败不会阻断 WebUI 启动、股票自动补全或分析流程；连续失败达到系统内置阈值后，会在本进程内暂停重试直到下一轮 48 小时窗口。
+기본으로 켜져 있으며, 시스템은 최대 48시간에 한 번 업데이트를 확인합니다. 실행 환경에서 GitHub raw에 접속할 수 없거나, 요청이 타임아웃되거나, 돌아온 내용이 올바른 종목 인덱스가 아니면 기존 캐시를 그대로 씁니다. 원격 캐시가 없으면 앱에 함께 들어 있는 내장 인덱스를 계속 씁니다. 원격 업데이트가 실패해도 WebUI 시작, 종목 자동 완성, 분석 흐름은 막히지 않습니다. 시스템에 내장된 기준만큼 연속으로 실패하면, 현재 프로세스에서는 다음 48시간 주기까지 재시도를 멈춥니다.
 
-## 注意事项
+## 주의 사항
 
-1. **积分要求**：确保账号积分足够（A股/港股2000，美股120试用）
-2. **请求限制**：注意 API 的每分钟请求次数限制
-3. **数据更新**：维护者建议每三天刷新一次并提交到仓库；本地客户端默认最多每 48 小时检查一次 GitHub `main` 上的索引更新。后续可通过 GitHub Actions workflow 自动化刷新与提交 PR
-4. **网络连接**：需要稳定的网络连接
+1. **포인트 조건**: 계정 포인트가 충분한지 확인하세요(A주/홍콩 주식 2000, 미국 주식 체험 120)
+2. **요청 제한**: API의 분당 요청 횟수 제한에 주의하세요
+3. **데이터 업데이트**: 관리자는 사흘에 한 번 새로 고쳐 저장소에 커밋하는 것을 권장합니다. 로컬 클라이언트는 기본적으로 최대 48시간에 한 번 GitHub `main`의 인덱스 업데이트를 확인합니다. 이후 GitHub Actions workflow로 새로 고침과 PR 제출을 자동화할 수 있습니다
+4. **네트워크 연결**: 안정적인 네트워크 연결이 필요합니다
 
-## 常见问题
+## 자주 묻는 질문
 
-### Q: 提示"未找到 TUSHARE_TOKEN"？
-**A**: 请在 `.env` 文件中配置 `TUSHARE_TOKEN=你的token`
+### Q: "未找到 TUSHARE_TOKEN"(TUSHARE_TOKEN을 찾을 수 없음)이라고 나와요
+**A**: `.env` 파일에 `TUSHARE_TOKEN=你的token`(본인 Token)을 설정하세요
 
-### Q: 提示"账号积分不足"？
+### Q: "账号积分不足"(계정 포인트 부족)이라고 나와요
 **A**:
-- A股/港股需要2000积分
-- 美股120积分试用，5000积分正式权限
-- 访问 https://tushare.pro 查看积分获取办法
+- A주/홍콩 주식은 2000포인트가 필요합니다
+- 미국 주식은 120포인트로 체험, 5000포인트로 정식 권한을 받습니다
+- 포인트를 얻는 방법은 https://tushare.pro 에서 확인하세요
 
-### Q: 读取失败怎么办？
+### Q: 읽기에 실패하면 어떻게 하나요?
 **A**:
-1. 检查网络连接
-2. 检查 Token 是否正确
-3. 查看账号积分是否足够
-4. 当前脚本不会自动重试；单次请求失败后会输出错误并结束，请排查原因后重新运行
+1. 네트워크 연결을 확인합니다
+2. Token이 맞는지 확인합니다
+3. 계정 포인트가 충분한지 확인합니다
+4. 현재 스크립트는 자동으로 재시도하지 않습니다. 요청이 한 번 실패하면 오류를 출력하고 끝나므로, 원인을 확인한 뒤 다시 실행하세요
 
-### Q: 数据更新频率？
-**A**: 对维护者本地 CSV 与仓库索引，建议每三天更新一次并提交到仓库；遇到摘帽/更名等高影响事件可临时刷新。未来可通过 GitHub Actions workflow 自动化刷新与提交 PR。对普通本地客户端，系统默认最多每 48 小时从 GitHub `main` 检查一次最新索引。
+### Q: 데이터는 얼마나 자주 업데이트하나요?
+**A**: 관리자가 쓰는 로컬 CSV와 저장소 인덱스는 사흘에 한 번 업데이트해 저장소에 커밋하는 것을 권장합니다. 특별 관리 종목 지정 해제나 이름 변경처럼 영향이 큰 일이 생기면 그때그때 새로 고칠 수 있습니다. 앞으로 GitHub Actions workflow로 새로 고침과 PR 제출을 자동화할 수 있습니다. 일반 로컬 클라이언트는 기본적으로 최대 48시간에 한 번 GitHub `main`에서 최신 인덱스를 확인합니다.
 
-### Q: 无法访问 GitHub raw 会影响使用吗？
-**A**: 不会。远程索引更新是 best-effort：失败时会继续使用已有远程缓存或随应用打包的内置索引；如果索引完全不可用，Web 自动补全会进入现有 fallback，股票代码仍可手动输入。
+### Q: GitHub raw에 접속할 수 없으면 쓸 수 없나요?
+**A**: 아닙니다. 원격 인덱스 업데이트는 best-effort 방식입니다. 실패하면 기존 원격 캐시나 앱에 함께 들어 있는 내장 인덱스를 계속 씁니다. 인덱스를 전혀 쓸 수 없으면 웹 자동 완성은 기존 fallback으로 넘어가며, 종목 코드는 여전히 직접 입력할 수 있습니다.
 
-## 相关链接
+## 관련 링크
 
-- [Tushare 官网](https://tushare.pro)
-- [Tushare 文档](https://tushare.pro/document/2)
-- [积分获取办法](https://tushare.pro/document/1)
-- [API 数据调试](https://tushare.pro/document/2)
+- [Tushare 공식 사이트](https://tushare.pro)
+- [Tushare 문서](https://tushare.pro/document/2)
+- [포인트 얻는 방법](https://tushare.pro/document/1)
+- [API 데이터 디버깅](https://tushare.pro/document/2)

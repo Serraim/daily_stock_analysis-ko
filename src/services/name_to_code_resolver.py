@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-名称到代码解析引擎
+종목명 → 코드 변환 엔진
 ===================================
 
-将股票名称解析为代码：全局 ``stockDB`` 上的精确匹配 + AkShare 扩充 +
-混合匹配（子串/拼音/模糊）。
+종목명을 코드로 변환: 전역 ``stockDB`` 정확 일치 + AkShare 보강 +
+혼합 매칭(부분 문자열/병음/유사 매칭).
 """
 
 from __future__ import annotations
@@ -28,85 +28,85 @@ from src.services.stock_code_utils import is_code_like, normalize_code
 
 logger = logging.getLogger(__name__)
 
-# AkShare 结果缓存：(时间戳, name_to_code 字典)。TTL 过期后作为 stale
-# 数据继续服务（stale-while-revalidate），刷新由后台线程完成。
+# AkShare 결과 캐시: (타임스탬프, name_to_code 딕셔너리). TTL이 지나도 stale
+# 데이터로 계속 제공하고(stale-while-revalidate), 갱신은 백그라운드 스레드가 맡는다.
 _akshare_cache: Optional[tuple[float, Dict[str, str]]] = None
 _AKSHARE_CACHE_TTL = 1800  # 30 MIN
 
-# 失败退避：最近一次拉取失败的时间戳。不写负缓存的话，网络异常期间每次
-# 解析都会重打网络请求，慢速超时直接放大为全量消息的用户延迟。
-# 有 stale 缓存时退避窗口内仍服务 stale（网络故障期间保持可用），
-# 仅冷启动（无任何缓存）才退化为本地库。
+# 실패 백오프: 마지막으로 가져오기에 실패한 시각. 실패 캐시를 두지 않으면 네트워크
+# 장애 중 매번 다시 요청하게 되고, 느린 타임아웃이 모든 메시지의 응답 지연으로 번진다.
+# stale 캐시가 있으면 백오프 구간에도 stale을 제공한다(네트워크 장애 중에도 동작 유지).
+# 캐시가 전혀 없는 콜드 스타트일 때만 로컬 DB로 대체한다.
 _akshare_failure_cache: Optional[float] = None
 _AKSHARE_FAILURE_TTL = 300  # 5 MIN
 
-# 拉取超时：akshare 对交易所的部分请求无超时（如上交所 GET、北交所
-# POST），挂起（非失败）时拉取线程永不返回——挂起时异常路径永不触发、
-# 失败退避永不武装。拉取经子进程包装封顶时长后，挂起子进程在超时处被
-# terminate/kill、以 TimeoutError 抛出，走常规失败路径写入失败退避。
+# 가져오기 타임아웃: akshare의 일부 거래소 요청(상해거래소 GET, 북경거래소
+# POST 등)은 타임아웃이 없어, 멈추면(실패가 아니라) 가져오기 스레드가 영영 돌아오지 않는다.
+# 이때 예외 경로도, 실패 백오프도 동작하지 않는다. 하위 프로세스로 감싸 시간 상한을 두면
+# 멈춘 하위 프로세스는 타임아웃 시점에 terminate/kill 되고 TimeoutError로 올라와 일반 실패 경로로 백오프가 기록된다.
 _AKSHARE_FETCH_TIMEOUT = 25.0
 
-# 冷启动等待上限：拉取被子进程封顶在 _AKSHARE_FETCH_TIMEOUT 内，worker
-# 在其后有限的清账步内必然 resolve Future。等待上界从同一常数推导而非
-# 独立魔法数，结构上保证与在途拉取重叠的请求都能等到其结果——曾用独立
-# 常数 8s，实测拉取耗时 6.6~8.2s 与其同分布，冷启动请求确定性漏解。
-# 余量覆盖 DataFrame 解析与清账；落盘/日志在唤醒之后，不计入。TTL 过期
-# 走 stale-while-revalidate 零等待，此值仅影响冷启动场景。
+# 콜드 스타트 대기 상한: 가져오기는 하위 프로세스에서 _AKSHARE_FETCH_TIMEOUT 안에 끝나고, worker는
+# 그 뒤 짧은 정리 단계 안에 반드시 Future를 resolve 한다. 대기 상한을 별도 매직 넘버가 아니라
+# 같은 상수에서 계산해, 진행 중인 가져오기와 겹친 요청은 구조적으로 그 결과를 받게 한다. 예전에 따로
+# 8s 상수를 썼더니 실측 가져오기 시간 6.6~8.2s와 겹쳐 콜드 스타트 요청이 번번이 변환에 실패했다.
+# 여유분은 DataFrame 파싱과 정리 단계용이다. 파일 저장/로그는 깨운 뒤에 하므로 포함하지 않는다. TTL 만료 시에는
+# stale-while-revalidate로 대기가 없으므로 이 값은 콜드 스타트에만 영향을 준다.
 _AKSHARE_WAIT_COLD_START = _AKSHARE_FETCH_TIMEOUT + 5.0
 
-# 状态锁：只保证缓存/退避/在途句柄读写的原子性。锁内唯一的 IO 例外是
-# _try_load_disk_cache_locked 的首次懒加载（每进程一次、本地小文件毫秒
-# 级）；网络拉取与落盘都在锁外的后台刷新线程内。与 _db_lock 互不嵌套，
-# 不构成锁顺序环。
+# 상태 락: 캐시/백오프/진행 중 핸들 읽기·쓰기의 원자성만 보장한다. 락 안의 유일한 IO 예외는
+# _try_load_disk_cache_locked의 첫 지연 로드다(프로세스당 한 번, 작은 로컬 파일이라 밀리초
+# 수준). 네트워크 가져오기와 파일 저장은 모두 락 밖의 백그라운드 갱신 스레드에서 한다. _db_lock과 중첩되지 않아
+# 락 순서 순환이 생기지 않는다.
 _state_lock = threading.Lock()
 
-# 在途拉取句柄：非 None 表示已有后台线程在刷新。并发等待者等 Future 的
-# 完成信号（成功/失败都会精确唤醒），而非排队抢锁再双重检查——等待与
-# 拉取耗时解耦，无 25<30 这类常数间隐式契约。
+# 진행 중 가져오기 핸들: None이 아니면 이미 백그라운드 스레드가 갱신 중이다. 동시 대기자는 Future의
+# 완료 신호를 기다린다(성공/실패 모두 정확히 깨움). 줄 서서 락을 잡고 이중 확인하는 방식이 아니어서 대기와
+# 가져오기 시간이 분리되고, 25<30 같은 상수 간 암묵적 약속도 없다.
 _akshare_inflight: Optional[concurrent.futures.Future] = None
 
-# 磁盘缓存：成功拉取后原子落盘，重启时懒加载为 stale 数据。股票名称表
-# 变化频率极低，跨重启复用把"冷启动等待"压缩到仅剩磁盘也无数据的场景。
-# 路径遵循 data/cache 约定（该目录已 gitignore）。
+# 디스크 캐시: 가져오기에 성공하면 원자적으로 저장하고, 재시작 시 stale 데이터로 지연 로드한다. 종목명 목록은
+# 거의 바뀌지 않으므로 재시작 후에도 재사용해 "콜드 스타트 대기"를 디스크에도 데이터가 없는 경우로만 줄인다.
+# 경로는 data/cache 규칙을 따른다(이 디렉터리는 gitignore 되어 있음).
 _AKSHARE_DISK_CACHE_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "cache" / "akshare_name_map.json"
 )
 _akshare_disk_checked = False
 
-# stockDB 读写锁：意图解析在 asyncio.to_thread 工作线程中并发执行，
-# extend_AkShare 的原地合并与迭代 stockDB 的读路径不加锁会触发
-# "dictionary changed size during iteration"。RLock 允许嵌套获取。
+# stockDB 읽기/쓰기 락: 의도 해석은 asyncio.to_thread 작업 스레드에서 동시에 실행되므로
+# extend_AkShare의 제자리 병합과 stockDB를 순회하는 읽기 경로를 락 없이 두면
+# "dictionary changed size during iteration" 오류가 난다. RLock이라 중첩 획득이 가능하다.
 _db_lock = threading.RLock()
 
 
 def _contains_cjk(text: str) -> bool:
-    """当文本包含中日韩(CJK)字符时返回 True。"""
+    """텍스트에 한중일(CJK) 문자가 있으면 True를 반환한다."""
     return any("\u3400" <= ch <= "\u9fff" for ch in text)
 
 
 def _normalize_stock_name(name: str) -> str:
-    """股票名称的统一归一：NFKC 宽度归一（全角字母/数字 → 半角）+ 去除全部
-    空白。
+    """종목명 통합 정규화: NFKC 폭 정규화(전각 영문/숫자 → 반각) + 모든
+    공백 제거.
 
-    分词管道对用户输入做同样的 NFKC（web_intent_tokenizer._preprocess_text
-    的工作副本），库内名称若保留源数据拼写（AkShare 的 "京东方Ａ" 全角Ａ、
-    "五 粮 液" 内嵌空格），窗口/片段与归一后的输入永远不相等——不仅全名
-    精确匹配落空，还会被更短的库内名误切出错误实体（"京东方Ａ" 落空后
-    2 字窗口命中 "京东"）。输入侧与库侧必须同源同变换：本地映射初值、
-    AkShare 构建与合并、磁盘缓存加载三个入库口，与全部查询口共用本函数
-    （磁盘缓存里的历史未归一数据同样在此归一）。展示名随之统一为归一拼写
-    （与 token 层"单一代码身份"原则一致）。
+    토큰화 파이프라인은 사용자 입력에 같은 NFKC를 적용한다(web_intent_tokenizer._preprocess_text
+    의 작업 사본). DB 안의 이름이 원본 표기를 그대로 두면(AkShare의 "京东方Ａ" 전각 Ａ,
+    "五 粮 液" 내부 공백) 창/조각이 정규화된 입력과 영영 같아지지 않는다. 전체 이름
+    정확 일치가 실패할 뿐 아니라 더 짧은 DB 이름이 잘못된 종목으로 잘라 낸다("京东方Ａ" 실패 뒤
+    2글자 창이 "京东"에 걸림). 입력 쪽과 DB 쪽은 같은 변환을 거쳐야 한다: 로컬 매핑 초기값,
+    AkShare 구성·병합, 디스크 캐시 로드라는 세 입구와 모든 조회 경로가 이 함수를 공유한다
+    (디스크 캐시 속 예전 미정규화 데이터도 여기서 정규화). 표시 이름도 정규화 표기로 통일된다
+    (token 계층의 "단일 코드 정체성" 원칙과 같음).
     """
     return "".join(unicodedata.normalize("NFKC", name).split())
 
 
 def _is_code_like(s: str) -> bool:
-    """共享的“形似代码”检查的向后兼容包装。"""
+    """공용 "코드처럼 보이는지" 검사의 하위 호환 래퍼."""
     return is_code_like(s)
 
 
 def _normalize_code(raw: str) -> Optional[str]:
-    """共享代码规范化的向后兼容包装。"""
+    """공용 코드 정규화의 하위 호환 래퍼."""
     return normalize_code(raw)
 
 
@@ -114,7 +114,7 @@ def _build_reverse_map_no_duplicates(
     code_to_name: Dict[str, str],
 ) -> Dict[str, str]:
     """
-    构建 name -> code 映射。若一个名称映射到多个代码（有歧义），则将其排除。
+    name -> code 매핑을 만든다. 한 이름이 여러 코드에 대응하면(모호하면) 제외한다.
     """
     name_to_codes: Dict[str, Set[str]] = {}
     for code, name in code_to_name.items():
@@ -160,10 +160,10 @@ _LOCAL_REVERSE_MAP, _LOCAL_AMBIGUOUS_NAMES = _build_local_name_indexes(STOCK_NAM
 
 
 def _akshare_stock_info_worker():
-    """子进程内执行：导入 akshare 并拉取全量 A 股代码表。
+    """하위 프로세스에서 실행: akshare를 불러와 A주 전체 코드표를 가져온다.
 
-    必须保持模块级函数（spawn 经 pickle 按限定名传递）；akshare 及其
-    pandas 等重依赖只进子进程，父进程不加载。
+    반드시 모듈 수준 함수여야 한다(spawn은 pickle로 정규 이름을 넘김). akshare와
+    pandas 같은 무거운 의존성은 하위 프로세스에만 올리고 부모 프로세스는 불러오지 않는다.
     """
     import akshare as ak
 
@@ -171,12 +171,12 @@ def _akshare_stock_info_worker():
 
 
 def _fetch_akshare_df():
-    """AkShare 全量拉取的唯一网络出口（测试接缝）。
+    """AkShare 전체 가져오기의 유일한 네트워크 출구(테스트용 이음매).
 
-    经 data_provider 的子进程超时包装（spawn）执行：挂起的网络请求在
-    _AKSHARE_FETCH_TIMEOUT 内被杀死，父进程侧以 TimeoutError 抛出。
-    akshare 内部的 @lru_cache 只存在于子进程，30 分钟 TTL 过期后的
-    刷新在父进程侧始终拿到新数据。
+    data_provider의 하위 프로세스 타임아웃 래퍼(spawn)로 실행한다. 멈춘 네트워크 요청은
+    _AKSHARE_FETCH_TIMEOUT 안에 종료되고, 부모 프로세스에서는 TimeoutError로 올라온다.
+    akshare 내부의 @lru_cache는 하위 프로세스에만 있으므로, 30분 TTL 만료 뒤
+    갱신하면 부모 프로세스는 항상 새 데이터를 받는다.
     """
     from data_provider.akshare_fetcher import _akshare_call_with_timeout
 
@@ -188,7 +188,7 @@ def _fetch_akshare_df():
 
 
 def _build_name_map_from_df(df) -> Dict[str, str]:
-    """把 AkShare 的 code/name DataFrame 转为去歧义的 name->code 映射。"""
+    """AkShare의 code/name DataFrame을 모호성이 제거된 name->code 매핑으로 바꾼다."""
     code_to_name = {}
     for _, row in df.iterrows():
         code = row.get("code")
@@ -206,7 +206,7 @@ def _build_name_map_from_df(df) -> Dict[str, str]:
 
 
 def _try_load_disk_cache_locked() -> None:
-    """懒加载磁盘缓存到内存（每进程至多尝试一次）。调用方必须持有 _state_lock。"""
+    """디스크 캐시를 메모리로 지연 로드한다(프로세스당 최대 한 번 시도). 호출자는 _state_lock을 잡고 있어야 한다."""
     global _akshare_cache, _akshare_disk_checked
     if _akshare_disk_checked:
         return
@@ -216,7 +216,7 @@ def _try_load_disk_cache_locked() -> None:
         ts = payload.get("ts")
         raw_map = payload.get("map")
         if isinstance(ts, (int, float)) and isinstance(raw_map, dict):
-            # 历史落盘可能含未归一名称（全角拼写/内嵌空格）：加载即归一
+            # 예전에 저장된 데이터에 미정규화 이름(전각 표기/내부 공백)이 있을 수 있어 로드하면서 정규화
             name_map = {
                 _normalize_stock_name(str(k)): str(v)
                 for k, v in raw_map.items()
@@ -225,20 +225,20 @@ def _try_load_disk_cache_locked() -> None:
             if name_map:
                 _akshare_cache = (float(ts), name_map)
                 logger.info(
-                    "[NameResolver] AkShare 磁盘缓存已加载: "
-                    f"{len(name_map)} 条, age={time.time() - float(ts):.0f}s"
+                    "[NameResolver] AkShare 디스크 캐시 로드됨: "
+                    f"{len(name_map)}건, age={time.time() - float(ts):.0f}s"
                 )
     except FileNotFoundError:
         pass
     except Exception as e:
-        logger.debug(f"[NameResolver] AkShare 磁盘缓存不可用，忽略: {e}")
+        logger.debug(f"[NameResolver] AkShare 디스크 캐시를 쓸 수 없어 무시: {e}")
 
 
 def _persist_akshare_map(name_map: Dict[str, str]) -> None:
-    """原子落盘（每进程唯一 tmp 名 + os.replace）。失败非致命，仅记日志。
+    """원자적 저장(프로세스마다 고유 tmp 이름 + os.replace). 실패해도 치명적이지 않고 로그만 남긴다.
 
-    tmp 名掺入 PID：web 与 CLI 可能是两个进程，共用同一 tmp 名会在
-    os.replace 前互相覆盖对方尚未写完的文件。
+    tmp 이름에 PID를 섞는다: web과 CLI는 서로 다른 프로세스일 수 있어 같은 tmp 이름을 쓰면
+    os.replace 전에 상대가 아직 다 쓰지 않은 파일을 서로 덮어쓴다.
     """
     try:
         path = _AKSHARE_DISK_CACHE_PATH
@@ -250,19 +250,19 @@ def _persist_akshare_map(name_map: Dict[str, str]) -> None:
         )
         os.replace(tmp, path)
     except Exception as e:
-        logger.debug(f"[NameResolver] AkShare 磁盘缓存写入失败（非致命）: {e}")
+        logger.debug(f"[NameResolver] AkShare 디스크 캐시 쓰기 실패(치명적이지 않음): {e}")
 
 
 def _spawn_refresh_locked() -> concurrent.futures.Future:
-    """启动后台刷新线程并登记在途句柄。调用方必须持有 _state_lock。
+    """백그라운드 갱신 스레드를 시작하고 진행 중 핸들을 등록한다. 호출자는 _state_lock을 잡고 있어야 한다.
 
-    网络拉取、DataFrame 解析、落盘全部发生在这个 daemon 线程内——请求
-    路径只读取状态或等待 Future，永不执行网络 IO。
+    네트워크 가져오기, DataFrame 파싱, 파일 저장은 모두 이 daemon 스레드에서 일어난다. 요청
+    경로는 상태를 읽거나 Future를 기다릴 뿐 네트워크 IO는 절대 하지 않는다.
     """
     global _akshare_inflight
     fut: concurrent.futures.Future = concurrent.futures.Future()
-    # 先登记再启动：worker 理论上可能在 start() 返回前就完成，其清账
-    # 分支 `is fut` 必须能看到已登记的句柄
+    # 먼저 등록하고 시작한다: worker가 start() 반환 전에 끝날 수도 있으므로 정리
+    # 분기의 `is fut`가 등록된 핸들을 볼 수 있어야 한다
     _akshare_inflight = fut
 
     def _worker():
@@ -272,16 +272,16 @@ def _spawn_refresh_locked() -> concurrent.futures.Future:
             try:
                 df = _fetch_akshare_df()
                 if df is not None and not df.empty:
-                    # 空数据视同失败退避：短时间内重试只会得到同样的空结果
+                    # 빈 데이터도 실패로 보고 백오프: 곧바로 재시도해도 같은 빈 결과만 나온다
                     result = _build_name_map_from_df(df)
             except Exception as e:
                 logger.warning(f"[NameResolver] AkShare fallback failed: {e}")
         finally:
-            # 先清账并唤醒全部等待者，再做日志/落盘等 best-effort 副作用：
-            # 慢日志 handler 或慢磁盘不得拖住等待者拿结果（曾把落盘排在
-            # set_result 之前，慢盘时缓存已就绪、等待者却超时漏解）。
-            # finally 兜底：BaseException 逃逸时句柄/退避/Future 也必然
-            # 清账，不留死句柄（否则之后每个冷启动请求都白等满超时）。
+            # 먼저 정리하고 모든 대기자를 깨운 뒤, 로그/파일 저장 같은 best-effort 부수 작업을 한다.
+            # 느린 로그 handler나 느린 디스크가 대기자의 결과 수신을 붙잡으면 안 된다(예전에 저장을
+            # set_result 앞에 두었더니 디스크가 느릴 때 캐시는 준비됐는데 대기자는 타임아웃으로 변환 실패).
+            # finally로 마무리: BaseException이 빠져나가도 핸들/백오프/Future는 반드시
+            # 정리해 죽은 핸들을 남기지 않는다(남으면 이후 모든 콜드 스타트 요청이 타임아웃까지 헛기다림).
             with _state_lock:
                 now = time.time()
                 if result:
@@ -292,7 +292,7 @@ def _spawn_refresh_locked() -> concurrent.futures.Future:
                     result = None
                 if _akshare_inflight is fut:
                     _akshare_inflight = None
-            # 成功/失败都精确唤醒全部等待者；失败以 result=None 表达
+            # 성공/실패 모두 모든 대기자를 정확히 깨운다. 실패는 result=None으로 표현
             fut.set_result(result)
             if result:
                 logger.info(
@@ -305,19 +305,19 @@ def _spawn_refresh_locked() -> concurrent.futures.Future:
             target=_worker, name="akshare-name-refresh", daemon=True
         ).start()
     except RuntimeError as e:
-        # 线程启动失败（如进程线程数耗尽）：归还句柄并唤醒等待者
+        # 스레드 시작 실패(프로세스 스레드 수 고갈 등): 핸들을 되돌리고 대기자를 깨운다
         _akshare_inflight = None
         fut.set_result(None)
-        logger.warning(f"[NameResolver] AkShare 刷新线程启动失败: {e}")
+        logger.warning(f"[NameResolver] AkShare 갱신 스레드 시작 실패: {e}")
     return fut
 
 
 def _get_akshare_name_to_code() -> Optional[Dict[str, str]]:
-    """获取 AkShare name->code：新鲜缓存直读；过期走 stale-while-revalidate
-    （立即返回旧值 + 后台刷新）；冷启动限时等待在途 Future；失败退避。
+    """AkShare name->code 가져오기: 신선한 캐시는 바로 읽고, 만료되면 stale-while-revalidate
+    (예전 값을 즉시 반환 + 백그라운드 갱신). 콜드 스타트는 진행 중 Future를 제한 시간 동안 기다리고, 실패 시 백오프.
 
-    请求路径最坏只阻塞冷启动等待（_AKSHARE_WAIT_COLD_START）；TTL 过期
-    的请求零等待；网络 IO 全部在后台刷新线程。
+    요청 경로가 가장 오래 막히는 경우는 콜드 스타트 대기(_AKSHARE_WAIT_COLD_START)뿐이다. TTL 만료
+    요청은 대기가 없고, 네트워크 IO는 전부 백그라운드 갱신 스레드에서 한다.
     """
     with _state_lock:
         if _akshare_cache is None:
@@ -334,42 +334,42 @@ def _get_akshare_name_to_code() -> Optional[Dict[str, str]]:
         if fut is None and not in_backoff:
             fut = _spawn_refresh_locked()
     if stale_map is not None:
-        # stale-while-revalidate：TTL 的语义就是容忍陈旧，过期瞬间等待
-        # 毫无收益；返回旧值，下轮调用命中后台刷新出的新缓存。
+        # stale-while-revalidate: TTL은 원래 오래된 값을 허용한다는 뜻이라 만료 순간에 기다려도
+        # 얻는 게 없다. 예전 값을 돌려주고, 다음 호출이 백그라운드에서 갱신된 새 캐시를 쓴다.
         return stale_map
     if fut is None:
-        # 冷启动且处于失败退避窗口：本地库照常服务
+        # 콜드 스타트이면서 실패 백오프 구간: 로컬 DB로 평소처럼 제공
         return None
     try:
         result = fut.result(timeout=_AKSHARE_WAIT_COLD_START)
     except concurrent.futures.TimeoutError:
-        # 正常情况下不可能到达：拉取被封顶、worker 在 finally 中必然
-        # resolve。到达即 worker 违约（如子进程 kill 本身挂死）。
+        # 정상이라면 올 수 없는 곳: 가져오기에는 상한이 있고 worker는 finally에서 반드시
+        # resolve 한다. 여기에 왔다면 worker가 약속을 어긴 것이다(하위 프로세스 kill 자체가 멈춘 경우 등).
         logger.warning(
-            "[NameResolver] 在途 AkShare 拉取超过死线未 resolve"
-            f"（{_AKSHARE_WAIT_COLD_START:g}s），本轮退化为本地库解析"
+            "[NameResolver] 진행 중인 AkShare 가져오기가 마감 시간이 지나도 resolve 되지 않음"
+            f"({_AKSHARE_WAIT_COLD_START:g}s), 이번에는 로컬 DB로 변환"
         )
         return None
     except Exception as e:
-        # worker 以 result=None 表达失败，这里只可能是 Future 内部异常
-        logger.warning(f"[NameResolver] 等待在途 AkShare 拉取异常: {e}")
+        # worker는 실패를 result=None으로 표현하므로 여기는 Future 내부 예외뿐이다
+        logger.warning(f"[NameResolver] 진행 중인 AkShare 가져오기 대기 중 예외: {e}")
         return None
     return result
 
 
 def warmup_akshare_cache() -> None:
-    """进程启动预热：后台线程触发一次解析链填充（幂等、非阻塞）。
+    """프로세스 시작 예열: 백그라운드 스레드로 변환 체인을 한 번 채운다(멱등, 비차단).
 
-    命中磁盘缓存则零网络加载；否则发起后台单飞拉取。冷启动等待发生在
-    本 daemon 线程内，不阻塞调用方。重复调用共享同一在途句柄，不会
-    触发多次网络拉取。
+    디스크 캐시가 있으면 네트워크 없이 로드하고, 없으면 백그라운드에서 한 번만 가져온다. 콜드 스타트 대기는
+    이 daemon 스레드 안에서 일어나 호출자를 막지 않는다. 여러 번 호출해도 같은 진행 중 핸들을 공유해
+    네트워크 가져오기가 여러 번 일어나지 않는다.
     """
 
     def _warm():
         try:
             _get_akshare_name_to_code()
-        except Exception as e:  # noqa: BLE001 - 预热必须 best-effort
-            logger.warning(f"[NameResolver] AkShare 预热失败: {e}")
+        except Exception as e:  # noqa: BLE001 - 예열은 best-effort여야 함
+            logger.warning(f"[NameResolver] AkShare 예열 실패: {e}")
 
     threading.Thread(target=_warm, name="akshare-warmup", daemon=True).start()
 
@@ -381,7 +381,7 @@ def warmup_akshare_cache() -> None:
 
 @dataclass(frozen=True)
 class Stock:
-    """股票条目：code / name / market（"a" | "hk" | "us"）。"""
+    """종목 항목: code / name / market("a" | "hk" | "us")."""
 
     code: str
     name: str = ""
@@ -389,48 +389,48 @@ class Stock:
 
 
 # =========================================================================
-# stockDB — 全局 code->name 数据库，由 AkShare A 股数据扩充
+# stockDB — 전역 code->name 데이터베이스, AkShare A주 데이터로 보강
 # =========================================================================
 
 
 stockDB: Dict[str, str] = {
-    # 初值即归一（与输入侧 NFKC 同变换）：源数据的全角拼写/内嵌空白
-    # 不带入库内视图
+    # 초기값부터 정규화(입력 쪽 NFKC와 같은 변환): 원본 데이터의 전각 표기/내부 공백을
+    # DB 안으로 가져오지 않는다
     code: _normalize_stock_name(name) for code, name in STOCK_NAME_MAP.items()
 }
 
-# 已存在代码被 AkShare 更新为当前官方名称时，旧名称作为别名保留，
-# 避免证券改名后旧名称彻底不可解析。
+# 기존 코드의 이름이 AkShare에서 현재 공식 이름으로 바뀌면 예전 이름을 별칭으로 남겨
+# 종목 이름 변경 후에도 예전 이름으로 찾을 수 있게 한다.
 stockAliases: Dict[str, Set[str]] = {}
 
 _MARKET_ORDER: Dict[str, int] = {"a": 0, "hk": 1, "us": 2}
 
-# 已合并的 AkShare 缓存对象（幂等短路：同一份缓存不重复合并）
+# 이미 병합한 AkShare 캐시 객체(멱등 단축: 같은 캐시를 두 번 병합하지 않음)
 _akshare_merged: Optional[Dict[str, str]] = None
 
 
 def extend_AkShare() -> bool:
-    """用 AkShare 全量 A 股数据扩充 stockDB（幂等，30 分钟缓存）。
+    """AkShare A주 전체 데이터로 stockDB를 보강한다(멱등, 30분 캐시).
 
     Returns:
-        True — stockDB 实际并入了新条目或更新了已存在代码的名称；
-        False — 无需扩展（同一份缓存已合并 / 拉取失败 / 返回空数据 /
-        无任何变化）。
+        True — stockDB에 새 항목이 실제로 들어갔거나 기존 코드의 이름이 바뀐 경우.
+        False — 보강할 필요 없음(같은 캐시를 이미 병합 / 가져오기 실패 / 빈 데이터 /
+        변화 없음).
     """
     global _akshare_merged
     akshare_map = _get_akshare_name_to_code()
     if not akshare_map:
         return False
-    # 合并段整体持锁：与读路径的 stockDB 迭代串行，且"已合并对象"判定原子。
-    # 网络抓取（上方）保持在锁外。
+    # 병합 구간 전체를 락으로 감싼다: 읽기 경로의 stockDB 순회와 직렬화되고, "이미 병합한 객체" 판정도 원자적이다.
+    # 네트워크 가져오기(위)는 락 밖에 둔다.
     with _db_lock:
         if _akshare_merged is akshare_map:
             return False
         changed = False
-        # akshare_map 是 name->code 反向映射，stockDB 是 code->name；名称
-        # 统一归一（NFKC 宽度 + 去内嵌空白）后比较/写入，避免与归一后的
-        # 输入/本地拼写形成假性改名（制造无谓别名）——磁盘缓存里的历史
-        # 未归一数据同样在此归一
+        # akshare_map은 name->code 역방향 매핑이고 stockDB는 code->name이다. 이름을
+        # 같은 방식으로 정규화(NFKC 폭 + 내부 공백 제거)한 뒤 비교/저장해, 정규화된
+        # 입력/로컬 표기와 가짜 이름 변경(쓸데없는 별칭)이 생기지 않게 한다. 디스크 캐시 속 예전
+        # 미정규화 데이터도 여기서 정규화
         for name, code in akshare_map.items():
             compact = _normalize_stock_name(name)
             if not compact:
@@ -439,22 +439,22 @@ def extend_AkShare() -> bool:
                 stockDB[code] = compact
                 changed = True
             elif stockDB[code] != compact:
-                # 证券改名：保留旧名称作为别名，再更新为 AkShare 当前官方名称。
+                # 종목 이름 변경: 예전 이름을 별칭으로 남기고 AkShare 현재 공식 이름으로 갱신.
                 stockAliases.setdefault(code, set()).add(stockDB[code])
                 stockDB[code] = compact
                 changed = True
         _akshare_merged = akshare_map
         if changed:
-            # stockDB 值更新或别名变化时 len(stockDB) 可能不变，
-            # 必须显式失效名称/拼音缓存，否则改名后的新名称不可见。
+            # stockDB 값이 바뀌거나 별칭이 바뀌어도 len(stockDB)는 그대로일 수 있으므로
+            # 이름/병음 캐시를 직접 무효화해야 한다. 안 그러면 이름 변경 후 새 이름이 보이지 않는다.
             _names_cache[:] = [None, None, None]
             _pinyin_cache[:] = [None, None]
         return changed
 
 
 # =========================================================================
-# 名称/拼音缓存 —— 以 (database 对象, len) 为键：对数据库的任何插入或
-# 删除都会自动使其失效，无需手动重置。
+# 이름/병음 캐시 —— (database 객체, len)을 키로 쓴다: DB에 무엇을 넣거나
+# 지우면 자동으로 무효화되므로 직접 초기화할 필요가 없다.
 # =========================================================================
 
 
@@ -463,10 +463,10 @@ _pinyin_cache: List = [None, None]  # [names, pinyins]
 
 
 def _database_names(database: Dict[str, str]) -> List[str]:
-    """*database* 中去重、保持顺序的名称列表（带缓存）。
+    """*database*의 이름 목록(중복 제거, 순서 유지, 캐시 사용).
 
-    除了 canonical（规范）名称，还会包含 stockDB 的旧名称别名；这样旧名称也能参与
-    精确、子串、拼音和模糊匹配。
+    canonical(공식) 이름 외에 stockDB의 예전 이름 별칭도 포함한다. 그래서 예전 이름도
+    정확·부분 문자열·병음·유사 매칭에 참여할 수 있다.
     """
     with _db_lock:
         if _names_cache[0] is database and _names_cache[1] == len(database):
@@ -484,10 +484,10 @@ def _database_names(database: Dict[str, str]) -> List[str]:
 def _database_pinyins(
     database: Dict[str, str], names: Optional[List[str]] = None
 ) -> List[str]:
-    """与 *names* 对齐的全拼小写拼音列表（带缓存）。
+    """*names*와 순서를 맞춘 전체 병음 소문자 목록(캐시 사용).
 
-    传入外层快照时按快照构建，保证与调用方本地 names 同源同序，
-    避免并发合并期间两次取列表导致 zip 错位配对。
+    바깥 스냅샷을 넘기면 그 스냅샷으로 만들어, 호출자의 로컬 names와 출처·순서가 같도록 보장한다.
+    동시 병합 중 목록을 두 번 가져와 zip 짝이 어긋나는 일을 막는다.
     """
     if names is None:
         names = _database_names(database)
@@ -504,18 +504,18 @@ def _database_pinyins(
 
 
 # =========================================================================
-# 名称匹配辅助函数
+# 이름 매칭 보조 함수
 # =========================================================================
 
 
 def _exact_names(fragment: str, database: Dict[str, str]) -> List[str]:
-    """返回 database 名称中与 *fragment* 不区分大小写精确匹配的结果。"""
+    """database 이름 중 *fragment*와 대소문자 구분 없이 정확히 일치하는 결과를 반환한다."""
     fragment_lower = fragment.lower()
     return [name for name in _database_names(database) if name.lower() == fragment_lower]
 
 
 def _is_single_char_typo(input_name: str, candidate_name: str) -> bool:
-    """当两个名称仅有一个字符位不同时返回 True。"""
+    """두 이름이 한 글자 위치만 다르면 True를 반환한다."""
     if not input_name or not candidate_name:
         return False
     if len(input_name) != len(candidate_name):
@@ -527,20 +527,20 @@ def _is_single_char_typo(input_name: str, candidate_name: str) -> bool:
     return diff == 1
 
 
-# 拼音子串匹配的最短长度：拼音字母是逐音节的高频粒子，过短片段（o/k/ai/ma）
-# 会命中大量无关名称的拼音子串，把普通英文输入误解析成股票。
+# 병음 부분 문자열 매칭 최소 길이: 병음 글자는 음절 단위로 아주 흔해서, 너무 짧은 조각(o/k/ai/ma)은
+# 관계없는 이름의 병음에 대량으로 걸려 평범한 영어 입력을 종목으로 잘못 해석한다.
 _MIN_PINYIN_FRAGMENT_LEN = 5
 
 
 def _fix_name(fragment: str, database: Dict[str, str]) -> List[str]:
-    """通过混合匹配将名称片段解析为完整股票名称。
+    """혼합 매칭으로 이름 조각을 전체 종목명으로 변환한다.
 
-    策略链（按顺序）：
-    1. 精确匹配（不区分大小写）
-    2. 子串匹配（不区分大小写；片段含 >= 2 个 CJK 字符，如 茅台 -> 贵州茅台）
-    3. 拼音子串匹配（如 "maotai" ⊂ "guizhoumaotai"）
-    4. difflib 模糊匹配（cutoff 0.8，另加 0.7 的保守单字符错别字回退，
-       如 贵州茅苔 -> 贵州茅台）
+    전략 순서:
+    1. 정확 일치(대소문자 구분 없음)
+    2. 부분 문자열 일치(대소문자 구분 없음, 조각에 CJK 문자가 2개 이상, 예: 茅台 -> 贵州茅台)
+    3. 병음 부분 문자열 일치(예: "maotai" ⊂ "guizhoumaotai")
+    4. difflib 유사 매칭(cutoff 0.8, 추가로 0.7의 보수적인 한 글자 오타 대체,
+       예: 贵州茅苔 -> 贵州茅台)
     """
     if not fragment:
         return []
@@ -558,11 +558,11 @@ def _fix_name(fragment: str, database: Dict[str, str]) -> List[str]:
         if matches:
             return matches
 
-    # 3. Pinyin substring match — 仅对纯 ASCII 片段生效
-    # （设计场景是英文拼音输入："maotai" ⊂ "guizhoumaotai"）。CJK 片段
-    # 转拼音后粒度失控：实义字 + 助词（"阿里的" → "alide"）恰好 5 字母
-    # 过最短长度闸门，与不相干全名（"alide" ⊂ "zhongdalide" 中大力德）
-    # 发生子串碰撞；且 CJK 的合法场景已被其余三层覆盖（精确/子串/difflib）
+    # 3. Pinyin substring match — 순수 ASCII 조각에만 적용
+    # (영어 병음 입력용: "maotai" ⊂ "guizhoumaotai"). CJK 조각은
+    # 병음으로 바꾸면 단위가 엉망이 된다: 실사 + 조사("阿里的" → "alide")가 딱 5글자로
+    # 최소 길이 관문을 통과해 엉뚱한 전체 이름("alide" ⊂ "zhongdalide" 中大力德)과
+    # 부분 문자열 충돌이 난다. 게다가 CJK의 정상 사례는 나머지 세 단계(정확/부분 문자열/difflib)가 이미 처리한다
     if _contains_cjk(fragment):
         fragment_pinyin = ""
     else:
@@ -595,7 +595,7 @@ def _fix_name(fragment: str, database: Dict[str, str]) -> List[str]:
 
 
 def _infer_code_market(code: str) -> Optional[str]:
-    """根据代码格式推断市场：6 位数字→"a"，5 位数字→"hk"，字母→"us"。"""
+    """코드 형식으로 시장을 추정: 숫자 6자리→"a", 숫자 5자리→"hk", 영문자→"us"."""
     c = code.strip()
     if c.isdigit():
         return {5: "hk", 6: "a"}.get(len(c))
@@ -603,9 +603,9 @@ def _infer_code_market(code: str) -> Optional[str]:
 
 
 def _find_codes_for_name(name: str, database: Dict[str, str]) -> List[Tuple[str, str]]:
-    """查找 *database* 中映射到 *name* 的所有 (code, market) 组合。"""
+    """*database*에서 *name*에 대응하는 모든 (code, market) 조합을 찾는다."""
     results: List[Tuple[str, str]] = []
-    # 持锁迭代：与 extend_AkShare 的并发写串行
+    # 락을 잡고 순회: extend_AkShare의 동시 쓰기와 직렬화
     with _db_lock:
         for code, mapped_name in database.items():
             if mapped_name == name or (
@@ -618,38 +618,38 @@ def _find_codes_for_name(name: str, database: Dict[str, str]) -> List[Tuple[str,
 
 
 # =========================================================================
-# 公开 API
+# 공개 API
 # =========================================================================
 
 
 def resolver_name_to_code_list(name: str) -> List[Stock]:
-    """将股票名称解析为匹配的 ``Stock`` 条目（最多 5 个）。暂不解析股票代码。
+    """종목명을 일치하는 ``Stock`` 항목(최대 5개)으로 변환한다. 종목 코드는 아직 변환하지 않는다.
 
-    1. 对 CJK 输入，用 AkShare A 股数据扩充 ``stockDB``（幂等，带失败退避）；
-       非 CJK 输入完全跳过网络拉取。
-    2. 在 ``stockDB`` 上做精确匹配。
-    3. 在扩充后的数据库上做混合匹配（精确/子串/拼音/模糊）。
+    1. CJK 입력이면 AkShare A주 데이터로 ``stockDB``를 보강한다(멱등, 실패 백오프 포함).
+       CJK가 아닌 입력은 네트워크 가져오기를 완전히 건너뛴다.
+    2. ``stockDB``에서 정확 일치를 찾는다.
+    3. 보강된 데이터베이스에서 혼합 매칭(정확/부분 문자열/병음/유사)을 한다.
 
-    结果按 A 股 → 港股 → 美股 排序。
+    결과는 A주 → 홍콩 → 미국 순으로 정렬한다.
 
-    示例：
+    예시:
         "阿里巴巴" → [Stock("09988", "阿里巴巴", "hk"), Stock("BABA", "阿里巴巴", "us")]
         "茅台"     → [Stock("600519", "贵州茅台", "a")]
         "你好世界"  → []
     """
     if not name or not isinstance(name, str):
         return []
-    # 查询输入与入库同源归一：源形态（全角拼写/内嵌空格，如自 AkShare 数据
-    # 复制的 "京东方Ａ"/"五 粮 液"）与常规拼写同样可解析
+    # 조회 입력도 DB와 같은 방식으로 정규화: 원본 형태(전각 표기/내부 공백, 예: AkShare 데이터에서
+    # 복사한 "京东方Ａ"/"五 粮 液")도 일반 표기처럼 변환된다
     s = _normalize_stock_name(name)
-    # 单字符不可能是股票名（最短 2 字），短路避免全名表扫描
+    # 한 글자는 종목명일 수 없으므로(최소 2글자) 전체 이름표 검색을 건너뛴다
     if len(s) < 2:
         return []
 
-    # A 股名称全是 CJK —— 非 CJK 输入无法从网络扩充获益，但仍可参与本地
-    # 混合（拼音）匹配。
-    # 即使是本地精确命中也要先执行 AkShare 扩充：本地已有的同名港股/美股
-    # 不能阻止 AkShare 中同名 A 股被并入，否则跨市场候选会不完整。
+    # A주 이름은 전부 CJK다 —— CJK가 아닌 입력은 네트워크 보강의 이득이 없지만, 로컬
+    # 혼합(병음) 매칭에는 참여할 수 있다.
+    # 로컬에서 정확히 일치해도 AkShare 보강을 먼저 한다: 로컬에 있는 같은 이름의 홍콩/미국 종목이
+    # AkShare의 같은 이름 A주 병합을 막으면 시장 간 후보가 불완전해진다.
     if _contains_cjk(s):
         extend_AkShare()
 
@@ -672,9 +672,9 @@ def resolver_name_to_code_list(name: str) -> List[Stock]:
 
 
 def US_stock_code_match(segment: str) -> List[Stock]:
-    """匹配美股代码：1~5 个英文字母的 ticker，仅本地库存在该代码时才返回。
+    """미국 종목 코드 매칭: 영문자 1~5개 ticker이고 로컬 DB에 그 코드가 있을 때만 반환한다.
 
-    避免把普通英文单词（hello/open/...）误判为股票代码。
+    평범한 영어 단어(hello/open/...)를 종목 코드로 오인하지 않게 한다.
     """
     if not isinstance(segment, str) or not segment.isascii() or not segment.isalpha():
         return []
@@ -686,11 +686,11 @@ def US_stock_code_match(segment: str) -> List[Stock]:
 
 
 def lookup_stock_by_code(code: str) -> Optional[Stock]:
-    """按规范化代码查库，返回完整 (code/name/market) 三元组；查不到返回 None。
+    """정규화한 코드로 DB를 조회해 (code/name/market) 세 값을 반환한다. 없으면 None.
 
-    格式合法不等于存在：stockDB 未命中即 None，绝不虚构（LLM 幻觉/过期
-    代码不得直接注入 stocks）。本地库港股键为裸 5 位（"00700"），HK 前缀
-    形态（"HK00700"）自动补查去前缀裸键。
+    형식이 맞다고 존재하는 건 아니다: stockDB에 없으면 None이며 절대 지어내지 않는다(LLM 환각/오래된
+    코드를 stocks에 바로 넣으면 안 됨). 로컬 DB의 홍콩 종목 키는 5자리 숫자만("00700")이며, HK 접두
+    형태("HK00700")는 접두어를 뗀 키로 자동 재조회한다.
     """
     c = (code or "").strip().upper()
     if not c:
@@ -709,22 +709,22 @@ def lookup_stock_by_code(code: str) -> Optional[Stock]:
 
 
 def is_market_db_complete(market: str) -> bool:
-    """该市场名称库是否已扩展为全量（库未命中即可断定代码不存在）。
+    """해당 시장의 이름 DB가 전체 목록으로 확장됐는지(그렇다면 DB에 없으면 코드가 없다고 단정 가능).
 
-    A 股：AkShare 全量列表已并入 stockDB（extend_AkShare 成功过，
-    ``_akshare_merged`` 非空）。港股/美股：本地精选库，永不视为全量，
-    未命中只能存疑交下游判断。
+    A주: AkShare 전체 목록이 stockDB에 병합됨(extend_AkShare가 성공한 적 있고
+    ``_akshare_merged``가 비어 있지 않음). 홍콩/미국: 엄선한 로컬 DB라 전체로 보지 않으며,
+    없을 때는 판단을 보류하고 하위 단계에 맡긴다.
     """
     return market == "a" and _akshare_merged is not None
 
 
 def is_known_stock_name(name: str) -> bool:
-    """判断 *name* 是否为 stockDB 中已知的股票全名（含改名别名）。
+    """*name*이 stockDB에 있는 종목 전체 이름(이름 변경 별칭 포함)인지 판단한다.
 
-    只做本地名称表成员判定，绝不触发 AkShare 网络扩展。代码键
-    （如 "600519"）不算名称命中：分词管道（web_intent_tokenizer）用本
-    函数保护"已识别名称 token"，代码形文本必须继续进入代码提取步骤
-    重新标注，而不是被当作名称跳过。
+    로컬 이름표 포함 여부만 보고 AkShare 네트워크 확장은 절대 하지 않는다. 코드 키
+    (예: "600519")는 이름 일치로 치지 않는다: 토큰화 파이프라인(web_intent_tokenizer)이 이
+    함수로 "인식된 이름 token"을 보호하므로, 코드 형태 텍스트는 코드 추출 단계로 넘어가
+    다시 표시돼야 하며 이름으로 취급돼 건너뛰면 안 된다.
     """
     if not isinstance(name, str):
         return False
@@ -767,7 +767,7 @@ def resolve_name_to_code(name: str) -> Optional[str]:
     if s in local_reverse:
         return local_reverse[s]
     if s in _LOCAL_AMBIGUOUS_NAMES:
-        logger.debug(f"[NameResolver] 命中本地歧义名称，快速返回 None: {s}")
+        logger.debug(f"[NameResolver] 로컬 모호 이름에 걸려 None을 바로 반환: {s}")
         return None
 
     # 3. Pinyin match (exact)
@@ -793,7 +793,7 @@ def resolve_name_to_code(name: str) -> Optional[str]:
     # 4. AkShare fallback
     akshare_map = _get_akshare_name_to_code()
     if akshare_map and s in akshare_map:
-        logger.debug(f"[NameResolver] 命中 AkShare 映射: {s} -> {akshare_map[s]}")
+        logger.debug(f"[NameResolver] AkShare 매핑 일치: {s} -> {akshare_map[s]}")
         return akshare_map[s]
 
     # 5. Fuzzy match (local + akshare, local takes precedence)
@@ -807,7 +807,7 @@ def resolve_name_to_code(name: str) -> Optional[str]:
         names = list(all_name_to_code.keys())
         matches = difflib.get_close_matches(s, names, n=1, cutoff=0.8)
         if matches:
-            logger.debug(f"[NameResolver] 命中模糊匹配: input={s}, matched={matches[0]}")
+            logger.debug(f"[NameResolver] 유사 매칭 일치: input={s}, matched={matches[0]}")
             return all_name_to_code[matches[0]]
 
         # Conservative fallback for one-character typo in medium/long names.
@@ -815,8 +815,8 @@ def resolve_name_to_code(name: str) -> Optional[str]:
         # such as "贵州茅苔" -> "贵州茅台".
         typo_matches = difflib.get_close_matches(s, names, n=1, cutoff=0.7)
         if typo_matches and _is_single_char_typo(s, typo_matches[0]):
-            logger.debug(f"[NameResolver] 命中单字误写兜底: input={s}, matched={typo_matches[0]}")
+            logger.debug(f"[NameResolver] 한 글자 오타 대체 일치: input={s}, matched={typo_matches[0]}")
             return all_name_to_code[typo_matches[0]]
 
-    logger.debug(f"[NameResolver] 解析失败: {s}")
+    logger.debug(f"[NameResolver] 변환 실패: {s}")
     return None

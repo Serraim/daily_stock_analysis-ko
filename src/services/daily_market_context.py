@@ -118,7 +118,7 @@ class DailyMarketContextService:
         normalized_region = _normalize_context_region(region)
         if normalized_region is None:
             logger.info(
-                "跳过多市场或不支持区域的大盘上下文复用: region=%s",
+                "다중 시장이거나 지원하지 않는 지역이라 시장 컨텍스트 재사용 건너뜀: region=%s",
                 region,
             )
             return None
@@ -137,7 +137,7 @@ class DailyMarketContextService:
                 cached = self._cache.pop(cache_key, None)
                 if cached is not None:
                     logger.debug(
-                        "强制刷新模式下清除当前查询的大盘上下文缓存: key=%s",
+                        "강제 새로고침 모드: 현재 조회의 시장 컨텍스트 캐시 삭제: key=%s",
                         cache_key,
                     )
 
@@ -256,7 +256,7 @@ class DailyMarketContextService:
                 limit=20,
             )
         except Exception as exc:
-            logger.warning("读取大盘复盘历史失败，跳过市场上下文缓存: %s", exc)
+            logger.warning("시장 복기 기록 읽기 실패, 시장 컨텍스트 캐시 건너뜀: %s", exc)
             return None
 
         for record in records or []:
@@ -483,7 +483,7 @@ class DailyMarketContextService:
             )
         except Exception as exc:
             logger.warning(
-                "大盘复盘上下文生成失败，个股分析继续: %s",
+                "시장 복기 컨텍스트 생성 실패, 개별 종목 분석은 계속함: %s",
                 exc,
                 exc_info=True,
             )
@@ -551,7 +551,7 @@ class DailyMarketContextService:
                         self._cache[cache_key] = generated
                         return generated
                     logger.warning(
-                        "市场复盘上下文锁已释放但仍未命中同日上下文，允许继续分析流程: region=%s, target_date=%s",
+                        "시장 복기 컨텍스트 락이 풀렸지만 같은 날 컨텍스트가 여전히 없음, 분석 흐름 계속 진행: region=%s, target_date=%s",
                         region,
                         target_date.isoformat(),
                     )
@@ -563,7 +563,7 @@ class DailyMarketContextService:
                 break
 
             logger.info(
-                "市场复盘上下文锁竞争等待: attempt=%s, wait_seconds=%.2f, region=%s, target_date=%s",
+                "시장 복기 컨텍스트 락 경합 대기: attempt=%s, wait_seconds=%.2f, region=%s, target_date=%s",
                 attempt + 1,
                 wait_interval,
                 region,
@@ -576,7 +576,7 @@ class DailyMarketContextService:
             )
 
         logger.warning(
-            "市场复盘上下文锁竞争等待超限后仍未命中同日上下文，允许继续分析流程: region=%s, target_date=%s",
+            "시장 복기 컨텍스트 락 경합 대기가 한도를 넘었고 같은 날 컨텍스트도 없음, 분석 흐름 계속 진행: region=%s, target_date=%s",
             region,
             target_date.isoformat(),
         )

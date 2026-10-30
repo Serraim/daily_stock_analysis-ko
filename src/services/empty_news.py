@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""新闻检索未执行或零命中时的报告披露文案。
+"""뉴스 검색을 하지 않았거나 결과가 0건일 때 리포트에 넣는 안내 문구.
 
-单一事实来源：字符串拼接渲染器（src/notification.py）与模板渲染链路
-（src/services/report_renderer.py + templates/*.j2）共用本模块，避免
-同一份分析结果在部分渠道披露、在另一些渠道沉默。
+단일 기준: 문자열 조합 렌더러(src/notification.py)와 템플릿 렌더링 경로
+(src/services/report_renderer.py + templates/*.j2)가 이 모듈을 함께 써서,
+같은 분석 결과를 어떤 채널에서는 알리고 다른 채널에서는 침묵하는 일을 막는다.
 
-披露断言的是「本次结论有没有用到新闻面证据」，因此第一依据是分析实际收到的消息面
-证据（news_context）是否非空，而不是搜索命中了几条。news_context 可能来自实时检索、
-社交情绪或本地已落库的资讯池，后两者同样进入模型输入却不产生搜索命中；只看计数会把
-这类分析误报成「未纳入新闻面证据」（review OR-COR-2e4b9d61）。
+안내가 말하는 것은 "이번 결론에 뉴스 근거를 썼는가"이므로, 첫 번째 기준은 분석이 실제로 받은 뉴스
+근거(news_context)가 비어 있지 않은지이지, 검색이 몇 건 걸렸는지가 아니다. news_context는 실시간 검색,
+소셜 심리, 또는 로컬에 저장된 뉴스 풀에서 올 수 있고, 뒤의 둘은 모델 입력에 들어가도 검색 건수를 만들지 않는다. 건수만 보면
+이런 분석을 "뉴스 근거 미포함"으로 잘못 보고한다(review OR-COR-2e4b9d61).
 
-news_result_count 因此退居第二位，只用来解释「确实没有证据」时的原因：
-    None  未执行检索（未配置搜索渠道）
-    0     执行了检索但零命中（限流、全部失败等）
-    > 0   实时检索有命中（此时证据必然存在）
+그래서 news_result_count는 두 번째 기준으로 물러나, "정말 근거가 없을 때" 그 이유를 설명하는 데만 쓴다:
+    None  검색 안 함(검색 채널 미설정)
+    0     검색했지만 0건(요청 제한, 모두 실패 등)
+    > 0   실시간 검색 결과 있음(이때는 근거가 반드시 있음)
 """
 
 from __future__ import annotations
@@ -58,11 +58,11 @@ def persisted_news_result_state(
     raw_result: Any,
     context_snapshot: Any = None,
 ) -> Tuple[Optional[int], bool]:
-    """从持久化载荷恢复计数及其可信度。
+    """저장된 데이터에서 건수와 그 신뢰도를 복원한다.
 
-    新记录的 raw_result 明确保存三态值；旧记录可在 context_snapshot 中留下
-    0 / >0 计数。两处都没有字段时只能判定为 legacy unknown，不能把缺字段
-    当成明确的 None。
+    새 기록은 raw_result에 세 가지 상태 값을 분명히 저장한다. 예전 기록은 context_snapshot에
+    0 / >0 건수를 남겼을 수 있다. 두 곳 모두 필드가 없으면 legacy unknown으로만 판단할 수 있고, 필드가 없는 것을
+    명확한 None으로 취급하면 안 된다.
     """
     if isinstance(raw_result, Mapping):
         if raw_result.get("news_result_count_known") is False:
@@ -77,17 +77,17 @@ def persisted_news_result_state(
 
 
 def news_evidence_present(*sources: Any) -> bool:
-    """本次分析是否真的收到了消息面证据。任一来源为真即为真。
+    """이번 분석이 정말 뉴스 근거를 받았는지. 출처 중 하나라도 참이면 참이다.
 
-    每个来源要么是真实条数（int），要么是**已排除占位文本**的内容字符串。
-    实时检索、社交情绪、本地资讯池各算一路，pipeline 两条路径都用本函数，
-    不要在别处另写判断。
+    각 출처는 실제 건수(int)이거나 **자리표시 문구를 뺀** 내용 문자열이다.
+    실시간 검색, 소셜 심리, 로컬 뉴스 풀을 각각 한 경로로 치며, pipeline의 두 경로 모두 이 함수를 쓴다.
+    다른 곳에서 따로 판단을 만들지 말 것.
 
-    **不要把 pipeline 拼好的整段 news_context 传进来。**
-    `src/search_service.py` 的 `format_intel_report()` 在零命中时仍会输出
-    `【XX 情报搜索结果】` 标题和每个维度的「未找到相关信息」占位文本，整段永远
-    非空；用它判定会把「搜了但一条没拿到」翻成「有证据」，恰好吞掉本模块要补的
-    披露（review OR-COR-8f4c2d1b）。判定必须按来源逐个登记，不能闻字符串。
+    **pipeline이 합쳐 놓은 news_context 전체를 넘기지 말 것.**
+    `src/search_service.py`의 `format_intel_report()`는 0건이어도
+    `【XX 情报搜索结果】` 제목과 항목별 "未找到相关信息" 자리표시 문구를 출력하므로 전체 문자열은 항상
+    비어 있지 않다. 이것으로 판단하면 "검색했지만 하나도 못 얻음"이 "근거 있음"으로 바뀌어, 이 모듈이 채우려는
+    안내를 정확히 삼켜 버린다(review OR-COR-8f4c2d1b). 판단은 출처별로 하나씩 등록해서 해야지 문자열 냄새로 하면 안 된다.
     """
     for source in sources:
         if source is None or isinstance(source, bool):
@@ -117,7 +117,7 @@ def _disclosure_for_state(
 
     if not known:
         return None
-    # 证据存在就不提示，无论它来自哪一路来源；计数只解释「没有证据」的原因。
+    # 근거가 있으면 어느 출처에서 왔든 안내하지 않는다. 건수는 "근거 없음"의 이유만 설명한다.
     if evidence_present:
         return None
     if news_result_count is None:
@@ -128,12 +128,12 @@ def _disclosure_for_state(
 
 
 def empty_news_disclosure(result: Any, language: str = "zh") -> Optional[str]:
-    """未执行或零命中时返回对应提示；正常命中时返回 None。
+    """검색을 안 했거나 0건이면 해당 안내를 돌려주고, 정상적으로 결과가 있으면 None을 돌려준다.
 
-    判定必须独立于模型是否产出了消息面文字：analyzer 的输出 schema 即使
-    在没有新闻时也会要求填 market_sentiment / hot_topics，若以这些字段
-    是否为空来决定，就会出现「展示模型生成的情绪判断、却隐瞒无新闻证据」
-    这一最糟的组合。
+    판단은 모델이 뉴스 관련 문장을 만들었는지와 무관해야 한다: analyzer 출력 schema는
+    뉴스가 없어도 market_sentiment / hot_topics를 채우라고 요구하므로, 이 필드들이
+    비었는지로 정하면 "모델이 만든 심리 판단은 보여 주면서 뉴스 근거 없음은 숨기는"
+    최악의 조합이 생긴다.
     """
     if isinstance(result, Mapping):
         news_result_count, known = persisted_news_result_state(result)
@@ -155,7 +155,7 @@ def empty_news_disclosure_from_stored(
     context_snapshot: Any,
     language: str = "zh",
 ) -> Optional[str]:
-    """为历史/API 入口从持久化载荷生成披露；旧记录缺字段时保持静默。"""
+    """기록/API 진입점용으로 저장된 데이터에서 안내를 만든다. 예전 기록에 필드가 없으면 조용히 넘어간다."""
     news_result_count, known = persisted_news_result_state(raw_result, context_snapshot)
     return _disclosure_for_state(
         news_result_count,
@@ -166,10 +166,10 @@ def empty_news_disclosure_from_stored(
 
 
 def persisted_news_evidence_present(raw_result: Any, news_result_count: Optional[int]) -> bool:
-    """从持久化载荷恢复「本次分析是否用到新闻面证据」。
+    """저장된 데이터에서 "이번 분석이 뉴스 근거를 썼는지"를 복원한다.
 
-    本 PR 之前写入的记录没有该字段，此时退回按计数推断：>0 说明确有证据，
-    其余按无证据处理，与该记录当时的报告表现一致，不会追溯改变旧报告。
+    이 PR 이전에 기록된 데이터에는 이 필드가 없으므로 건수로 추정한다: >0이면 근거가 있었던 것이고,
+    나머지는 근거 없음으로 처리한다. 그 기록의 당시 리포트 모습과 같으므로 예전 리포트를 소급해 바꾸지 않는다.
     """
     if isinstance(raw_result, Mapping) and "news_evidence_present" in raw_result:
         return bool(raw_result.get("news_evidence_present"))

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-异步任务服务层
+비동기 작업 서비스 계층
 ===================================
 
-职责：
-1. 管理异步分析任务（线程池）
-2. 执行股票分析并推送结果
-3. 查询任务状态和历史
+역할:
+1. 비동기 분석 작업 관리(스레드 풀)
+2. 종목 분석 실행 및 결과 전송
+3. 작업 상태와 기록 조회
 
-迁移自 web/services.py 的 AnalysisService 类
+web/services.py의 AnalysisService 클래스에서 옮겨 옴
 """
 
 from __future__ import annotations
@@ -31,12 +31,12 @@ logger = logging.getLogger(__name__)
 
 class TaskService:
     """
-    异步任务服务
+    비동기 작업 서비스
 
-    负责：
-    1. 管理异步分析任务
-    2. 执行股票分析
-    3. 触发通知推送
+    담당:
+    1. 비동기 분석 작업 관리
+    2. 종목 분석 실행
+    3. 알림 전송 트리거
     """
 
     _instance: Optional['TaskService'] = None
@@ -50,7 +50,7 @@ class TaskService:
 
     @classmethod
     def get_instance(cls) -> 'TaskService':
-        """获取单例实例"""
+        """싱글턴 인스턴스 가져오기"""
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -59,7 +59,7 @@ class TaskService:
 
     @property
     def executor(self) -> ThreadPoolExecutor:
-        """获取或创建线程池"""
+        """스레드 풀 가져오기 또는 생성"""
         if self._executor is None:
             self._executor = ThreadPoolExecutor(
                 max_workers=self._max_workers,
@@ -77,22 +77,22 @@ class TaskService:
         analysis_target: Optional[AnalysisTarget] = None
     ) -> Dict[str, Any]:
         """
-        提交异步分析任务
+        비동기 분석 작업 제출
 
         Args:
-            code: 股票代码
-            report_type: 报告类型枚举
-            source_message: 来源消息（用于回复）
-            save_context_snapshot: 是否保存上下文快照
-            query_source: 任务来源标识（bot/api/cli/system）
-            analysis_target: 可选结构化分析目标（INDEX 时原样使用
-                ``target.canonical_id`` 并跳过股票代码规范化，防止
-                ``sh000016`` 被改写为 ``SH000016``）
+            code: 종목 코드
+            report_type: 리포트 유형 열거형
+            source_message: 원본 메시지(답장용)
+            save_context_snapshot: 컨텍스트 스냅샷 저장 여부
+            query_source: 작업 출처 표시(bot/api/cli/system)
+            analysis_target: 선택적 구조화 분석 대상(INDEX면
+                ``target.canonical_id``를 그대로 쓰고 종목 코드 정규화를 건너뛰어
+                ``sh000016``이 ``SH000016``으로 바뀌는 것을 막음)
 
         Returns:
-            任务信息字典
+            작업 정보 딕셔너리
         """
-        # 确保 report_type 是枚举类型
+        # report_type이 열거형인지 확인
         if isinstance(report_type, str):
             report_type = ReportType.from_str(report_type)
 
@@ -102,8 +102,8 @@ class TaskService:
         ):
             raise ValueError("analysis_target must be an INDEX target")
         if analysis_target is not None:
-            # INDEX target 携带时原样使用 canonical_id，不再走股票代码
-            # 规范化路径（避免 ``sh000016`` 被改写为 ``SH000016``）。
+            # INDEX target이 있으면 canonical_id를 그대로 쓰고 종목 코드
+            # 정규화 경로를 타지 않는다(``sh000016``이 ``SH000016``으로 바뀌는 것 방지).
             normalized_code = analysis_target.canonical_id
         else:
             normalized_code = resolve_index_stock_code_for_analysis(code)
@@ -112,7 +112,7 @@ class TaskService:
 
         task_id = f"{normalized_code}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
-        # 提交到线程池
+        # 스레드 풀에 제출
         self.executor.submit(
             self._run_analysis,
             normalized_code,
@@ -125,7 +125,7 @@ class TaskService:
         )
 
         logger.info(
-            f"[TaskService] 已提交股票 {normalized_code} 的分析任务, "
+            f"[TaskService] 종목 {normalized_code} 분석 작업 제출됨, "
             f"task_id={task_id}, report_type={report_type.value}"
         )
 
@@ -138,15 +138,15 @@ class TaskService:
         }
 
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
-        """获取任务状态"""
+        """작업 상태 조회"""
         with self._tasks_lock:
             return self._tasks.get(task_id)
 
     def list_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """列出最近的任务"""
+        """최근 작업 목록"""
         with self._tasks_lock:
             tasks = list(self._tasks.values())
-        # 按开始时间倒序
+        # 시작 시각 내림차순
         tasks.sort(key=lambda x: x.get('start_time', ''), reverse=True)
         return tasks[:limit]
 
@@ -157,7 +157,7 @@ class TaskService:
         days: int = 30,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """获取分析历史记录"""
+        """분석 기록 조회"""
         db = get_db()
         records = db.get_analysis_history(code=code, query_id=query_id, days=days, limit=limit)
         return [r.to_dict() for r in records]
@@ -173,11 +173,11 @@ class TaskService:
         analysis_target: Optional[AnalysisTarget] = None
     ) -> Dict[str, Any]:
         """
-        执行单只股票分析
+        종목 하나 분석 실행
 
-        内部方法，在线程池中运行
+        내부 메서드, 스레드 풀에서 실행
         """
-        # 初始化任务状态
+        # 작업 상태 초기화
         with self._tasks_lock:
             self._tasks[task_id] = {
                 "task_id": task_id,
@@ -190,13 +190,13 @@ class TaskService:
             }
 
         try:
-            # 延迟导入避免循环依赖
+            # 순환 의존을 피하려고 지연 import
             from src.config import get_config
             from main import StockAnalysisPipeline
 
-            logger.info(f"[TaskService] 开始分析股票: {code}")
+            logger.info(f"[TaskService] 종목 분석 시작: {code}")
 
-            # 创建分析管道
+            # 분석 파이프라인 생성
             config = get_config()
             pipeline = StockAnalysisPipeline(
                 config=config,
@@ -207,7 +207,7 @@ class TaskService:
                 save_context_snapshot=save_context_snapshot
             )
 
-            # 执行单只股票分析（启用单股推送）
+            # 종목 하나 분석 실행(종목별 알림 전송 사용)
             process_kwargs = {
                 "code": code,
                 "skip_analysis": False,
@@ -235,7 +235,7 @@ class TaskService:
                         "result": result_data
                     })
 
-                logger.info(f"[TaskService] 股票 {code} 分析完成: {result.operation_advice}")
+                logger.info(f"[TaskService] 종목 {code} 분석 완료: {result.operation_advice}")
                 return {"success": True, "task_id": task_id, "result": result_data}
             else:
                 fail_message = "分析返回空结果"
@@ -248,12 +248,12 @@ class TaskService:
                         "error": fail_message
                     })
 
-                logger.warning(f"[TaskService] 股票 {code} 分析失败: {fail_message}")
+                logger.warning(f"[TaskService] 종목 {code} 분석 실패: {fail_message}")
                 return {"success": False, "task_id": task_id, "error": fail_message}
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"[TaskService] 股票 {code} 分析异常: {error_msg}")
+            logger.error(f"[TaskService] 종목 {code} 분석 오류: {error_msg}")
 
             with self._tasks_lock:
                 self._tasks[task_id].update({
@@ -266,9 +266,9 @@ class TaskService:
 
 
 # ============================================================
-# 便捷函数
+# 편의 함수
 # ============================================================
 
 def get_task_service() -> TaskService:
-    """获取任务服务单例"""
+    """작업 서비스 싱글턴 가져오기"""
     return TaskService.get_instance()

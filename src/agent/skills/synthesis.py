@@ -336,9 +336,9 @@ class StrategySynthesizer:
         2. ≤ 1 valid opinion → insufficient
         3. sum(confidence) == 0 → insufficient
         4. conflict_severity == "high" → low
-        5. aligned_ratio ≥ 2/3 且 conflict_count == 0 → high
-        6. conflict_severity == "medium" 且 aligned_ratio < 0.5 → low
-        7. 其余 → medium
+        5. aligned_ratio ≥ 2/3 이고 conflict_count == 0 → high
+        6. conflict_severity == "medium" 이고 aligned_ratio < 0.5 → low
+        7. 나머지 → medium
         """
         if insufficient_evidence:
             return "insufficient"

@@ -36,7 +36,7 @@ class Skill:
         display_name: Human-readable name (e.g., "龙头策略").
         description: Brief description of when to apply this strategy.
         instructions: Detailed natural language instructions injected into the system prompt.
-        category: Skill category — "trend" (趋势), "pattern" (形态), "reversal" (反转), "framework" (框架).
+        category: Skill category — "trend" (추세), "pattern" (패턴), "reversal" (반전), "framework" (프레임워크).
         core_rules: List of core trading rule numbers this strategy relates to (1-7).
         required_tools: List of tool names this skill depends on.
         allowed_tools: Optional allowlist metadata from SKILL.md frontmatter.

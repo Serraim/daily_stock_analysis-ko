@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-服务层模块初始化
+서비스 계층 모듈 초기화
 ===================================
 
-职责：
-1. 声明可导出的服务类（延迟导入，避免启动时拉入 LLM 等重依赖）
+역할:
+1. 내보낼 서비스 클래스 선언(지연 import로 시작 시 LLM 같은 무거운 의존성을 불러오지 않음)
 
-使用方式：
-    直接从子模块导入，例如:
+사용법:
+    하위 모듈에서 직접 import, 예:
     from src.services.history_service import HistoryService
 """
 
 
 def __getattr__(name: str):
-    """延迟导入：仅在通过 src.services.X 访问时才加载对应子模块。"""
+    """지연 import: src.services.X로 접근할 때만 해당 하위 모듈을 불러온다."""
     _lazy_map = {
         "AnalysisService": "src.services.analysis_service",
         "BacktestService": "src.services.backtest_service",

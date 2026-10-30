@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 分析服务层
+A주 관심종목 지능형 분석 시스템 - 분석 서비스 계층
 ===================================
 
-职责：
-1. 封装核心分析逻辑，支持多调用方（CLI、WebUI、Bot）
-2. 提供清晰的API接口，不依赖于命令行参数
-3. 支持依赖注入，便于测试和扩展
-4. 统一管理分析流程和配置
+역할:
+1. 핵심 분석 로직을 캡슐화해 여러 호출자(CLI, WebUI, Bot)를 지원
+2. 명령줄 인자에 의존하지 않는 명확한 API 제공
+3. 의존성 주입을 지원해 테스트와 확장이 쉬움
+4. 분석 흐름과 설정을 한곳에서 관리
 """
 
 import uuid
@@ -29,35 +29,35 @@ def analyze_stock(
     notifier: Optional[NotificationService] = None,
 ) -> Optional[AnalysisResult]:
     """
-    分析单只股票
+    종목 하나 분석
 
     Args:
-        stock_code: 股票代码
-        config: 配置对象（可选，默认使用单例）
-        full_report: 是否生成完整报告
-        notifier: 通知服务（可选）
+        stock_code: 종목 코드
+        config: 설정 객체(선택, 기본은 싱글턴 사용)
+        full_report: 전체 리포트 생성 여부
+        notifier: 알림 서비스(선택)
 
     Returns:
-        分析结果对象
+        분석 결과 객체
     """
     if config is None:
         config = get_config()
 
-    # 创建分析流水线
+    # 분석 파이프라인 생성
     pipeline = StockAnalysisPipeline(
         config=config,
         query_id=uuid.uuid4().hex,
         query_source="cli"
     )
 
-    # 使用通知服务（如果提供）
+    # 알림 서비스 사용(전달된 경우)
     if notifier:
         pipeline.notifier = notifier
 
-    # 根据full_report参数设置报告类型
+    # full_report 인자로 리포트 유형 설정
     report_type = ReportType.FULL if full_report else ReportType.SIMPLE
 
-    # 运行单只股票分析
+    # 종목 하나 분석 실행
     result = pipeline.process_single_stock(
         code=stock_code,
         skip_analysis=False,
@@ -75,16 +75,16 @@ def analyze_stocks(
     notifier: Optional[NotificationService] = None,
 ) -> List[AnalysisResult]:
     """
-    分析多只股票
+    여러 종목 분석
 
     Args:
-        stock_codes: 股票代码列表
-        config: 配置对象（可选，默认使用单例）
-        full_report: 是否生成完整报告
-        notifier: 通知服务（可选）
+        stock_codes: 종목 코드 목록
+        config: 설정 객체(선택, 기본은 싱글턴 사용)
+        full_report: 전체 리포트 생성 여부
+        notifier: 알림 서비스(선택)
 
     Returns:
-        分析结果列表
+        분석 결과 목록
     """
     if config is None:
         config = get_config()
@@ -103,29 +103,29 @@ def perform_market_review(
     notifier: Optional[NotificationService] = None,
 ) -> Optional[str]:
     """
-    执行大盘复盘
+    시장 전체 복기 실행
 
     Args:
-        config: 配置对象（可选，默认使用单例）
-        notifier: 通知服务（可选）
+        config: 설정 객체(선택, 기본은 싱글턴 사용)
+        notifier: 알림 서비스(선택)
 
     Returns:
-        复盘报告内容
+        복기 리포트 내용
     """
     if config is None:
         config = get_config()
 
-    # 创建分析流水线以获取analyzer和search_service
+    # analyzer와 search_service를 얻으려고 분석 파이프라인 생성
     pipeline = StockAnalysisPipeline(
         config=config,
         query_id=uuid.uuid4().hex,
         query_source="cli",
     )
 
-    # 使用提供的通知服务或创建新的
+    # 전달된 알림 서비스를 쓰거나 새로 만든다
     review_notifier = notifier or pipeline.notifier
 
-    # 调用大盘复盘函数
+    # 시장 복기 함수 호출
     return run_market_review(
         notifier=review_notifier,
         analyzer=pipeline.analyzer,

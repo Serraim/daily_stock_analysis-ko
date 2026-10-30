@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Discord 发送提醒服务
+Discord 알림 발송 서비스
 
-职责：
-1. 通过 webhook 或 Discord bot API 发送 Discord 消息
+역할:
+1. webhook 또는 Discord bot API로 Discord 메시지 발송
 """
 import logging
 import time
@@ -31,10 +31,10 @@ class DiscordSender:
     
     def __init__(self, config: Config):
         """
-        初始化 Discord 配置
+        Discord 설정 초기화
 
         Args:
-            config: 配置对象
+            config: 설정 객체
         """
         self._discord_config = {
             'bot_token': getattr(config, 'discord_bot_token', None),
@@ -55,31 +55,31 @@ class DiscordSender:
         return max(MIN_MAX_WORDS, min(configured, DISCORD_MAX_CONTENT_LENGTH))
     
     def _is_discord_configured(self) -> bool:
-        """检查 Discord 配置是否完整（支持 Bot 或 Webhook）"""
-        # 只要配置了 Webhook 或完整的 Bot Token+Channel，即视为可用
+        """Discord 설정이 다 갖춰졌는지 확인 (Bot 또는 Webhook 지원)"""
+        # Webhook 또는 Bot Token+Channel이 다 설정돼 있으면 사용 가능으로 봄
         bot_ok = bool(self._discord_config['bot_token'] and self._discord_config['channel_id'])
         webhook_ok = bool(self._discord_config['webhook_url'])
         return bot_ok or webhook_ok
     
     def send_to_discord(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
-        推送消息到 Discord（支持 Webhook 和 Bot API）
+        Discord에 메시지 푸시 (Webhook, Bot API 지원)
         
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
             
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         sanitized_content = strip_hidden_markdown_metadata(content).strip()
         if not sanitized_content:
-            logger.warning("Discord 消息内容为空，跳过推送")
+            logger.warning("Discord 메시지 내용이 비어 있어 푸시 건너뜀")
             return False
 
-        # 分割内容，避免单条消息超过 Discord 限制
+        # 내용을 나눠 메시지 1건이 Discord 제한을 넘지 않게 함
         chunks = self._split_discord_content(sanitized_content)
 
-        # 优先使用 Webhook（配置简单，权限低）
+        # Webhook 우선 사용 (설정이 간단하고 권한이 낮음)
         if self._discord_config['webhook_url']:
             return self._send_discord_chunks(
                 chunks,
@@ -88,7 +88,7 @@ class DiscordSender:
                 timeout_seconds=timeout_seconds,
             )
 
-        # 其次使用 Bot API（权限高，需要 channel_id）
+        # 그다음 Bot API 사용 (권한이 높고 channel_id 필요)
         if self._discord_config['bot_token'] and self._discord_config['channel_id']:
             return self._send_discord_chunks(
                 chunks,
@@ -97,11 +97,11 @@ class DiscordSender:
                 timeout_seconds=timeout_seconds,
             )
 
-        logger.warning("Discord 配置不完整，跳过推送")
+        logger.warning("Discord 설정이 불완전해 푸시 건너뜀")
         return False
 
     def _split_discord_content(self, content: str) -> list[str]:
-        """按 Discord content 上限拆分消息。"""
+        """Discord content 상한에 맞춰 메시지 분할."""
         try:
             chunks = chunk_content_by_max_words(content, self._discord_max_words)
             if len(chunks) > 1:
@@ -112,7 +112,7 @@ class DiscordSender:
                 )
             return chunks
         except ValueError as e:
-            logger.error("分割 Discord 消息失败: %s", e)
+            logger.error("Discord 메시지 나누기 실패: %s", e)
             return chunk_content_by_max_words(
                 content,
                 DISCORD_MAX_CONTENT_LENGTH,
@@ -127,20 +127,20 @@ class DiscordSender:
         *,
         timeout_seconds: Optional[float] = None,
     ) -> bool:
-        """逐片发送 Discord 消息；失败片不应阻断后续片尝试。"""
+        """Discord 메시지를 조각별로 발송. 한 조각이 실패해도 다음 조각은 계속 시도함."""
         total_chunks = len(chunks)
         success_count = 0
 
         if total_chunks > 1:
-            logger.info("Discord %s 分批发送：共 %d 批", channel_name, total_chunks)
+            logger.info("Discord %s 나눠서 발송: 총 %d개 묶음", channel_name, total_chunks)
 
         for i, chunk in enumerate(chunks):
             if send_once(chunk, timeout_seconds=timeout_seconds):
                 success_count += 1
                 if total_chunks > 1:
-                    logger.info("Discord %s 第 %d/%d 批发送成功", channel_name, i + 1, total_chunks)
+                    logger.info("Discord %s %d/%d번째 묶음 발송 완료", channel_name, i + 1, total_chunks)
             else:
-                logger.error("Discord %s 第 %d/%d 批发送失败", channel_name, i + 1, total_chunks)
+                logger.error("Discord %s %d/%d번째 묶음 발송 실패", channel_name, i + 1, total_chunks)
 
             if i < total_chunks - 1:
                 time.sleep(DISCORD_CHUNK_SLEEP_SECONDS)
@@ -150,15 +150,15 @@ class DiscordSender:
   
     def _send_discord_webhook(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
-        使用 Webhook 发送消息到 Discord
+        Webhook으로 Discord에 메시지 발송
         
-        Discord Webhook 支持 Markdown 格式
+        Discord Webhook은 Markdown 형식 지원
         
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
             
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         payload = {
             'content': content,
@@ -177,13 +177,13 @@ class DiscordSender:
     
     def _send_discord_bot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
-        使用 Bot API 发送消息到 Discord
+        Bot API로 Discord에 메시지 발송
         
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
             
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         headers = {
             'Authorization': f'Bot {self._discord_config["bot_token"]}',
@@ -212,7 +212,7 @@ class DiscordSender:
         timeout_seconds: Optional[float] = None,
         channel_name: str,
     ) -> bool:
-        """发送单条 Discord 消息，并复用 Telegram 的有限重试思路处理 429/5xx。"""
+        """Discord 메시지 1건 발송. 429/5xx는 Telegram과 같은 방식의 제한된 재시도로 처리."""
         request_kwargs = {
             'json': payload,
             'timeout': timeout_seconds or 10,
@@ -229,7 +229,7 @@ class DiscordSender:
                 if attempt < DISCORD_MAX_RETRIES:
                     delay = 2 ** attempt
                     logger.warning(
-                        "Discord %s 请求异常（%d/%d）：%s，%s 秒后重试",
+                        "Discord %s 요청 오류 (%d/%d): %s, %s초 뒤 재시도",
                         channel_name,
                         attempt,
                         DISCORD_MAX_RETRIES,
@@ -238,17 +238,17 @@ class DiscordSender:
                     )
                     time.sleep(delay)
                     continue
-                logger.error("Discord %s 请求重试后仍失败: %s", channel_name, e)
+                logger.error("Discord %s 재시도 후에도 요청 실패: %s", channel_name, e)
                 return False
 
             if response.status_code in success_statuses:
-                logger.info("Discord %s 消息发送成功", channel_name)
+                logger.info("Discord %s 메시지 발송 완료", channel_name)
                 return True
 
             if response.status_code == 429 and attempt < DISCORD_MAX_RETRIES:
                 retry_after = self._get_retry_after_seconds(response, attempt)
                 logger.warning(
-                    "Discord %s 触发限流，%s 秒后重试（%d/%d）",
+                    "Discord %s 빈도 제한 걸림, %s초 뒤 재시도 (%d/%d)",
                     channel_name,
                     retry_after,
                     attempt,
@@ -260,7 +260,7 @@ class DiscordSender:
             if response.status_code >= 500 and attempt < DISCORD_MAX_RETRIES:
                 delay = 2 ** attempt
                 logger.warning(
-                    "Discord %s 服务端错误 HTTP %s（%d/%d），%s 秒后重试",
+                    "Discord %s 서버 오류 HTTP %s (%d/%d), %s초 뒤 재시도",
                     channel_name,
                     response.status_code,
                     attempt,
@@ -271,7 +271,7 @@ class DiscordSender:
                 continue
 
             logger.error(
-                "Discord %s 发送失败: %s %s",
+                "Discord %s 발송 실패: %s %s",
                 channel_name,
                 response.status_code,
                 response.text,

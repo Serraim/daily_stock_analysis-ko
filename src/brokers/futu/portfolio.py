@@ -97,7 +97,7 @@ def _iter_rows(data: Any, operation: str) -> Iterable[Any]:
 
     iterrows = getattr(data, "iterrows", None)
     if not callable(iterrows):
-        raise FutuPortfolioError(f"{operation}返回了非表格数据")
+        raise FutuPortfolioError(f"{operation} 결과가 표 형식 데이터가 아님")
     return (row for _, row in iterrows())
 
 
@@ -109,7 +109,7 @@ def _safe_close(context: Any) -> None:
     try:
         context.close()
     except Exception:  # pragma: no cover - closing is best effort
-        logger.debug("关闭 Futu OpenD 连接失败", exc_info=True)
+        logger.debug("Futu OpenD 연결 종료 실패", exc_info=True)
 
 
 def _connection_settings() -> tuple[str, int]:
@@ -120,9 +120,9 @@ def _connection_settings() -> tuple[str, int]:
     try:
         port = int(raw_port)
     except ValueError as exc:
-        raise FutuPortfolioError(f"FUTU_OPEND_PORT 不是有效端口: {raw_port!r}") from exc
+        raise FutuPortfolioError(f"FUTU_OPEND_PORT 가 올바른 포트가 아님: {raw_port!r}") from exc
     if not host or not 1 <= port <= 65535:
-        raise FutuPortfolioError(f"Futu OpenD 地址无效: {host!r}:{port}")
+        raise FutuPortfolioError(f"Futu OpenD 주소가 잘못됨: {host!r}:{port}")
 
     address_text = host[1:-1] if host.startswith("[") and host.endswith("]") else host
     try:
@@ -180,7 +180,7 @@ def _discover_real_accounts(api: _FutuApi, host: str, port: int) -> List[_FutuAc
         ret, data = context.get_acc_list()
         if ret != api.RET_OK:
             raise FutuPortfolioError(f"查询 Futu 真实账户失败: {data}")
-        for row in _iter_rows(data, "Futu 账户查询"):
+        for row in _iter_rows(data, "Futu 계좌 조회"):
             if _enum_text(row.get("trd_env")) != "REAL":
                 continue
             if _enum_text(row.get("acc_status")) != "ACTIVE":
@@ -258,8 +258,8 @@ def _load_position_codes(
                 refresh_cache=True,
             )
             if ret != api.RET_OK:
-                raise FutuPortfolioError(f"查询 Futu 真实持仓失败: {data}")
-            for row in _iter_rows(data, "Futu 持仓查询"):
+                raise FutuPortfolioError(f"Futu 실계좌 보유 종목 조회 실패: {data}")
+            for row in _iter_rows(data, "Futu 보유 종목 조회"):
                 position_side = _enum_text(row.get("position_side"))
                 if position_side == "SHORT":
                     skipped_short_count += 1
@@ -302,15 +302,15 @@ def _load_position_codes(
         except FutuPortfolioError:
             raise
         except Exception as exc:  # noqa: BLE001 - translate SDK/network errors for CLI callers
-            raise FutuPortfolioError(f"查询 Futu 真实持仓失败: {exc}") from exc
+            raise FutuPortfolioError(f"Futu 실계좌 보유 종목 조회 실패: {exc}") from exc
         finally:
             _safe_close(context)
 
     if skipped_short_count:
-        logger.info("已跳过 %d 个 Futu SHORT 空头持仓", skipped_short_count)
+        logger.info("Futu SHORT(공매도) 포지션 %d개 건너뜀", skipped_short_count)
     if skipped_unknown_side_count:
         logger.warning(
-            "已跳过 %d 个持仓方向不是 LONG 的 Futu 持仓",
+            "방향이 LONG 이 아닌 Futu 포지션 %d개 건너뜀",
             skipped_unknown_side_count,
         )
     return codes
@@ -377,7 +377,7 @@ def _filter_stock_codes(
 
     if not grouped:
         logger.warning(
-            "已跳过 %d 个当前分析流程不支持的 Futu 持仓: %s",
+            "현재 분석에서 지원하지 않는 Futu 포지션 %d개 건너뜀: %s",
             len(unsupported_codes),
             ", ".join(unsupported_codes),
         )
@@ -402,9 +402,9 @@ def _filter_stock_codes(
                 )
                 if ret != api.RET_OK:
                     raise FutuPortfolioError(
-                        f"查询 Futu 持仓证券类型失败（{prefix}）: {data}"
+                        f"Futu 보유 종목의 증권 유형 조회 실패 ({prefix}): {data}"
                     )
-                for row in _iter_rows(data, "Futu 证券类型查询"):
+                for row in _iter_rows(data, "Futu 증권 유형 조회"):
                     code = str(row.get("code", "") or "").strip().upper()
                     if not code:
                         continue
@@ -417,7 +417,7 @@ def _filter_stock_codes(
     except FutuPortfolioError:
         raise
     except Exception as exc:  # noqa: BLE001 - translate SDK/network errors for CLI callers
-        raise FutuPortfolioError(f"查询 Futu 持仓证券类型失败: {exc}") from exc
+        raise FutuPortfolioError(f"Futu 보유 종목의 증권 유형 조회 실패: {exc}") from exc
     finally:
         _safe_close(context)
 
@@ -429,7 +429,7 @@ def _filter_stock_codes(
     ]
     if unsupported_codes:
         logger.warning(
-            "已跳过 %d 个当前分析流程不支持的 Futu 持仓: %s",
+            "현재 분석에서 지원하지 않는 Futu 포지션 %d개 건너뜀: %s",
             len(unsupported_codes),
             ", ".join(unsupported_codes),
         )
@@ -475,7 +475,7 @@ def load_futu_stock_codes() -> List[str]:
     position_codes = _load_position_codes(api, host, port, accounts)
     stock_codes = _filter_stock_codes(api, host, port, position_codes)
     logger.info(
-        "已从 Futu 真实账户加载 %d 只正股（账户数: %d，原始非零多头持仓数: %d）: %s",
+        "Futu 실계좌에서 일반 주식 %d개 불러옴 (계좌 수: %d, 0이 아닌 원본 매수 포지션 수: %d): %s",
         len(stock_codes),
         len(accounts),
         len(position_codes),

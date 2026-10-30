@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-AstrBot 发送提醒服务
+AstrBot 알림 발송 서비스
 
-职责：
-1. 通过 Astrbot API 发送 AstrBot 消息
+역할:
+1. Astrbot API로 AstrBot 메시지 발송
 """
 import logging
 import json
@@ -24,10 +24,10 @@ class AstrbotSender:
     
     def __init__(self, config: Config):
         """
-        初始化 AstrBot 配置
+        AstrBot 설정 초기화
 
         Args:
-            config: 配置对象
+            config: 설정 객체
         """
         self._astrbot_config = {
             'astrbot_url': getattr(config, 'astrbot_url', None),
@@ -36,38 +36,38 @@ class AstrbotSender:
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
         
     def _is_astrbot_configured(self) -> bool:
-        """检查 AstrBot 配置是否完整（支持 Bot 或 Webhook）"""
-        # 只要配置了 URL，即视为可用
+        """AstrBot 설정이 다 갖춰졌는지 확인 (Bot 또는 Webhook 지원)"""
+        # URL만 설정돼 있으면 사용 가능으로 봄
         url_ok = bool(self._astrbot_config['astrbot_url'])
         return url_ok
 
     def send_to_astrbot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
-        推送消息到 AstrBot（通过适配器支持）
+        AstrBot에 메시지 푸시 (어댑터로 지원)
 
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
 
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         if self._astrbot_config['astrbot_url']:
             return self._send_astrbot(content, timeout_seconds=timeout_seconds)
 
-        logger.warning("AstrBot 配置不完整，跳过推送")
+        logger.warning("AstrBot 설정이 불완전해 푸시 건너뜀")
         return False
 
 
     def _send_astrbot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         import time
         """
-        使用 Bot API 发送消息到 AstrBot
+        Bot API로 AstrBot에 메시지 발송
 
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
 
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
 
         sanitized_content = strip_hidden_markdown_metadata(content).strip()
@@ -80,7 +80,7 @@ class AstrbotSender:
             signature =  ""
             timestamp = str(int(time.time()))
             if self._astrbot_config['astrbot_token']:
-                """计算请求签名"""
+                """요청 서명 계산"""
                 payload_json = json.dumps(payload, sort_keys=True)
                 sign_data = f"{timestamp}.{payload_json}".encode('utf-8')
                 key = self._astrbot_config['astrbot_token']
@@ -101,11 +101,11 @@ class AstrbotSender:
             )
 
             if response.status_code == 200:
-                logger.info("AstrBot 消息发送成功")
+                logger.info("AstrBot 메시지 발송 완료")
                 return True
             else:
-                logger.error(f"AstrBot 发送失败: {response.status_code} {response.text}")
+                logger.error(f"AstrBot 발송 실패: {response.status_code} {response.text}")
                 return False
         except Exception as e:
-            logger.error(f"AstrBot 发送异常: {e}")
+            logger.error(f"AstrBot 발송 중 예외: {e}")
             return False

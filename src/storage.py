@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 存储层
+A주 관심종목 스마트 분석 시스템 - 저장 계층
 ===================================
 
-职责：
-1. 管理 SQLite 数据库连接（单例模式）
-2. 定义 ORM 数据模型
-3. 提供数据存取接口
-4. 实现智能更新逻辑（断点续传）
+역할:
+1. SQLite 데이터베이스 연결 관리 (싱글턴 패턴)
+2. ORM 데이터 모델 정의
+3. 데이터 저장/조회 인터페이스 제공
+4. 스마트 갱신 로직 (중단 지점부터 이어받기)
 """
 
 import atexit
@@ -68,7 +68,7 @@ CURRENT_SCHEMA_VERSION = "2026-06-05-create-all-baseline"
 CHAT_STATE_SCHEMA_VERSION = "2026-10-06-chat-active-stock"
 INTELLIGENCE_ITEM_NULL_SCOPE_VALUE = "__dsa_null_scope__"
 
-# SQLAlchemy ORM 基类
+# SQLAlchemy ORM 기본 클래스
 Base = declarative_base()
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ def to_utc_naive_datetime(value: datetime) -> datetime:
     return value
 
 
-# === 数据模型定义 ===
+# === 데이터 모델 정의 ===
 
 class DatabaseSchemaMigration(Base):
     """Applied database schema version marker."""
@@ -101,57 +101,57 @@ class DatabaseSchemaMigration(Base):
 
 class StockDaily(Base):
     """
-    股票日线数据模型
+    주식 일봉 데이터 모델
     
-    存储每日行情数据和计算的技术指标
-    支持多股票、多日期的唯一约束
+    매일의 시세 데이터와 계산한 기술 지표를 저장
+    여러 종목·여러 날짜에 대한 유일성 제약 지원
     """
     __tablename__ = 'stock_daily'
     
-    # 主键
+    # 기본 키
     id = Column(Integer, primary_key=True, autoincrement=True)
     
-    # 股票代码（如 600519, 000001）
+    # 종목 코드 (예: 600519, 000001)
     code = Column(String(10), nullable=False, index=True)
     
-    # 交易日期
+    # 거래일
     date = Column(Date, nullable=False, index=True)
     
-    # OHLC 数据
+    # OHLC 데이터
     open = Column(Float)
     high = Column(Float)
     low = Column(Float)
     close = Column(Float)
     
-    # 成交数据
-    volume = Column(Float)  # 成交量（股）
-    amount = Column(Float)  # 成交额（元）
-    pct_chg = Column(Float)  # 涨跌幅（%）
+    # 거래 데이터
+    volume = Column(Float)  # 거래량 (주)
+    amount = Column(Float)  # 거래대금 (위안)
+    pct_chg = Column(Float)  # 등락률 (%)
     
-    # 技术指标
+    # 기술 지표
     ma5 = Column(Float)
     ma10 = Column(Float)
     ma20 = Column(Float)
-    volume_ratio = Column(Float)  # 量比
+    volume_ratio = Column(Float)  # 거래량 비율
     
-    # 数据来源
-    data_source = Column(String(50))  # 记录数据来源（如 AkshareFetcher）
+    # 데이터 출처
+    data_source = Column(String(50))  # 데이터 출처 기록 (예: AkshareFetcher)
 
-    # canonical_id：Phase 1 前缀格式的稳定分析目标键（如 sh000300 / sh600519 / AAPL）。
-    # Expand-Contract PR2：仅加列 + 双写，读路径仍用 ``code`` 列；PR3/PR4 再切读路径。
-    # 可空：存量行由自愈式迁移 backfill；新写由 ``save_daily_data`` 推导或显式传入。
-    # 普通索引（非唯一）：历史别名行可能共享同一 canonical_id + date，唯一索引会撞。
+    # canonical_id: Phase 1 접두사 형식의 고정 분석 대상 키 (예: sh000300 / sh600519 / AAPL).
+    # Expand-Contract PR2: 열 추가 + 이중 쓰기만 함, 읽기는 아직 ``code`` 열 사용. PR3/PR4에서 읽기 경로 전환.
+    # NULL 허용: 기존 행은 자동 복구 마이그레이션이 backfill, 새로 쓰는 행은 ``save_daily_data``가 추론하거나 직접 전달.
+    # 일반 인덱스 (유일 아님): 과거 별칭 행이 같은 canonical_id + date를 가질 수 있어 유일 인덱스면 충돌함.
     canonical_id = Column(String(32), nullable=True)
 
-    # 更新时间
+    # 갱신 시각
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # 唯一约束：同一股票同一日期只能有一条数据
+    # 유일성 제약: 같은 종목·같은 날짜는 한 건만 허용
     __table_args__ = (
         UniqueConstraint('code', 'date', name='uix_code_date'),
         Index('ix_code_date', 'code', 'date'),
-        # 普通索引：允许历史别名行（同 canonical_id + date）共存（AC 9）。
+        # 일반 인덱스: 과거 별칭 행(같은 canonical_id + date)이 함께 있어도 됨 (AC 9).
         Index('ix_stock_daily_canonical_id', 'canonical_id'),
     )
     
@@ -159,7 +159,7 @@ class StockDaily(Base):
         return f"<StockDaily(code={self.code}, date={self.date}, close={self.close})>"
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """딕셔너리로 변환"""
         return {
             'code': self.code,
             'date': self.date,
@@ -181,34 +181,34 @@ class StockDaily(Base):
 
 class NewsIntel(Base):
     """
-    新闻情报数据模型
+    뉴스 정보 데이터 모델
 
-    存储搜索到的新闻情报条目，用于后续分析与查询
+    검색으로 찾은 뉴스 정보를 저장해 이후 분석과 조회에 사용
     """
     __tablename__ = 'news_intel'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # 关联用户查询操作
+    # 사용자 조회 요청과 연결
     query_id = Column(String(64), index=True)
 
-    # 股票信息
+    # 종목 정보
     code = Column(String(10), nullable=False, index=True)
     name = Column(String(50))
 
-    # 搜索上下文
+    # 검색 맥락
     dimension = Column(String(32), index=True)  # latest_news / risk_check / earnings / market_analysis / industry
     query = Column(String(255))
     provider = Column(String(32), index=True)
 
-    # 新闻内容
+    # 뉴스 내용
     title = Column(String(300), nullable=False)
     snippet = Column(Text)
     url = Column(String(1000), nullable=False)
     source = Column(String(100))
     published_date = Column(DateTime, index=True)
 
-    # 入库时间
+    # 저장 시각
     fetched_at = Column(DateTime, default=datetime.now, index=True)
     query_source = Column(String(32), index=True)  # bot/web/cli/system
     requester_platform = Column(String(20))
@@ -228,7 +228,7 @@ class NewsIntel(Base):
 
 
 class IntelligenceSource(Base):
-    """可配置资讯源。"""
+    """설정 가능한 뉴스 소스."""
 
     __tablename__ = 'intelligence_sources'
 
@@ -253,7 +253,7 @@ class IntelligenceSource(Base):
 
 
 class IntelligenceItem(Base):
-    """沉淀后的资讯 / 情报条目。"""
+    """정리되어 쌓인 뉴스 / 정보 항목."""
 
     __tablename__ = 'intelligence_items'
 
@@ -288,9 +288,9 @@ class IntelligenceItem(Base):
 
 class FundamentalSnapshot(Base):
     """
-    基本面上下文快照（P0 write-only）。
+    기본적 분석(펀더멘털) 맥락 스냅샷 (P0 쓰기 전용).
 
-    仅用于写入，主链路不依赖读取该表，便于后续回测/画像扩展。
+    쓰기 전용이며 메인 흐름은 이 테이블을 읽지 않음. 나중에 백테스트/프로필 확장용.
     """
     __tablename__ = 'fundamental_snapshot'
 
@@ -339,34 +339,34 @@ class ScreeningRun(Base):
 
 class AnalysisHistory(Base):
     """
-    分析结果历史记录模型
+    분석 결과 이력 모델
 
-    保存每次分析结果，支持按 query_id/股票代码检索
+    매번의 분석 결과를 저장, query_id/종목 코드로 검색 가능
     """
     __tablename__ = 'analysis_history'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # 关联查询链路
+    # 조회 흐름과 연결
     query_id = Column(String(64), index=True)
 
-    # 股票信息
+    # 종목 정보
     code = Column(String(10), nullable=False, index=True)
     name = Column(String(50))
     report_type = Column(String(16), index=True)
 
-    # 核心结论
+    # 핵심 결론
     sentiment_score = Column(Integer)
     operation_advice = Column(String(20))
     trend_prediction = Column(String(50))
     analysis_summary = Column(Text)
 
-    # 详细数据
+    # 상세 데이터
     raw_result = Column(Text)
     news_content = Column(Text)
     context_snapshot = Column(Text)
 
-    # 狙击点位（用于回测）
+    # 매매 목표 가격대 (백테스트용)
     ideal_buy = Column(Float)
     secondary_buy = Column(Float)
     stop_loss = Column(Float)
@@ -379,7 +379,7 @@ class AnalysisHistory(Base):
     )
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """딕셔너리로 변환"""
         return {
             'id': self.id,
             'query_id': self.query_id,
@@ -402,7 +402,7 @@ class AnalysisHistory(Base):
 
 
 class BacktestResult(Base):
-    """单条分析记录的回测结果。"""
+    """분석 기록 한 건의 백테스트 결과."""
 
     __tablename__ = 'backtest_results'
 
@@ -415,35 +415,35 @@ class BacktestResult(Base):
         index=True,
     )
 
-    # 冗余字段，便于按股票筛选
+    # 중복 필드, 종목별 필터링을 쉽게 하려고 둠
     code = Column(String(10), nullable=False, index=True)
     analysis_date = Column(Date, index=True)
 
-    # 回测参数
+    # 백테스트 파라미터
     eval_window_days = Column(Integer, nullable=False, default=10)
     engine_version = Column(String(16), nullable=False, default='v1')
 
-    # 状态
+    # 상태
     eval_status = Column(String(16), nullable=False, default='pending')
     evaluated_at = Column(DateTime, default=datetime.now, index=True)
 
-    # 建议快照（避免未来分析字段变化导致回测不可解释）
+    # 제안 스냅샷 (나중에 분석 필드가 바뀌어도 백테스트를 설명할 수 있게)
     operation_advice = Column(String(20))
     position_recommendation = Column(String(8))  # long/cash
 
-    # 价格与收益
+    # 가격과 수익
     start_price = Column(Float)
     end_close = Column(Float)
     max_high = Column(Float)
     min_low = Column(Float)
     stock_return_pct = Column(Float)
 
-    # 方向与结果
+    # 방향과 결과
     direction_expected = Column(String(16))  # up/down/flat/not_down
     direction_correct = Column(Boolean, nullable=True)
     outcome = Column(String(16))  # win/loss/neutral
 
-    # 目标价命中（仅 long 且配置了止盈/止损时有意义）
+    # 목표가 도달 (long이고 익절/손절을 설정했을 때만 의미 있음)
     stop_loss = Column(Float)
     take_profit = Column(Float)
     hit_stop_loss = Column(Boolean)
@@ -452,7 +452,7 @@ class BacktestResult(Base):
     first_hit_date = Column(Date)
     first_hit_trading_days = Column(Integer)
 
-    # 模拟执行（long-only）
+    # 모의 실행 (long 전용)
     simulated_entry_price = Column(Float)
     simulated_exit_price = Column(Float)
     simulated_exit_reason = Column(String(24))  # stop_loss/take_profit/window_end/cash/ambiguous_stop_loss
@@ -470,7 +470,7 @@ class BacktestResult(Base):
 
 
 class BacktestSummary(Base):
-    """回测汇总指标（按股票或全局）。"""
+    """백테스트 요약 지표 (종목별 또는 전체)."""
 
     __tablename__ = 'backtest_summaries'
 
@@ -483,7 +483,7 @@ class BacktestSummary(Base):
     engine_version = Column(String(16), nullable=False, default='v1')
     computed_at = Column(DateTime, default=datetime.now, index=True)
 
-    # 计数
+    # 건수
     total_evaluations = Column(Integer, default=0)
     completed_count = Column(Integer, default=0)
     insufficient_count = Column(Integer, default=0)
@@ -494,22 +494,22 @@ class BacktestSummary(Base):
     loss_count = Column(Integer, default=0)
     neutral_count = Column(Integer, default=0)
 
-    # 准确率/胜率
+    # 정확도/승률
     direction_accuracy_pct = Column(Float)
     win_rate_pct = Column(Float)
     neutral_rate_pct = Column(Float)
 
-    # 收益
+    # 수익
     avg_stock_return_pct = Column(Float)
     avg_simulated_return_pct = Column(Float)
 
-    # 目标价触发统计（仅 long 且配置止盈/止损时统计）
+    # 목표가 도달 통계 (long이고 익절/손절을 설정했을 때만 집계)
     stop_loss_trigger_rate = Column(Float)
     take_profit_trigger_rate = Column(Float)
     ambiguous_rate = Column(Float)
     avg_days_to_first_hit = Column(Float)
 
-    # 诊断字段（JSON 字符串）
+    # 진단 필드 (JSON 문자열)
     advice_breakdown_json = Column(Text)
     diagnostics_json = Column(Text)
 
@@ -725,7 +725,7 @@ class PortfolioFxRate(Base):
 
 class ConversationMessage(Base):
     """
-    Agent 对话历史记录表
+    Agent 대화 이력 테이블
     """
     __tablename__ = 'conversation_messages'
 
@@ -1331,12 +1331,12 @@ class _DatabaseManagerMeta(type):
 
 class DatabaseManager(metaclass=_DatabaseManagerMeta):
     """
-    数据库管理器 - 单例模式
+    데이터베이스 관리자 - 싱글턴 패턴
     
-    职责：
-    1. 管理数据库连接池
-    2. 提供 Session 上下文管理
-    3. 封装数据存取操作
+    역할:
+    1. 데이터베이스 연결 풀 관리
+    2. Session 컨텍스트 관리 제공
+    3. 데이터 저장/조회 작업 캡슐화
     """
     
     _instance: Optional['DatabaseManager'] = None
@@ -1344,7 +1344,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     _initialized: bool = False
     
     def __new__(cls, *args, **kwargs):
-        """单例模式实现"""
+        """싱글턴 패턴 구현"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -1352,10 +1352,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def __init__(self, db_url: Optional[str] = None):
         """
-        初始化数据库管理器
+        데이터베이스 관리자 초기화
         
         Args:
-            db_url: 数据库连接 URL（可选，默认从配置读取）
+            db_url: 데이터베이스 연결 URL (선택, 기본값은 설정에서 읽음)
         """
         if getattr(self, '_initialized', False):
             return
@@ -1382,7 +1382,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                     "timeout": self._sqlite_busy_timeout_ms / 1000,
                 }
 
-            # 创建数据库引擎
+            # 데이터베이스 엔진 생성
             created_engine = create_engine(
                 db_url,
                 **engine_kwargs,
@@ -1392,14 +1392,14 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             self._sqlite_file_db = self._is_sqlite_engine and self._is_file_sqlite_database()
             self._install_sqlite_pragma_handler()
 
-            # 创建 Session 工厂
+            # Session 팩토리 생성
             self._SessionLocal = sessionmaker(
                 bind=self._engine,
                 autocommit=False,
                 autoflush=False,
             )
 
-            # 创建所有表
+            # 모든 테이블 생성
             Base.metadata.create_all(self._engine)
             self._ensure_llm_usage_telemetry_columns()
             self._ensure_decision_signal_profile_schema()
@@ -1410,9 +1410,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             self._ensure_chat_session_schema()
 
             self._initialized = True
-            logger.info(f"数据库初始化完成: {db_url}")
+            logger.info(f"데이터베이스 초기화 완료: {db_url}")
 
-            # 注册退出钩子，确保程序退出时关闭数据库连接
+            # 종료 훅 등록, 프로그램이 끝날 때 DB 연결을 닫도록 함
             atexit.register(DatabaseManager._cleanup_engine, self._engine)
         except Exception:
             self._initialized = False
@@ -1420,7 +1420,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 if created_engine is not None:
                     created_engine.dispose()
             except Exception as cleanup_exc:
-                logger.warning("数据库初始化失败后的引擎清理也失败: %s", cleanup_exc)
+                logger.warning("DB 초기화 실패 후 엔진 정리도 실패: %s", cleanup_exc)
             self._engine = None
             self._SessionLocal = None
             self.__class__._instance = None
@@ -2244,7 +2244,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 for column in inspect(self._engine).get_columns(IntelligenceItem.__tablename__)
             }
         except Exception as exc:
-            logger.warning("资讯池 scope_value 回填检查失败，已跳过: %s", exc)
+            logger.warning("뉴스 풀 scope_value 백필 점검 실패, 건너뜀: %s", exc)
             return
         if "scope_value" not in existing:
             return
@@ -2257,11 +2257,11 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                     (INTELLIGENCE_ITEM_NULL_SCOPE_VALUE,),
                 )
         except Exception as exc:
-            logger.warning("资讯池 scope_value 回填失败，已跳过: %s", exc)
+            logger.warning("뉴스 풀 scope_value 백필 실패, 건너뜀: %s", exc)
 
     @classmethod
     def get_instance(cls) -> 'DatabaseManager':
-        """获取单例实例"""
+        """싱글턴 인스턴스 가져오기"""
         with cls._init_lock:
             if cls._instance is None:
                 cls()
@@ -2269,7 +2269,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     @classmethod
     def reset_instance(cls) -> None:
-        """重置单例（用于测试）"""
+        """싱글턴 초기화 (테스트용)"""
         with cls._init_lock:
             if cls._instance is not None:
                 if hasattr(cls._instance, '_engine') and cls._instance._engine is not None:
@@ -2280,22 +2280,22 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     @classmethod
     def _cleanup_engine(cls, engine) -> None:
         """
-        清理数据库引擎（atexit 钩子）
+        데이터베이스 엔진 정리 (atexit 훅)
 
-        确保程序退出时关闭所有数据库连接，避免 ResourceWarning
+        프로그램 종료 시 모든 DB 연결을 닫아 ResourceWarning을 막음
 
         Args:
-            engine: SQLAlchemy 引擎对象
+            engine: SQLAlchemy 엔진 객체
         """
         try:
             if engine is not None:
                 engine.dispose()
-                logger.debug("数据库引擎已清理")
+                logger.debug("데이터베이스 엔진 정리 완료")
         except Exception as e:
-            logger.warning(f"清理数据库引擎时出错: {e}")
+            logger.warning(f"데이터베이스 엔진 정리 중 오류: {e}")
 
     def _install_sqlite_pragma_handler(self) -> None:
-        """为 SQLite 连接安装竞争保护参数。"""
+        """SQLite 연결에 동시 접근 보호 설정을 적용."""
         if not self._is_sqlite_engine:
             return
 
@@ -2307,7 +2307,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 if self._sqlite_file_db and self._sqlite_wal_enabled:
                     cursor.execute("PRAGMA journal_mode=WAL")
             except Exception as exc:
-                logger.warning("初始化 SQLite PRAGMA 失败: %s", exc)
+                logger.warning("SQLite PRAGMA 초기화 실패: %s", exc)
             finally:
                 cursor.close()
 
@@ -2342,7 +2342,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 ):
                     delay = self._sqlite_write_retry_base_delay * (2 ** attempt)
                     logger.warning(
-                        "SQLite 写入锁冲突，准备重试: %s (%s/%s, %.2fs)",
+                        "SQLite 쓰기 잠금 충돌, 재시도 준비: %s (%s/%s, %.2fs)",
                         operation_name,
                         attempt + 1,
                         max_retries,
@@ -2391,17 +2391,17 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def get_session(self) -> Session:
         """
-        获取数据库 Session
+        데이터베이스 Session 가져오기
         
-        使用示例:
+        사용 예:
             with db.get_session() as session:
-                # 执行查询
-                session.commit()  # 如果需要
+                # 쿼리 실행
+                session.commit()  # 필요하면
         """
         if not getattr(self, '_initialized', False) or not hasattr(self, '_SessionLocal'):
             raise RuntimeError(
-                "DatabaseManager 未正确初始化。"
-                "请确保通过 DatabaseManager.get_instance() 获取实例。"
+                "DatabaseManager가 제대로 초기화되지 않았습니다. "
+                "DatabaseManager.get_instance()로 인스턴스를 가져오세요."
             )
         session = self._SessionLocal()
         try:
@@ -2425,22 +2425,22 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def has_today_data(self, code: str, target_date: Optional[date] = None) -> bool:
         """
-        检查是否已有指定日期的数据
+        지정한 날짜의 데이터가 이미 있는지 확인
         
-        用于断点续传逻辑：如果已有数据则跳过网络请求
+        이어받기 로직용: 데이터가 이미 있으면 네트워크 요청을 건너뜀
         
         Args:
-            code: 股票代码
-            target_date: 目标日期（默认今天）
+            code: 종목 코드
+            target_date: 대상 날짜 (기본값 오늘)
             
         Returns:
-            是否存在数据
+            데이터 존재 여부
         """
         if target_date is None:
             target_date = date.today()
-        # 注意：这里的 target_date 语义是“自然日”，而不是“最新交易日”。
-        # 在周末/节假日/非交易日运行时，即使数据库已有最新交易日数据，这里也会返回 False。
-        # 该行为目前保留（按需求不改逻辑）。
+        # 주의: 여기서 target_date는 '달력상 날짜'이지 '최근 거래일'이 아님.
+        # 주말/공휴일/휴장일에 실행하면 DB에 최근 거래일 데이터가 있어도 False를 반환함.
+        # 이 동작은 현재 유지함 (요구사항상 로직 변경 안 함).
         
         with self.get_session() as session:
             result = session.execute(
@@ -2460,16 +2460,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         days: int = 2
     ) -> List[StockDaily]:
         """
-        获取最近 N 天的数据
+        최근 N일의 데이터 가져오기
         
-        用于计算"相比昨日"的变化
+        '어제 대비' 변화를 계산할 때 사용
         
         Args:
-            code: 股票代码
-            days: 获取天数
+            code: 종목 코드
+            days: 가져올 일수
             
         Returns:
-            StockDaily 对象列表（按日期降序）
+            StockDaily 객체 리스트 (날짜 내림차순)
         """
         with self.get_session() as session:
             results = session.execute(
@@ -2491,14 +2491,14 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         query_context: Optional[Dict[str, str]] = None
     ) -> int:
         """
-        保存新闻情报到数据库
+        뉴스 정보를 데이터베이스에 저장
 
-        去重策略：
-        - 优先按 URL 去重（唯一约束）
-        - URL 缺失时按 title + source + published_date 进行软去重
+        중복 제거 방식:
+        - 우선 URL로 중복 제거 (유일성 제약)
+        - URL이 없으면 title + source + published_date로 느슨하게 중복 제거
 
-        关联策略：
-        - query_context 记录用户查询信息（平台、用户、会话、原始指令等）
+        연결 방식:
+        - query_context에 사용자 조회 정보 기록 (플랫폼, 사용자, 세션, 원래 명령 등)
         """
         if not response or not response.results:
             return 0
@@ -2594,7 +2594,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                         session.flush()
                     local_saved_count += 1
                 except IntegrityError:
-                    logger.debug("新闻情报重复（已跳过）: %s %s", code, url_key)
+                    logger.debug("뉴스 정보 중복 (건너뜀): %s %s", code, url_key)
 
             return local_saved_count
 
@@ -2603,9 +2603,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 f"save_news_intel[{code}]",
                 _write,
             )
-            logger.info(f"保存新闻情报成功: {code}, 新增 {saved_count} 条")
+            logger.info(f"뉴스 정보 저장 완료: {code}, 신규 {saved_count}건")
         except Exception as e:
-            logger.error(f"保存新闻情报失败: {e}")
+            logger.error(f"뉴스 정보 저장 실패: {e}")
             raise
 
         return saved_count
@@ -2619,7 +2619,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         coverage: Optional[Any] = None,
     ) -> int:
         """
-        保存基本面快照（P0 write-only）。失败不抛异常，返回写入条数 0/1。
+        펀더멘털 스냅샷 저장 (P0 쓰기 전용). 실패해도 예외 없이 저장 건수 0/1을 반환.
         """
         if not query_id or not code or payload is None:
             return 0
@@ -2642,7 +2642,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             )
         except Exception as e:
             logger.debug(
-                "基本面快照写入失败（fail-open）: query_id=%s code=%s err=%s",
+                "펀더멘털 스냅샷 저장 실패 (fail-open): query_id=%s code=%s err=%s",
                 query_id,
                 code,
                 e,
@@ -2655,9 +2655,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         code: str,
     ) -> Optional[Dict[str, Any]]:
         """
-        获取指定 query_id + code 的最新基本面快照 payload。
+        지정한 query_id + code의 최신 펀더멘털 스냅샷 payload 가져오기.
 
-        读取失败或不存在时返回 None（fail-open）。
+        읽기 실패나 데이터가 없으면 None 반환 (fail-open).
         """
         if not query_id or not code:
             return None
@@ -2677,7 +2677,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 ).scalar_one_or_none()
             except Exception as e:
                 logger.debug(
-                    "基本面快照读取失败（fail-open）: query_id=%s code=%s err=%s",
+                    "펀더멘털 스냅샷 읽기 실패 (fail-open): query_id=%s code=%s err=%s",
                     query_id,
                     code,
                     e,
@@ -2733,7 +2733,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             )
         except Exception as exc:
             logger.warning(
-                "选股运行历史写入失败（fail-open）: run_id=%s err=%s",
+                "종목 선별 실행 이력 저장 실패 (fail-open): run_id=%s err=%s",
                 run_id,
                 exc,
             )
@@ -2862,7 +2862,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_recent_news(self, code: str, days: int = 7, limit: int = 20) -> List[NewsIntel]:
         """
-        获取指定股票最近 N 天的新闻情报
+        지정 종목의 최근 N일 뉴스 정보 가져오기
         """
         cutoff_date = datetime.now() - timedelta(days=days)
 
@@ -2883,14 +2883,14 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_news_intel_by_query_id(self, query_id: str, limit: int = 20) -> List[NewsIntel]:
         """
-        根据 query_id 获取新闻情报列表
+        query_id로 뉴스 정보 목록 가져오기
 
         Args:
-            query_id: 分析记录唯一标识
-            limit: 返回数量限制
+            query_id: 분석 기록 고유 ID
+            limit: 반환 개수 제한
 
         Returns:
-            NewsIntel 列表（按发布时间或抓取时间倒序）
+            NewsIntel 리스트 (게시 시각 또는 수집 시각 역순)
         """
         from sqlalchemy import func
 
@@ -2917,10 +2917,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         save_snapshot: bool = True
     ) -> int:
         """
-        保存分析结果历史记录。
+        분석 결과 이력을 저장.
 
         Returns:
-            新保存的 AnalysisHistory.id；保存失败返回 0。
+            새로 저장한 AnalysisHistory.id, 저장 실패 시 0 반환.
         """
         if result is None:
             return 0
@@ -2959,7 +2959,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 _write,
             )
         except Exception as e:
-            logger.error(f"保存分析历史失败: {e}")
+            logger.error(f"분석 이력 저장 실패: {e}")
             return 0
 
     def update_analysis_history_diagnostics(
@@ -2971,10 +2971,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         notification_runs: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         """
-        更新已保存分析历史的运行诊断快照。
+        저장된 분석 이력의 실행 진단 스냅샷을 갱신.
 
-        通知结果通常在分析历史落库后才产生，因此这里仅补写
-        context_snapshot.diagnostics，不改变报告正文或其它历史字段。
+        알림 결과는 보통 분석 이력이 저장된 뒤에 나오므로, 여기서는
+        context_snapshot.diagnostics만 채우고 보고서 본문이나 다른 이력 필드는 바꾸지 않음.
         """
         if not query_id or (diagnostics is None and not notification_runs):
             return 0
@@ -3034,7 +3034,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             )
         except Exception as e:
             logger.warning(
-                "更新分析历史诊断快照失败（fail-open）: query_id=%s code=%s err=%s",
+                "분석 이력 진단 스냅샷 갱신 실패 (fail-open): query_id=%s code=%s err=%s",
                 query_id,
                 code,
                 e,
@@ -3121,18 +3121,18 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         limit: int = 20
     ) -> Tuple[List[AnalysisHistory], int]:
         """
-        分页查询分析历史记录（带总数）
+        분석 이력을 페이지 단위로 조회 (전체 건수 포함)
         
         Args:
-            code: 股票代码筛选
-            report_type: 报告类型筛选
-            start_date: 开始日期（含）
-            end_date: 结束日期（含）
-            offset: 偏移量（跳过前 N 条）
-            limit: 每页数量
+            code: 종목 코드 필터
+            report_type: 보고서 유형 필터
+            start_date: 시작일 (포함)
+            end_date: 종료일 (포함)
+            offset: 오프셋 (앞의 N건 건너뜀)
+            limit: 페이지당 개수
             
         Returns:
-            Tuple[List[AnalysisHistory], int]: (记录列表, 总数)
+            Tuple[List[AnalysisHistory], int]: (기록 리스트, 전체 건수)
         """
         from sqlalchemy import func
         
@@ -3152,17 +3152,17 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 # created_at >= start_date 00:00:00
                 conditions.append(AnalysisHistory.created_at >= datetime.combine(start_date, datetime.min.time()))
             if end_date:
-                # created_at < end_date+1 00:00:00 (即 <= end_date 23:59:59)
+                # created_at < end_date+1 00:00:00 (즉 <= end_date 23:59:59)
                 conditions.append(AnalysisHistory.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
             
-            # 构建 where 子句
+            # where 절 만들기
             where_clause = and_(*conditions) if conditions else True
             
-            # 查询总数
+            # 전체 건수 조회
             total_query = select(func.count(AnalysisHistory.id)).where(where_clause)
             total = session.execute(total_query).scalar() or 0
             
-            # 查询分页数据
+            # 페이지 데이터 조회
             data_query = (
                 select(AnalysisHistory)
                 .where(where_clause)
@@ -3176,16 +3176,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def get_analysis_history_by_id(self, record_id: int) -> Optional[AnalysisHistory]:
         """
-        根据数据库主键 ID 查询单条分析历史记录
+        DB 기본 키 ID로 분석 이력 한 건 조회
         
-        由于 query_id 可能重复（批量分析时多条记录共享同一 query_id），
-        使用主键 ID 确保精确查询唯一记录。
+        query_id는 중복될 수 있으므로 (일괄 분석 시 여러 기록이 같은 query_id를 공유)
+        기본 키 ID로 정확히 한 건을 조회.
         
         Args:
-            record_id: 分析历史记录的主键 ID
+            record_id: 분석 이력의 기본 키 ID
             
         Returns:
-            AnalysisHistory 对象，不存在返回 None
+            AnalysisHistory 객체, 없으면 None 반환
         """
         with self.get_session() as session:
             result = session.execute(
@@ -3195,17 +3195,17 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def delete_analysis_history_records(self, record_ids: List[int]) -> int:
         """
-        删除指定的分析历史记录。
+        지정한 분석 이력을 삭제.
 
-        同时清理依赖这些历史记录的回测结果和分析来源决策信号，避免
-        依赖历史记录的派生数据残留。DecisionSignal 的 source_report_id
-        允许弱引用，因此这里只清理 source_type=analysis 的真实历史绑定信号。
+        이 이력에 의존하는 백테스트 결과와 분석 출처 결정 신호도 함께 정리해서,
+        이력에서 파생된 데이터가 남지 않게 함. DecisionSignal의 source_report_id는
+        약한 참조를 허용하므로, 여기서는 source_type=analysis로 실제 이력에 묶인 신호만 정리.
 
         Args:
-            record_ids: 要删除的历史记录主键 ID 列表
+            record_ids: 삭제할 이력의 기본 키 ID 리스트
 
         Returns:
-            实际删除的历史记录数量
+            실제로 삭제한 이력 건수
         """
         ids = sorted({int(record_id) for record_id in record_ids if record_id is not None})
         if not ids:
@@ -3285,19 +3285,19 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         include_market_review: bool = False,
     ) -> List[AnalysisHistory]:
         """
-        获取历史记录中的不重复股票列表，每只股票取最新一条记录。
+        이력에서 중복 없는 종목 목록을 가져오고, 종목마다 최신 기록 한 건을 취함.
 
-        使用子查询按 code 分组取 MAX(id)，再 JOIN 回查完整记录。
-        默认排除大盘复盘，避免混入普通个股栏。
+        서브쿼리로 code별 MAX(id)를 구한 뒤 JOIN으로 전체 기록을 다시 조회.
+        기본적으로 시장 전체 리뷰는 제외해 일반 종목 목록에 섞이지 않게 함.
 
         Args:
-            start_date: 开始日期
-            end_date: 结束日期
-            limit: 最大返回数量
-            include_market_review: 是否包含大盘复盘记录
+            start_date: 시작일
+            end_date: 종료일
+            limit: 최대 반환 개수
+            include_market_review: 시장 전체 리뷰 기록 포함 여부
 
         Returns:
-            每条股票最新一条 AnalysisHistory 记录列表
+            종목별 최신 AnalysisHistory 기록 리스트
         """
         with self.get_session() as session:
             subq = (
@@ -3348,17 +3348,17 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         report_type: Optional[str] = None,
     ) -> Optional[AnalysisHistory]:
         """
-        根据 query_id 查询最新一条分析历史记录
+        query_id로 가장 최근 분석 이력 한 건 조회
 
-        query_id 在批量分析时可能重复，故返回最近创建的一条。
+        일괄 분석 시 query_id가 중복될 수 있어, 가장 최근에 만든 한 건을 반환.
 
         Args:
-            query_id: 分析记录关联的 query_id
-            code: 可选股票代码过滤，用于区分同一 query_id 下的 MARKET 与个股记录
-            report_type: 可选报告类型过滤
+            query_id: 분석 기록에 연결된 query_id
+            code: 선택적 종목 코드 필터, 같은 query_id 안에서 MARKET과 개별 종목 기록을 구분
+            report_type: 선택적 보고서 유형 필터
 
         Returns:
-            AnalysisHistory 对象，不存在返回 None
+            AnalysisHistory 객체, 없으면 None 반환
         """
         with self.get_session() as session:
             conditions = [AnalysisHistory.query_id == query_id]
@@ -3382,15 +3382,15 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         end_date: date
     ) -> List[StockDaily]:
         """
-        获取指定日期范围的数据
+        지정한 날짜 범위의 데이터 가져오기
         
         Args:
-            code: 股票代码
-            start_date: 开始日期
-            end_date: 结束日期
+            code: 종목 코드
+            start_date: 시작일
+            end_date: 종료일
             
         Returns:
-            StockDaily 对象列表
+            StockDaily 객체 리스트
         """
         with self.get_session() as session:
             results = session.execute(
@@ -3415,31 +3415,31 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         canonical_id: Optional[str] = None,
     ) -> int:
         """
-        保存日线数据到数据库
+        일봉 데이터를 데이터베이스에 저장
         
-        策略：
-        - 按 `(code, date)` 做批量 UPSERT，已存在记录会覆盖更新
-        - 同一批次内若存在重复日期，以最后一条记录为准
-        - SQLite 分支按 chunk 写入以避免绑定参数上限
-        - ``canonical_id``（Expand-Contract PR2）：显式传入则双写；
-          未传（``None``）时用 ``_derive_canonical_id(code)`` 延迟推导
-          （裸码恒为 stock canonical，如 ``000300`` -> ``sz000300``；
-          仅显式指数形式如 ``sh000300`` / ``930955.CSI`` 推导为指数
-          canonical_id；历史被错误写成指数桶的裸码行由
-          ``_backfill_canonical_ids()`` 幂等修复），推导失败写 NULL 降级（D1）。
+        방식:
+        - `(code, date)` 기준으로 일괄 UPSERT, 이미 있는 기록은 덮어써서 갱신
+        - 한 묶음 안에 같은 날짜가 여러 개면 마지막 기록을 사용
+        - SQLite는 바인딩 파라미터 한도를 피하려고 chunk 단위로 씀
+        - ``canonical_id`` (Expand-Contract PR2): 직접 넘기면 이중 쓰기,
+          넘기지 않으면 (``None``) ``_derive_canonical_id(code)``로 나중에 추론
+          (접두사 없는 코드는 항상 stock canonical, 예: ``000300`` -> ``sz000300``,
+          ``sh000300`` / ``930955.CSI``처럼 지수 형식을 명시한 경우만 지수
+          canonical_id로 추론. 과거에 지수로 잘못 저장된 접두사 없는 코드 행은
+          ``_backfill_canonical_ids()``가 멱등하게 고침), 추론 실패 시 NULL로 저장 (D1).
         
         Args:
-            df: 包含日线数据的 DataFrame
-            code: 股票代码
-            data_source: 数据来源名称
-            canonical_id: Phase 1 前缀格式稳定键（如 ``sh000300``）；为 ``None``
-                时自动推导。
+            df: 일봉 데이터가 담긴 DataFrame
+            code: 종목 코드
+            data_source: 데이터 출처 이름
+            canonical_id: Phase 1 접두사 형식 고정 키 (예: ``sh000300``). ``None``이면
+                자동 추론.
             
         Returns:
-            本次实际新增的记录数（不含更新）
+            이번에 실제로 새로 추가된 기록 수 (갱신 제외)
         """
         if df is None or df.empty:
-            logger.warning(f"保存数据为空，跳过 {code}")
+            logger.warning(f"저장할 데이터가 비어 있어 건너뜀: {code}")
             return 0
 
         # D1: canonical_id=None → derive via the Phase 1 parser; on failure
@@ -3590,10 +3590,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 f"save_daily_data[{code}]",
                 _write,
             )
-            logger.info(f"保存 {code} 数据成功，新增 {saved_count} 条")
+            logger.info(f"{code} 데이터 저장 완료, 신규 {saved_count}건")
             return saved_count
         except Exception as e:
-            logger.error(f"保存 {code} 数据失败: {e}")
+            logger.error(f"{code} 데이터 저장 실패: {e}")
             raise
     
     def get_analysis_context(
@@ -3602,29 +3602,29 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         target_date: Optional[date] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        获取分析所需的上下文数据
+        분석에 필요한 맥락 데이터 가져오기
         
-        返回今日数据 + 昨日数据的对比信息
+        오늘 데이터 + 어제 데이터와의 비교 정보를 반환
         
         Args:
-            code: 股票代码
-            target_date: 目标日期（默认今天）
+            code: 종목 코드
+            target_date: 대상 날짜 (기본값 오늘)
             
         Returns:
-            包含今日数据、昨日对比等信息的字典
+            오늘 데이터, 어제 대비 정보 등이 담긴 딕셔너리
         """
         if target_date is None:
             target_date = date.today()
-        # 注意：尽管入参提供了 target_date，但当前实现实际使用的是“最新两天数据”（get_latest_data），
-        # 并不会按 target_date 精确取当日/前一交易日的上下文。
-        # 因此若未来需要支持“按历史某天复盘/重算”的可解释性，这里需要调整。
-        # 该行为目前保留（按需求不改逻辑）。
+        # 주의: target_date 인자가 있지만, 현재 구현은 실제로 '최근 이틀 데이터'(get_latest_data)를 씀.
+        # target_date 기준으로 그날/전 거래일 맥락을 정확히 가져오지 않음.
+        # 그래서 나중에 '과거 특정일 기준 복기/재계산'을 지원하려면 여기를 고쳐야 함.
+        # 이 동작은 현재 유지함 (요구사항상 로직 변경 안 함).
         
-        # 获取最近2天数据
+        # 최근 2일 데이터 가져오기
         recent_data = self.get_latest_data(code, days=2)
         
         if not recent_data:
-            logger.warning(f"未找到 {code} 的数据")
+            logger.warning(f"{code} 데이터를 찾지 못함")
             return None
         
         today_data = recent_data[0]
@@ -3639,7 +3639,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if yesterday_data:
             context['yesterday'] = yesterday_data.to_dict()
             
-            # 计算相比昨日的变化
+            # 어제 대비 변화 계산
             if yesterday_data.volume and yesterday_data.volume > 0:
                 context['volume_change_ratio'] = round(
                     today_data.volume / yesterday_data.volume, 2
@@ -3650,23 +3650,23 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                     (today_data.close - yesterday_data.close) / yesterday_data.close * 100, 2
                 )
             
-            # 均线形态判断
+            # 이동평균선 형태 판단
             context['ma_status'] = self._analyze_ma_status(today_data)
         
         return context
     
     def _analyze_ma_status(self, data: StockDaily) -> str:
         """
-        分析均线形态
+        이동평균선 형태 분석
         
-        判断条件：
-        - 多头排列：close > ma5 > ma10 > ma20
-        - 空头排列：close < ma5 < ma10 < ma20
-        - 震荡整理：其他情况
+        판단 조건:
+        - 정배열: close > ma5 > ma10 > ma20
+        - 역배열: close < ma5 < ma10 < ma20
+        - 횡보 정리: 그 밖의 경우
         """
-        # 注意：这里的均线形态判断基于“close/ma5/ma10/ma20”静态比较，
-        # 未考虑均线拐点、斜率、或不同数据源复权口径差异。
-        # 该行为目前保留（按需求不改逻辑）。
+        # 주의: 여기의 이동평균선 형태 판단은 'close/ma5/ma10/ma20'을 단순 비교한 것.
+        # 이동평균선의 변곡점, 기울기, 데이터 소스별 수정주가 기준 차이는 고려하지 않음.
+        # 이 동작은 현재 유지함 (요구사항상 로직 변경 안 함).
         close = data.close or 0
         ma5 = data.ma5 or 0
         ma10 = data.ma10 or 0
@@ -3686,7 +3686,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     @staticmethod
     def _parse_published_date(value: Optional[str]) -> Optional[datetime]:
         """
-        解析发布时间字符串（失败返回 None）
+        게시 시각 문자열 파싱 (실패하면 None 반환)
         """
         if not value:
             return None
@@ -3698,7 +3698,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         if not text:
             return None
 
-        # 优先尝试 ISO 格式
+        # ISO 형식을 먼저 시도
         try:
             return datetime.fromisoformat(text)
         except ValueError:
@@ -3722,7 +3722,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     @staticmethod
     def _safe_json_dumps(data: Any) -> str:
         """
-        安全序列化为 JSON 字符串
+        JSON 문자열로 안전하게 직렬화
         """
         try:
             return json.dumps(data, ensure_ascii=False, default=str)
@@ -3732,7 +3732,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     @staticmethod
     def _build_raw_result(result: Any) -> Dict[str, Any]:
         """
-        生成完整分析结果字典
+        전체 분석 결과 딕셔너리 생성
         """
         data = result.to_dict() if hasattr(result, "to_dict") else {}
         data.update({
@@ -3758,7 +3758,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         published_date: Optional[datetime]
     ) -> str:
         """
-        生成无 URL 时的去重键（确保稳定且较短）
+        URL이 없을 때 쓸 중복 제거 키 생성 (안정적이고 짧게)
         """
         date_str = published_date.isoformat() if published_date else ""
         raw_key = f"{code}|{title}|{source}|{date_str}"
@@ -3969,7 +3969,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         *, accepted_turn: Optional[Dict[str, Any]] = None,
     ) -> Optional[int]:
         """
-        保存 Agent 对话消息
+        Agent 대화 메시지 저장
         """
         def write(session: Session) -> Optional[int]:
             if accepted_turn is not None:
@@ -4063,7 +4063,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_conversation_history(self, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        获取 Agent 对话历史
+        Agent 대화 이력 가져오기
         """
         with self.session_scope() as session:
             stmt = select(ConversationMessage).filter(
@@ -4071,7 +4071,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             ).order_by(ConversationMessage.created_at.desc()).limit(limit)
             messages = session.execute(stmt).scalars().all()
 
-            # 倒序返回，保证时间顺序
+            # 역순으로 받아 뒤집어서 시간 순서를 맞춤
             return [{"role": msg.role, "content": msg.content} for msg in reversed(messages)]
 
     def get_visible_conversation_messages(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -4352,7 +4352,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         extra_session_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        获取聊天会话列表（从 conversation_messages 聚合）
+        채팅 세션 목록 가져오기 (conversation_messages에서 집계)
 
         Args:
             limit: Maximum number of sessions to return.
@@ -4363,7 +4363,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 addition to the scoped prefix.
 
         Returns:
-            按最近活跃时间倒序的会话列表，每条包含 session_id, title, message_count, last_active
+            최근 활동 시각 역순의 세션 목록, 각 항목에 session_id, title, message_count, last_active 포함
         """
         from sqlalchemy import func
 
@@ -4373,7 +4373,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 normalized_prefix = session_prefix if session_prefix.endswith(":") else f"{session_prefix}:"
             exact_ids = [sid for sid in (extra_session_ids or []) if sid]
 
-            # 聚合每个 session 的消息数和最后活跃时间
+            # session별 메시지 수와 마지막 활동 시각 집계
             base = (
                 select(
                     ConversationMessage.session_id,
@@ -4400,7 +4400,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             results = []
             for row in rows:
                 sid = row.session_id
-                # 取该会话第一条 user 消息作为标题
+                # 이 세션의 첫 user 메시지를 제목으로 사용
                 first_user_msg = session.execute(
                     select(ConversationMessage.content)
                     .where(
@@ -4425,7 +4425,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_conversation_messages(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         """
-        获取单个会话的完整消息列表（用于前端恢复历史）
+        세션 하나의 전체 메시지 목록 가져오기 (프런트엔드에서 이력 복원용)
         """
         with self.session_scope() as session:
             stmt = (
@@ -4447,10 +4447,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def delete_conversation_session(self, session_id: str) -> int:
         """
-        删除指定会话的所有消息
+        지정한 세션의 모든 메시지 삭제
 
         Returns:
-            删除的消息数
+            삭제한 메시지 수
         """
         def write(session: Session) -> int:
             session.execute(
@@ -4643,9 +4643,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         ]
 
 
-# 便捷函数
+# 편의 함수
 def get_db() -> DatabaseManager:
-    """获取数据库管理器实例的快捷方式"""
+    """데이터베이스 관리자 인스턴스를 가져오는 단축 함수"""
     return DatabaseManager.get_instance()
 
 
@@ -4740,19 +4740,19 @@ def _coerce_llm_usage_non_negative_int(value: Any) -> Optional[int]:
 
 
 if __name__ == "__main__":
-    # 测试代码
+    # 테스트 코드
     logging.basicConfig(level=logging.DEBUG)
     
     db = get_db()
     
-    print("=== 数据库测试 ===")
-    print(f"数据库初始化成功")
+    print("=== 데이터베이스 테스트 ===")
+    print(f"데이터베이스 초기화 성공")
     
-    # 测试检查今日数据
+    # 오늘 데이터 확인 테스트
     has_data = db.has_today_data('600519')
-    print(f"茅台今日是否有数据: {has_data}")
+    print(f"마오타이 오늘 데이터 있음: {has_data}")
     
-    # 测试保存数据
+    # 데이터 저장 테스트
     test_df = pd.DataFrame({
         'date': [date.today()],
         'open': [1800.0],
@@ -4769,8 +4769,8 @@ if __name__ == "__main__":
     })
     
     saved = db.save_daily_data(test_df, '600519', 'TestSource')
-    print(f"保存测试数据: {saved} 条")
+    print(f"테스트 데이터 저장: {saved}건")
     
-    # 测试获取上下文
+    # 맥락 가져오기 테스트
     context = db.get_analysis_context('600519')
-    print(f"分析上下文: {context}")
+    print(f"분석 맥락: {context}")

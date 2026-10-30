@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股 / 日本 / 韩国）
+주식 AI 분석 시스템 - 시장 전체 복기 모듈 (A주 / 홍콩 / 미국 / 일본 / 한국 지원)
 ===================================
 
-职责：
-1. 根据 MARKET_REVIEW_REGION 配置选择市场区域（cn / hk / us / jp / kr / both）
-2. 执行大盘复盘分析并生成复盘报告
-3. 保存和发送复盘报告
+역할:
+1. MARKET_REVIEW_REGION 설정에 따라 시장 지역 선택 (cn / hk / us / jp / kr / both)
+2. 시장 전체 복기 분석을 실행하고 복기 리포트 생성
+3. 복기 리포트 저장·발송
 """
 
 import logging
@@ -77,7 +77,7 @@ def _refresh_market_review_history_diagnostics(*, query_id: str) -> None:
                 diagnostics=diagnostic_snapshot,
             )
     except Exception as exc:
-        logger.warning("回写大盘复盘运行诊断失败（fail-open）: %s", exc)
+        logger.warning("시장 복기 실행 진단 기록 실패 (fail-open): %s", exc)
 
 
 def _record_market_review_notification_run(
@@ -186,23 +186,23 @@ def run_market_review(
     trigger_source: str = "cli",
 ) -> Optional[str] | Optional[MarketReviewRunResult]:
     """
-    执行大盘复盘分析
+    시장 전체 복기 분석 실행
 
     Args:
-        notifier: 通知服务
-        analyzer: AI分析器（可选）
-        search_service: 搜索服务（可选）
-        config: 本次复盘使用的配置（可选，未传时读取全局配置）
-        send_notification: 是否发送通知
-        merge_notification: 是否合并推送（跳过本次推送，由 main 层合并个股+大盘后统一发送，Issue #190）
-        override_region: 覆盖 config 的 market_review_region（Issue #373 交易日过滤后有效子集）
-        query_id: 历史记录关联 ID；API 后台任务会传入 task_id，CLI/Bot 为空时自动生成
-        save_report_file: 是否保存 Markdown 文件；上下文生成路径可关闭以避免多区域临时复盘互相覆盖
-        persist_history: 是否写入 analysis_history；预热路径可关闭以避免覆盖用户可见的同日大盘复盘记录
-        trigger_source: 触发来源，用于日志排障（cli/schedule/api/bot/service 等）
+        notifier: 알림 서비스
+        analyzer: AI 분석기 (선택)
+        search_service: 검색 서비스 (선택)
+        config: 이번 복기에 쓸 설정 (선택, 안 넘기면 전역 설정을 읽음)
+        send_notification: 알림 발송 여부
+        merge_notification: 합쳐서 발송할지 여부 (이번 발송은 건너뛰고 main 단계에서 종목+시장 전체를 합쳐 한 번에 발송, Issue #190)
+        override_region: config 의 market_review_region 을 덮어씀 (Issue #373 거래일 필터 후 남은 유효 지역)
+        query_id: 이력 연결용 ID; API 백그라운드 작업은 task_id 를 넘기고, CLI/Bot 에서 비어 있으면 자동 생성
+        save_report_file: Markdown 파일 저장 여부; 컨텍스트 생성 경로에서는 꺼서 여러 지역 임시 복기가 서로 덮어쓰지 않게 할 수 있음
+        persist_history: analysis_history 기록 여부; 예열 경로에서는 꺼서 사용자에게 보이는 같은 날 복기 기록을 덮어쓰지 않게 할 수 있음
+        trigger_source: 실행을 일으킨 출처, 로그로 문제를 추적할 때 사용 (cli/schedule/api/bot/service 등)
 
     Returns:
-        复盘报告文本
+        복기 리포트 텍스트
     """
     runtime_config = config or get_config()
     history_query_id = query_id or f"market_review_{uuid.uuid4().hex}"
@@ -223,7 +223,7 @@ def run_market_review(
 
     try:
         if len(run_markets) > 1:
-            # 多市场顺序执行，合并报告
+            # 여러 시장을 차례로 실행하고 리포트를 합침
             parts = []
             market_light_snapshots: Dict[str, Dict[str, Any]] = {}
             market_review_payloads: Dict[str, Dict[str, Any]] = {}
@@ -315,7 +315,7 @@ def run_market_review(
                 review_report=review_report,
             )
             if save_report_file:
-                # 保存报告到文件
+                # 리포트를 파일로 저장
                 date_str = datetime.now().strftime('%Y%m%d')
                 report_filename = f"market_review_{date_str}.md"
                 filepath = notifier.save_report_to_file(
@@ -342,7 +342,7 @@ def run_market_review(
                     market_review_payload=market_review_payload,
                 )
             
-            # 推送通知（合并模式下跳过，由 main 层统一发送）
+            # 알림 발송 (합쳐서 발송 모드에서는 건너뛰고 main 단계에서 한 번에 발송)
             if merge_notification and send_notification:
                 logger.info(
                     "[MarketReview] component=market_review action=skip_standalone_notification "
@@ -359,7 +359,7 @@ def run_market_review(
                     attempts=0,
                 )
             elif send_notification and notifier.is_available():
-                # 添加标题
+                # 제목 추가
                 report_content = _render_market_review_payload_markdown(
                     market_review_payload,
                     wrapper_title=review_text["push_title"],
@@ -864,9 +864,9 @@ def _persist_market_review_history(
         )
         _refresh_market_review_history_diagnostics(query_id=history_query_id)
         if saved_history_id:
-            logger.info("大盘复盘历史记录已保存: query_id=%s", history_query_id)
+            logger.info("시장 복기 이력 저장 완료: query_id=%s", history_query_id)
         else:
-            logger.warning("大盘复盘历史记录保存失败: query_id=%s", history_query_id)
+            logger.warning("시장 복기 이력 저장 실패: query_id=%s", history_query_id)
         return saved_history_id
     except Exception as exc:
         record_history_run(
@@ -874,7 +874,7 @@ def _persist_market_review_history(
             metadata_saved=False,
             error_message=exc,
         )
-        logger.warning("大盘复盘历史记录保存异常，报告文件与推送流程继续: %s", exc, exc_info=True)
+        logger.warning("시장 복기 이력 저장 중 예외, 리포트 파일과 발송은 계속 진행: %s", exc, exc_info=True)
         return 0
 
 

@@ -67,12 +67,12 @@ class GotifySender:
     ) -> bool:
         """Publish a notification to Gotify using JSON and header auth."""
         if not self._is_gotify_configured():
-            logger.warning("Gotify 配置不完整，跳过推送")
+            logger.warning("Gotify 설정이 불완전해 푸시 건너뜀")
             return False
 
         endpoint = self._resolve_gotify_endpoint()
         if not endpoint:
-            logger.error("GOTIFY_URL 必须是 Gotify server base URL，不包含 /message")
+            logger.error("GOTIFY_URL은 Gotify 서버 기본 URL이어야 함 (/message 빼고)")
             return False
 
         if title is None:
@@ -104,20 +104,20 @@ class GotifySender:
                 verify=self._webhook_verify_ssl,
             )
             if 200 <= response.status_code < 300:
-                logger.info("Gotify 消息发送成功")
+                logger.info("Gotify 메시지 발송 완료")
                 return True
 
-            logger.error("Gotify 请求失败: HTTP %s", response.status_code)
-            logger.debug("Gotify 响应内容: %s", response.text)
+            logger.error("Gotify 요청 실패: HTTP %s", response.status_code)
+            logger.debug("Gotify 응답 내용: %s", response.text)
             return False
         except requests.exceptions.Timeout:
-            logger.error("发送 Gotify 消息失败: 请求超时")
+            logger.error("Gotify 메시지 발송 실패: 요청 시간 초과")
             return False
         except requests.exceptions.RequestException as exc:
-            logger.error("发送 Gotify 消息失败: 网络请求异常")
-            logger.debug("Gotify 请求异常类型: %s", type(exc).__name__)
+            logger.error("Gotify 메시지 발송 실패: 네트워크 요청 오류")
+            logger.debug("Gotify 요청 예외 유형: %s", type(exc).__name__)
             return False
         except Exception as exc:
-            logger.error("发送 Gotify 消息失败: 未知异常")
-            logger.debug("Gotify 未知异常类型: %s", type(exc).__name__)
+            logger.error("Gotify 메시지 발송 실패: 알 수 없는 예외")
+            logger.debug("Gotify 알 수 없는 예외 유형: %s", type(exc).__name__)
             return False

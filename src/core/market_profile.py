@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-大盘复盘市场区域配置
+시장 전체 복기용 시장 지역 설정
 
-定义各市场区域的指数、新闻搜索词、Prompt 提示等元数据，
-供 MarketAnalyzer 按 region 切换 A 股/港股/美股/日韩复盘行为。
+시장 지역별 지수, 뉴스 검색어, Prompt 힌트 등 메타데이터를 정의해
+MarketAnalyzer 가 region 에 따라 A주/홍콩/미국/일본·한국 복기 동작을 바꿀 수 있게 한다.
 """
 
 from dataclasses import dataclass
@@ -12,18 +12,18 @@ from typing import List
 
 @dataclass
 class MarketProfile:
-    """大盘复盘市场区域配置"""
+    """시장 전체 복기용 시장 지역 설정"""
 
     region: str  # "cn" | "hk" | "us" | "jp" | "kr"
-    # 用于判断整体走势的指数代码，cn 用上证 000001，us 用标普 SPX
+    # 전체 흐름 판단용 지수 코드, cn 은 상하이종합 000001, us 는 S&P SPX
     mood_index_code: str
-    # 新闻搜索关键词
+    # 뉴스 검색 키워드
     news_queries: List[str]
-    # 指数点评 Prompt 提示语
+    # 지수 코멘트용 Prompt 힌트
     prompt_index_hint: str
-    # 市场概况是否包含涨跌家数、涨停跌停（A 股有，美股无）
+    # 시장 개요에 상승·하락 종목 수, 상한가·하한가 포함 여부 (A주는 있음, 미국은 없음)
     has_market_stats: bool
-    # 市场概况是否包含板块涨跌（A 股有，美股暂无）
+    # 시장 개요에 섹터 등락 포함 여부 (A주는 있음, 미국은 아직 없음)
     has_sector_rankings: bool
 
 
@@ -94,7 +94,7 @@ KR_PROFILE = MarketProfile(
 
 
 def get_profile(region: str) -> MarketProfile:
-    """根据 region 返回对应的 MarketProfile"""
+    """region 에 맞는 MarketProfile 반환"""
     if region == "us":
         return US_PROFILE
     if region == "hk":

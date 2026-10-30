@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-分析历史数据访问层
+분석 이력 데이터 접근 계층
 ===================================
 
-职责：
-1. 封装分析历史数据的数据库操作
-2. 提供 CRUD 接口
+역할:
+1. 분석 이력 데이터의 DB 작업 캡슐화
+2. CRUD 인터페이스 제공
 """
 
 import logging
@@ -20,35 +20,35 @@ logger = logging.getLogger(__name__)
 
 class AnalysisRepository:
     """
-    分析历史数据访问层
+    분석 이력 데이터 접근 계층
     
-    封装 AnalysisHistory 表的数据库操作
+    AnalysisHistory 테이블의 DB 작업 캡슐화
     """
     
     def __init__(self, db_manager: Optional[DatabaseManager] = None):
         """
-        初始化数据访问层
+        데이터 접근 계층 초기화
         
         Args:
-            db_manager: 数据库管理器（可选，默认使用单例）
+            db_manager: 데이터베이스 관리자 (선택, 기본값은 싱글턴)
         """
         self.db = db_manager or DatabaseManager.get_instance()
     
     def get_by_query_id(self, query_id: str) -> Optional[AnalysisHistory]:
         """
-        根据 query_id 获取分析记录
+        query_id로 분석 기록 가져오기
         
         Args:
-            query_id: 查询 ID
+            query_id: 조회 ID
             
         Returns:
-            AnalysisHistory 对象，不存在返回 None
+            AnalysisHistory 객체, 없으면 None 반환
         """
         try:
             records = self.db.get_analysis_history(query_id=query_id, limit=1)
             return records[0] if records else None
         except Exception as e:
-            logger.error(f"查询分析记录失败: {e}")
+            logger.error(f"분석 기록 조회 실패: {e}")
             return None
     
     def get_list(
@@ -58,15 +58,15 @@ class AnalysisRepository:
         limit: int = 50
     ) -> List[AnalysisHistory]:
         """
-        获取分析记录列表
+        분석 기록 목록 가져오기
         
         Args:
-            code: 股票代码筛选
-            days: 时间范围（天）
-            limit: 返回数量限制
+            code: 종목 코드 필터
+            days: 기간 (일)
+            limit: 반환 개수 제한
             
         Returns:
-            AnalysisHistory 对象列表
+            AnalysisHistory 객체 리스트
         """
         try:
             return self.db.get_analysis_history(
@@ -75,7 +75,7 @@ class AnalysisRepository:
                 limit=limit
             )
         except Exception as e:
-            logger.error(f"获取分析列表失败: {e}")
+            logger.error(f"분석 목록 가져오기 실패: {e}")
             return []
     
     def save(
@@ -87,17 +87,17 @@ class AnalysisRepository:
         context_snapshot: Optional[Dict[str, Any]] = None
     ) -> int:
         """
-        保存分析结果
+        분석 결과 저장
         
         Args:
-            result: 分析结果对象
-            query_id: 查询 ID
-            report_type: 报告类型
-            news_content: 新闻内容
-            context_snapshot: 上下文快照
+            result: 분석 결과 객체
+            query_id: 조회 ID
+            report_type: 보고서 유형
+            news_content: 뉴스 내용
+            context_snapshot: 맥락 스냅샷
             
         Returns:
-            新保存的 AnalysisHistory.id；保存失败返回 0。
+            새로 저장한 AnalysisHistory.id, 저장 실패 시 0 반환.
         """
         try:
             return self.db.save_analysis_history(
@@ -108,23 +108,23 @@ class AnalysisRepository:
                 context_snapshot=context_snapshot
             )
         except Exception as e:
-            logger.error(f"保存分析结果失败: {e}")
+            logger.error(f"분석 결과 저장 실패: {e}")
             return 0
     
     def count_by_code(self, code: str, days: int = 30) -> int:
         """
-        统计指定股票的分析记录数
+        지정 종목의 분석 기록 수 세기
         
         Args:
-            code: 股票代码
-            days: 时间范围（天）
+            code: 종목 코드
+            days: 기간 (일)
             
         Returns:
-            记录数量
+            기록 수
         """
         try:
             records = self.db.get_analysis_history(code=code, days=days, limit=1000)
             return len(records)
         except Exception as e:
-            logger.error(f"统计分析记录失败: {e}")
+            logger.error(f"분석 기록 집계 실패: {e}")
             return 0

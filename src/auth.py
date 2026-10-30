@@ -237,9 +237,9 @@ def _get_session_secret() -> Optional[bytes]:
 def _validate_password(pwd: str) -> Optional[str]:
     """Return error message if invalid, None if valid."""
     if not pwd or not pwd.strip():
-        return "密码不能为空"
+        return "비밀번호를 입력하세요"
     if len(pwd) < MIN_PASSWORD_LEN:
-        return f"密码至少 {MIN_PASSWORD_LEN} 位"
+        return f"비밀번호는 최소 {MIN_PASSWORD_LEN}자 이상이어야 합니다"
     return None
 
 
@@ -276,7 +276,7 @@ def set_initial_password(password: str) -> Optional[str]:
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+        return "비밀번호 저장 실패"
 
 
 def verify_password(password: str) -> bool:
@@ -291,14 +291,14 @@ def change_password(current: str, new: str) -> Optional[str]:
     Change password. Verifies current, writes new hash. Returns error message or None on success.
     """
     if not is_auth_enabled():
-        return "认证功能未启用"
+        return "인증 기능이 꺼져 있습니다"
     if not is_password_set():
-        return "尚未设置密码"
+        return "아직 비밀번호가 설정되지 않았습니다"
 
     if not current or not current.strip():
-        return "请输入当前密码"
+        return "현재 비밀번호를 입력하세요"
     if not _verify_password_hash(current, _password_hash_salt, _password_hash_stored):
-        return "当前密码错误"
+        return "현재 비밀번호가 틀렸습니다"
 
     err = _validate_password(new)
     if err:
@@ -326,7 +326,7 @@ def change_password(current: str, new: str) -> Optional[str]:
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+        return "비밀번호 저장 실패"
 
 
 def create_session() -> str:
@@ -427,7 +427,7 @@ def overwrite_password(new_password: str) -> Optional[str]:
     Returns error message or None on success.
     """
     if not is_auth_enabled():
-        return "认证功能未启用"
+        return "인증 기능이 꺼져 있습니다"
     err = _validate_password(new_password)
     if err:
         return err
@@ -456,7 +456,7 @@ def overwrite_password(new_password: str) -> Optional[str]:
         return None
     except OSError as e:
         logger.error("Failed to write credential file: %s", e)
-        return "密码保存失败"
+        return "비밀번호 저장 실패"
 
 
 def reset_password_cli() -> int:

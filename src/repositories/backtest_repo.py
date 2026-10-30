@@ -169,7 +169,7 @@ class BacktestRepository:
                 return len(results)
             except Exception as exc:
                 session.rollback()
-                logger.error(f"批量保存回测结果失败: {exc}")
+                logger.error(f"백테스트 결과 일괄 저장 실패: {exc}")
                 raise
 
     def get_results_paginated(

@@ -552,7 +552,7 @@ class BacktestEngine:
         if any(stripped.endswith(neg) for neg in cls._NEGATION_PATTERNS):
             return True
 
-        # 限定“否定 + 动作动词”匹配，避免将“条件位否定”误伤核心建议意图。
+        # 「부정어 + 동작 동사」 조합만 매칭해, 「조건 부분의 부정」 때문에 핵심 제안 의도를 잘못 거르지 않게 한다.
         lookback = stripped[-12:]
         for neg in cls._NEGATION_PATTERNS:
             if not neg:

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-自定义 Webhook 发送提醒服务
+커스텀 Webhook 알림 발송 서비스
 
-职责：
-1. 发送自定义 Webhook 消息
+역할:
+1. 커스텀 Webhook 메시지 발송
 """
 import logging
 import json
@@ -28,10 +28,10 @@ class CustomWebhookSender:
 
     def __init__(self, config: Config):
         """
-        初始化自定义 Webhook 配置
+        커스텀 Webhook 설정 초기화
 
         Args:
-            config: 配置对象
+            config: 설정 객체
         """
         self._custom_webhook_urls = getattr(config, 'custom_webhook_urls', []) or []
         self._custom_webhook_bearer_token = getattr(config, 'custom_webhook_bearer_token', None)
@@ -40,68 +40,68 @@ class CustomWebhookSender:
  
     def send_to_custom(self, content: str) -> bool:
         """
-        推送消息到自定义 Webhook
+        커스텀 Webhook에 메시지 푸시
         
-        支持任意接受 POST JSON 的 Webhook 端点
-        默认发送格式：{"text": "消息内容", "content": "消息内容"}
+        POST JSON을 받는 Webhook 엔드포인트라면 무엇이든 지원
+        기본 발송 형식: {"text": "메시지 내용", "content": "메시지 내용"}
         
-        适用于：
-        - 钉钉机器人
+        사용 대상:
+        - 딩톡(DingTalk) 봇
         - Discord Webhook
         - Slack Incoming Webhook
-        - 自建通知服务
-        - 其他支持 POST JSON 的服务
+        - 직접 만든 알림 서비스
+        - 그 밖에 POST JSON을 지원하는 서비스
         
         Args:
-            content: 消息内容（Markdown 格式）
+            content: 메시지 내용 (Markdown 형식)
             
         Returns:
-            是否至少有一个 Webhook 发送成功
+            Webhook 중 하나라도 발송에 성공했는지 여부
         """
         if not self._custom_webhook_urls:
-            logger.warning("未配置自定义 Webhook，跳过推送")
+            logger.warning("커스텀 Webhook 미설정, 푸시 건너뜀")
             return False
         
         success_count = 0
         
         for i, url in enumerate(self._custom_webhook_urls):
             try:
-                # 通用 JSON 格式，兼容大多数 Webhook
-                # 钉钉格式: {"msgtype": "text", "text": {"content": "xxx"}}
-                # Slack 格式: {"text": "xxx"}
-                # Discord 格式: {"content": "xxx"}
+                # 범용 JSON 형식, 대부분의 Webhook과 호환
+                # 딩톡 형식: {"msgtype": "text", "text": {"content": "xxx"}}
+                # Slack 형식: {"text": "xxx"}
+                # Discord 형식: {"content": "xxx"}
                 
-                # 钉钉机器人对 body 有字节上限（约 20000 bytes），超长需要分批发送
+                # 딩톡 봇은 body 바이트 상한(약 20000 bytes)이 있어서 길면 나눠 보내야 함
                 if self._is_dingtalk_webhook(url):
                     templated_payload = self._build_custom_webhook_template_payload(content)
                     if templated_payload is not None:
                         if self._post_custom_webhook(url, templated_payload, timeout=30):
-                            logger.info(f"自定义 Webhook {i+1}（钉钉模板）推送成功")
+                            logger.info(f"커스텀 Webhook {i+1} (딩톡 템플릿) 푸시 완료")
                             success_count += 1
                         elif self._send_dingtalk_chunked(url, content, max_bytes=20000):
-                            logger.info(f"自定义 Webhook {i+1}（钉钉模板失败，回退分批）推送成功")
+                            logger.info(f"커스텀 Webhook {i+1} (딩톡 템플릿 실패, 분할 발송으로 대체) 푸시 완료")
                             success_count += 1
                         else:
-                            logger.error(f"自定义 Webhook {i+1}（钉钉模板）推送失败")
+                            logger.error(f"커스텀 Webhook {i+1} (딩톡 템플릿) 푸시 실패")
                     elif self._send_dingtalk_chunked(url, content, max_bytes=20000):
-                        logger.info(f"自定义 Webhook {i+1}（钉钉）推送成功")
+                        logger.info(f"커스텀 Webhook {i+1} (딩톡) 푸시 완료")
                         success_count += 1
                     else:
-                        logger.error(f"自定义 Webhook {i+1}（钉钉）推送失败")
+                        logger.error(f"커스텀 Webhook {i+1} (딩톡) 푸시 실패")
                     continue
 
-                # 其他 Webhook：单次发送
+                # 그 밖의 Webhook: 한 번에 발송
                 payload = self._build_custom_webhook_payload(url, content)
                 if self._post_custom_webhook(url, payload, timeout=30):
-                    logger.info(f"自定义 Webhook {i+1} 推送成功")
+                    logger.info(f"커스텀 Webhook {i+1} 푸시 완료")
                     success_count += 1
                 else:
-                    logger.error(f"自定义 Webhook {i+1} 推送失败")
+                    logger.error(f"커스텀 Webhook {i+1} 푸시 실패")
                     
             except Exception as e:
-                logger.error(f"自定义 Webhook {i+1} 推送异常: {e}")
+                logger.error(f"커스텀 Webhook {i+1} 푸시 중 예외: {e}")
         
-        logger.info(f"自定义 Webhook 推送完成：成功 {success_count}/{len(self._custom_webhook_urls)}")
+        logger.info(f"커스텀 Webhook 푸시 완료: 성공 {success_count}/{len(self._custom_webhook_urls)}")
         return success_count > 0
 
     
@@ -127,11 +127,11 @@ class CustomWebhookSender:
                         verify=self._webhook_verify_ssl
                     )
                     if response.status_code in (200, 204):
-                        logger.info("自定义 Webhook %d（Discord 图片）推送成功", i + 1)
+                        logger.info("커스텀 Webhook %d (Discord 이미지) 푸시 완료", i + 1)
                         success_count += 1
                     else:
                         logger.error(
-                            "自定义 Webhook %d（Discord 图片）推送失败: HTTP %s",
+                            "커스텀 Webhook %d (Discord 이미지) 푸시 실패: HTTP %s",
                             i + 1, response.status_code,
                         )
                 else:
@@ -139,15 +139,15 @@ class CustomWebhookSender:
                         payload = self._build_custom_webhook_payload(url, fallback_content)
                         if self._post_custom_webhook(url, payload, timeout=30):
                             logger.info(
-                                "自定义 Webhook %d（图片不支持，回退文本）推送成功", i + 1
+                                "커스텀 Webhook %d (이미지 미지원, 텍스트로 대체) 푸시 완료", i + 1
                             )
                             success_count += 1
                     else:
                         logger.warning(
-                            "自定义 Webhook %d 不支持图片，且无回退内容，跳过", i + 1
+                            "커스텀 Webhook %d 이미지 미지원, 대체 내용도 없어 건너뜀", i + 1
                         )
             except Exception as e:
-                logger.error("自定义 Webhook %d 图片推送异常: %s", i + 1, e)
+                logger.error("커스텀 Webhook %d 이미지 푸시 중 예외: %s", i + 1, e)
         return success_count > 0
 
     def _post_custom_webhook(self, url: str, payload: dict, timeout: int = 30) -> bool:
@@ -155,15 +155,15 @@ class CustomWebhookSender:
             'Content-Type': 'application/json; charset=utf-8',
             'User-Agent': 'StockAnalysis/1.0',
         }
-        # 支持 Bearer Token 认证（#51）
+        # Bearer Token 인증 지원 (#51)
         if self._custom_webhook_bearer_token:
             headers['Authorization'] = f'Bearer {self._custom_webhook_bearer_token}'
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         response = requests.post(url, data=body, headers=headers, timeout=timeout, verify=self._webhook_verify_ssl)
         if response.status_code == 200:
             return True
-        logger.error(f"自定义 Webhook 推送失败: HTTP {response.status_code}")
-        logger.debug(f"响应内容: {response.text[:200]}")
+        logger.error(f"커스텀 Webhook 푸시 실패: HTTP {response.status_code}")
+        logger.debug(f"응답 내용: {response.text[:200]}")
         return False
 
     def test_custom_webhooks(self, content: str, *, timeout_seconds: float = 20.0) -> List[Dict[str, Any]]:
@@ -184,7 +184,7 @@ class CustomWebhookSender:
                 attempts.append({
                     "channel": "custom",
                     "success": False,
-                    "message": f"自定义 Webhook {index + 1} 测试异常: {exc}",
+                    "message": f"커스텀 Webhook {index + 1} 테스트 중 예외: {exc}",
                     "target": url,
                     "error_code": self._classify_custom_webhook_exception(exc)[0],
                     "stage": "notification_send",
@@ -224,7 +224,7 @@ class CustomWebhookSender:
             return {
                 "channel": "custom",
                 "success": False,
-                "message": f"自定义 Webhook {index + 1} 测试失败: {exc}",
+                "message": f"커스텀 Webhook {index + 1} 테스트 실패: {exc}",
                 "target": url,
                 "error_code": error_code,
                 "stage": "notification_send",
@@ -238,7 +238,7 @@ class CustomWebhookSender:
             return {
                 "channel": "custom",
                 "success": True,
-                "message": f"自定义 Webhook {index + 1} 测试发送成功",
+                "message": f"커스텀 Webhook {index + 1} 테스트 발송 완료",
                 "target": url,
                 "error_code": None,
                 "stage": "notification_send",
@@ -251,7 +251,7 @@ class CustomWebhookSender:
         return {
             "channel": "custom",
             "success": False,
-            "message": f"自定义 Webhook {index + 1} 测试失败: HTTP {response.status_code}",
+            "message": f"커스텀 Webhook {index + 1} 테스트 실패: HTTP {response.status_code}",
             "target": url,
             "error_code": "http_error",
             "stage": "notification_send",
@@ -272,9 +272,9 @@ class CustomWebhookSender:
     
     def _build_custom_webhook_payload(self, url: str, content: str) -> dict:
         """
-        根据 URL 构建对应的 Webhook payload
+        URL에 맞는 Webhook payload 구성
         
-        自动识别常见服务并使用对应格式
+        자주 쓰는 서비스를 자동으로 알아보고 그 형식을 사용
         """
         sanitized_content = strip_hidden_markdown_metadata(content).strip()
         templated_payload = self._build_custom_webhook_template_payload(sanitized_content)
@@ -283,7 +283,7 @@ class CustomWebhookSender:
 
         url_lower = url.lower()
         
-        # 钉钉机器人
+        # 딩톡 봇
         if 'dingtalk' in url_lower or 'oapi.dingtalk.com' in url_lower:
             return {
                 "msgtype": "markdown",
@@ -295,7 +295,7 @@ class CustomWebhookSender:
         
         # Discord Webhook
         if 'discord.com/api/webhooks' in url_lower or 'discordapp.com/api/webhooks' in url_lower:
-            # Discord 限制 2000 字符
+            # Discord 2000자 제한
             truncated = (
                 sanitized_content[:1900] + "..."
                 if len(sanitized_content) > 1900
@@ -312,15 +312,15 @@ class CustomWebhookSender:
                 "mrkdwn": True
             }
         
-        # Bark (iOS 推送)
+        # Bark (iOS 푸시)
         if 'api.day.app' in url_lower:
             return {
                 "title": "股票分析报告",
-                "body": sanitized_content[:4000],  # Bark 限制
+                "body": sanitized_content[:4000],  # Bark 제한
                 "group": "stock"
             }
         
-        # 通用格式（兼容大多数服务）
+        # 범용 형식 (대부분 서비스와 호환)
         return {
             "text": sanitized_content,
             "content": sanitized_content,
@@ -347,13 +347,13 @@ class CustomWebhookSender:
             payload: Any = json.loads(rendered)
         except json.JSONDecodeError as exc:
             logger.error(
-                "CUSTOM_WEBHOOK_BODY_TEMPLATE 不是有效 JSON，已回退为默认 Webhook payload: %s",
+                "CUSTOM_WEBHOOK_BODY_TEMPLATE이 올바른 JSON이 아님, 기본 Webhook payload로 대체: %s",
                 exc,
             )
             return None
         if not isinstance(payload, dict):
             logger.error(
-                "CUSTOM_WEBHOOK_BODY_TEMPLATE 必须渲染为 JSON object，已回退为默认 Webhook payload"
+                "CUSTOM_WEBHOOK_BODY_TEMPLATE 렌더링 결과가 JSON object여야 함, 기본 Webhook payload로 대체"
             )
             return None
         return payload
@@ -362,7 +362,7 @@ class CustomWebhookSender:
         import time as _time
         content = strip_hidden_markdown_metadata(content).strip()
 
-        # 为 payload 开销预留空间，避免 body 超限
+        # payload 부가 용량만큼 공간을 남겨 body 상한 초과 방지
         budget = max(1000, max_bytes - 1500)
         chunks = chunk_content_by_max_bytes(content, budget)
         if not chunks:
@@ -381,7 +381,7 @@ class CustomWebhookSender:
                 },
             }
 
-            # 如果仍超限（极端情况下），再按字节硬截断一次
+            # 그래도 넘으면(극단적인 경우) 바이트 기준으로 한 번 더 강제로 자름
             body_bytes = len(json.dumps(payload, ensure_ascii=False).encode('utf-8'))
             if body_bytes > max_bytes:
                 hard_budget = max(200, budget - (body_bytes - max_bytes) - 200)
@@ -390,7 +390,7 @@ class CustomWebhookSender:
             if self._post_custom_webhook(url, payload, timeout=30):
                 ok += 1
             else:
-                logger.error(f"钉钉分批发送失败: 第 {idx+1}/{total} 批")
+                logger.error(f"딩톡 분할 발송 실패: {idx+1}/{total}번째 묶음")
 
             if idx < total - 1:
                 _time.sleep(1)

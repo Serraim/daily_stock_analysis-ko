@@ -39,7 +39,7 @@ _DEPENDENCY_FINGERPRINT_FILE = ".dsa-dependency-fingerprint"
 
 
 def _is_truthy_env(var_name: str, default: str = "true") -> bool:
-    """解析常见的环境变量真值/假值表达（大小写不敏感）。"""
+    """환경 변수의 흔한 참/거짓 표현을 해석 (대소문자 구분 없음)."""
     value = os.getenv(var_name, default).strip().lower()
     return value not in _FALSEY_ENV_VALUES
 
@@ -123,7 +123,7 @@ def _write_installed_dependency_fingerprint(frontend_dir: Path) -> None:
     try:
         marker_path.write_text(f"{fingerprint}\n", encoding="ascii")
     except OSError as exc:
-        logger.warning("无法记录 WebUI 依赖摘要，下次构建将重新安装依赖: %s", exc)
+        logger.warning("WebUI 의존성 요약을 기록하지 못함, 다음 빌드 때 의존성을 다시 설치함: %s", exc)
 
 
 def _needs_dependency_install(frontend_dir: Path, package_json: Path, lock_file: Path, force_build: bool) -> bool:
@@ -218,14 +218,14 @@ def _needs_frontend_build(frontend_dir: Path, force_build: bool) -> tuple[bool, 
 def _run_frontend_commands(commands: Sequence[Sequence[str]], frontend_dir: Path) -> bool:
     try:
         for command in commands:
-            logger.info("执行前端命令: %s", " ".join(command))
+            logger.info("프런트엔드 명령 실행: %s", " ".join(command))
             subprocess.run(command, cwd=frontend_dir, check=True)
-        logger.info("前端静态资源构建完成")
+        logger.info("프런트엔드 정적 파일 빌드 완료")
         return True
     except subprocess.CalledProcessError as exc:
         cmd_display = " ".join(exc.cmd) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
         logger.error(
-            "前端命令执行失败（exit_code=%s）: %s",
+            "프런트엔드 명령 실행 실패 (exit_code=%s): %s",
             getattr(exc, "returncode", "N/A"),
             cmd_display,
         )
@@ -239,10 +239,10 @@ def _manual_build_command(frontend_dir: Path) -> str:
 
 
 def _has_static_assets(static_dir: Path) -> bool:
-    """检查 static/assets/ 是否存在且包含 CSS/JS 文件。
+    """static/assets/ 가 있고 CSS/JS 파일이 들어 있는지 확인.
 
-    index.html 存在但 assets/ 为空或缺失时，浏览器无法加载样式与脚本，
-    会导致页面元素异常放大、布局错乱（纯裸 HTML 渲染）。
+    index.html 은 있는데 assets/ 가 비었거나 없으면 브라우저가 스타일과 스크립트를 못 불러와
+    화면 요소가 비정상적으로 커지고 레이아웃이 깨진다 (꾸밈 없는 HTML 로 표시됨).
     """
     assets_dir = static_dir / "assets"
     if not assets_dir.is_dir():
@@ -257,7 +257,7 @@ def _has_static_assets(static_dir: Path) -> bool:
 
 
 def _warn_if_assets_missing(artifact_index: Path, frontend_dir: Path) -> None:
-    """当 index.html 存在但 assets/ 缺失时，发出页面显示异常警告。"""
+    """index.html 은 있는데 assets/ 가 없으면 화면 표시 이상 경고를 출력."""
     static_dir = artifact_index.parent
     assets_dir = static_dir / "assets"
     if not _has_static_assets(static_dir):
@@ -268,11 +268,11 @@ def _warn_if_assets_missing(artifact_index: Path, frontend_dir: Path) -> None:
             assets_dir,
         )
         logger.warning(
-            "请重新构建前端以修复此问题: %s",
+            "이 문제를 고치려면 프런트엔드를 다시 빌드하세요: %s",
             _manual_build_command(frontend_dir),
         )
         logger.warning(
-            "Docker 用户请执行: docker-compose -f ./docker/docker-compose.yml build --no-cache"
+            "Docker 사용자는 다음을 실행하세요: docker-compose -f ./docker/docker-compose.yml build --no-cache"
         )
 
 
@@ -294,17 +294,17 @@ def prepare_webui_frontend_assets() -> bool:
 
     if not auto_build_enabled:
         if artifact_index.exists():
-            logger.info("WEBUI_AUTO_BUILD=false，检测到前端静态产物: %s", artifact_index)
+            logger.info("WEBUI_AUTO_BUILD=false, 프런트엔드 빌드 결과물 발견: %s", artifact_index)
             _warn_if_assets_missing(artifact_index, frontend_dir)
             needs_build, _ = _needs_frontend_build(frontend_dir=frontend_dir, force_build=False)
             if needs_build:
                 logger.warning("检测到 WebUI 源码与现有静态产物不一致，但自动构建已关闭")
-                logger.warning("请重新构建前端: %s", _manual_build_command(frontend_dir))
+                logger.warning("프런트엔드를 다시 빌드하세요: %s", _manual_build_command(frontend_dir))
             return True
-        logger.warning("未检测到 WebUI 前端静态产物: %s", artifact_index)
-        logger.warning("当前配置 WEBUI_AUTO_BUILD=false，不会在后端启动时自动编译前端")
-        logger.warning("请先手动构建前端: %s", _manual_build_command(frontend_dir))
-        logger.warning("如需启动时自动构建，可设置 WEBUI_AUTO_BUILD=true")
+        logger.warning("WebUI 프런트엔드 빌드 결과물이 없음: %s", artifact_index)
+        logger.warning("현재 WEBUI_AUTO_BUILD=false 이므로 백엔드 시작 시 프런트엔드를 자동 빌드하지 않음")
+        logger.warning("먼저 프런트엔드를 직접 빌드하세요: %s", _manual_build_command(frontend_dir))
+        logger.warning("시작할 때 자동 빌드하려면 WEBUI_AUTO_BUILD=true 로 설정하세요")
         return False
 
     force_build = _is_truthy_env("WEBUI_FORCE_BUILD", "false")
@@ -318,13 +318,13 @@ def prepare_webui_frontend_assets() -> bool:
     package_json = frontend_dir / "package.json"
     if not package_json.exists():
         logger.warning("未找到前端项目，无法自动构建: %s", package_json)
-        logger.warning("可先手动检查前端目录或关闭 WEBUI_AUTO_BUILD")
+        logger.warning("프런트엔드 폴더를 직접 확인하거나 WEBUI_AUTO_BUILD 를 끄세요")
         return False
 
     npm_path = shutil.which("npm")
     if not npm_path:
         logger.warning("未检测到 npm，无法自动构建前端")
-        logger.warning("请先手动构建前端静态资源: %s", _manual_build_command(frontend_dir))
+        logger.warning("먼저 프런트엔드 정적 파일을 직접 빌드하세요: %s", _manual_build_command(frontend_dir))
         return False
 
     lock_file = frontend_dir / "package-lock.json"
@@ -343,7 +343,7 @@ def prepare_webui_frontend_assets() -> bool:
         commands.append([npm_path, "run", "build"])
 
     logger.info(
-        "前端构建检查结果: needs_install=%s, needs_build=%s, artifact=%s",
+        "프런트엔드 빌드 점검 결과: needs_install=%s, needs_build=%s, artifact=%s",
         needs_install,
         needs_build,
         artifact_index,

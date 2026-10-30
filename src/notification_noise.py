@@ -233,7 +233,7 @@ def evaluate_notification_noise(
             now=now,
         )
     except Exception as exc:  # pragma: no cover - defensive behavior is tested via monkeypatch.
-        logger.warning("通知降噪判断失败，将继续发送静态通知渠道: %s", exc)
+        logger.warning("알림 노이즈 판단 실패, 설정된 알림 채널로 그대로 보냄: %s", exc)
         return NotificationNoiseDecision(
             should_send=True,
             reason_code="noise_check_failed_open",
@@ -273,14 +273,14 @@ def _evaluate_notification_noise(
 
     if min_severity_raw:
         if min_severity_raw not in NOTIFICATION_SEVERITY_RANK:
-            logger.warning("NOTIFICATION_MIN_SEVERITY=%s 无效，将忽略最低级别过滤", min_severity_raw)
+            logger.warning("NOTIFICATION_MIN_SEVERITY=%s 값이 잘못돼 최소 등급 필터를 무시함", min_severity_raw)
         elif NOTIFICATION_SEVERITY_RANK[resolved_severity] < NOTIFICATION_SEVERITY_RANK[min_severity_raw]:
             return NotificationNoiseDecision(
                 should_send=False,
                 reason_code="min_severity",
                 message=(
-                    f"通知级别 {resolved_severity} 低于最低级别 {min_severity_raw}，"
-                    "已跳过静态通知渠道。"
+                    f"알림 등급 {resolved_severity}이(가) 최소 등급 {min_severity_raw}보다 낮아 "
+                    "설정된 알림 채널을 건너뜀."
                 ),
                 **decision_base,
             )
@@ -290,7 +290,7 @@ def _evaluate_notification_noise(
         return NotificationNoiseDecision(
             should_send=False,
             reason_code="quiet_hours",
-            message=f"当前时间处于静默时段 {quiet_hours_raw}，已跳过静态通知渠道。",
+            message=f"지금은 방해 금지 시간대({quiet_hours_raw})라 설정된 알림 채널을 건너뜀.",
             **decision_base,
         )
 
@@ -307,7 +307,7 @@ def _evaluate_notification_noise(
             return NotificationNoiseDecision(
                 should_send=False,
                 reason_code="dedup",
-                message="通知内容在去重 TTL 内已发送，已跳过静态通知渠道。",
+                message="같은 알림을 중복 방지 TTL 안에 이미 보내서 설정된 알림 채널을 건너뜀.",
                 dedup_key=dedup_state_key,
                 cooldown_key=cooldown_state_key,
                 **decision_base,
@@ -317,7 +317,7 @@ def _evaluate_notification_noise(
             return NotificationNoiseDecision(
                 should_send=False,
                 reason_code="dedup_inflight",
-                message="同一通知正在发送中，已跳过静态通知渠道。",
+                message="같은 알림을 이미 보내는 중이라 설정된 알림 채널을 건너뜀.",
                 dedup_key=dedup_state_key,
                 cooldown_key=cooldown_state_key,
                 **decision_base,
@@ -326,7 +326,7 @@ def _evaluate_notification_noise(
             return NotificationNoiseDecision(
                 should_send=False,
                 reason_code="cooldown",
-                message="通知冷却时间尚未结束，已跳过静态通知渠道。",
+                message="알림 대기 시간(쿨다운)이 아직 안 끝나 설정된 알림 채널을 건너뜀.",
                 dedup_key=dedup_state_key,
                 cooldown_key=cooldown_state_key,
                 **decision_base,
@@ -336,7 +336,7 @@ def _evaluate_notification_noise(
             return NotificationNoiseDecision(
                 should_send=False,
                 reason_code="cooldown_inflight",
-                message="同一通知正在发送中，已跳过静态通知渠道。",
+                message="같은 알림을 이미 보내는 중이라 설정된 알림 채널을 건너뜀.",
                 dedup_key=dedup_state_key,
                 cooldown_key=cooldown_state_key,
                 **decision_base,
@@ -382,7 +382,7 @@ def release_notification_noise(decision: NotificationNoiseDecision) -> None:
         with _state_lock:
             _release_reserved_locked(decision)
     except Exception as exc:  # pragma: no cover - defensive branch.
-        logger.warning("通知降噪发送中状态释放失败，忽略该错误: %s", exc)
+        logger.warning("알림 노이즈 '보내는 중' 상태 해제 실패, 오류 무시: %s", exc)
 
 
 def record_notification_noise(decision: NotificationNoiseDecision, now: Optional[datetime] = None) -> None:
@@ -403,4 +403,4 @@ def record_notification_noise(decision: NotificationNoiseDecision, now: Optional
             if decision.cooldown_seconds > 0 and decision.cooldown_key:
                 _cooldown_expires_at[decision.cooldown_key] = now_ts + decision.cooldown_seconds
     except Exception as exc:  # pragma: no cover - defensive branch.
-        logger.warning("通知降噪状态记录失败，忽略该错误: %s", exc)
+        logger.warning("알림 노이즈 상태 기록 실패, 오류 무시: %s", exc)

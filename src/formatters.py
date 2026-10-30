@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-格式化工具模块
+포맷팅 유틸리티 모듈
 ===================================
 
-提供各种内容格式化工具函数，用于将通用格式转换为平台特定格式。
+공통 형식을 플랫폼별 형식으로 바꾸는 각종 포맷팅 함수를 제공합니다.
 """
 
 import re
@@ -35,13 +35,13 @@ def _page_marker(i: int, total: int) -> str:
 
 
 def _is_special_char(c: str) -> bool:
-    """判断字符是否为特殊字符
+    """문자가 특수 문자인지 판별
     
     Args:
-        c: 字符
+        c: 문자
         
     Returns:
-        True 如果字符为特殊字符，False 否则
+        특수 문자면 True, 아니면 False
     """
     if len(c) != 1:
         return False
@@ -51,10 +51,10 @@ def _is_special_char(c: str) -> bool:
 
 def _count_special_chars(s: str) -> int:
     """
-    计算字符串中的特殊字符数量
+    문자열 안의 특수 문자 개수 계산
     
     Args:
-        s: 字符串
+        s: 문자열
     """
     # reg find all (0x10000, 0xFFFFF)
     match = _SPECIAL_CHAR_REGEX.findall(s)
@@ -63,14 +63,14 @@ def _count_special_chars(s: str) -> int:
 
 def _effective_len(s: str, special_char_len: int = 2) -> int:
     """
-    计算字符串的有效长度
+    문자열의 유효 길이 계산
     
     Args:
-        s: 字符串
-        special_char_len: 每个特殊字符的长度，默认为 2
+        s: 문자열
+        special_char_len: 특수 문자 하나의 길이, 기본값 2
         
     Returns:
-        s 的有效长度
+        s 의 유효 길이
     """
     n = len(s)
     n += _count_special_chars(s) * (special_char_len - 1)
@@ -79,15 +79,15 @@ def _effective_len(s: str, special_char_len: int = 2) -> int:
 
 def _slice_at_effective_len(s: str, effective_len: int, special_char_len: int = 2) -> tuple[str, str]:
     """
-    按有效长度分割字符串
+    유효 길이 기준으로 문자열 분할
     
     Args:
-        s: 字符串
-        effective_len: 有效长度
-        special_char_len: 每个特殊字符的长度，默认为 2
+        s: 문자열
+        effective_len: 유효 길이
+        special_char_len: 특수 문자 하나의 길이, 기본값 2
         
     Returns:
-        分割后的前、后部分字符串
+        분할된 앞부분, 뒷부분 문자열
     """
     if _effective_len(s, special_char_len) <= effective_len:
         return s, ""
@@ -232,38 +232,38 @@ def markdown_to_html_document(markdown_text: str) -> str:
 
 def markdown_to_plain_text(markdown_text: str) -> str:
     """
-    将 Markdown 转换为纯文本
+    Markdown 을 일반 텍스트로 변환
     
-    移除 Markdown 格式标记，保留可读性
+    Markdown 서식 기호를 없애고 읽기 쉽게 유지
     """
     text = markdown_text
 
-    # 移除 Markdown reference definitions（例如隐藏元数据标记）
+    # Markdown reference definitions 제거(예: 숨김 메타데이터 표시)
     text = strip_markdown_reference_definitions(text)
     
-    # 移除标题标记 # ## ###
+    # 제목 기호 # ## ### 제거
     text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
     
-    # 移除加粗 **text** -> text
+    # 굵게 표시 제거 **text** -> text
     text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
     
-    # 移除斜体 *text* -> text
+    # 기울임 제거 *text* -> text
     text = re.sub(r'\*(.+?)\*', r'\1', text)
     
-    # 移除引用 > text -> text
+    # 인용 제거 > text -> text
     text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
     
-    # 移除列表标记 - item -> item
+    # 목록 기호 제거 - item -> item
     text = re.sub(r'^[-*]\s+', '• ', text, flags=re.MULTILINE)
     
-    # 移除分隔线 ---
+    # 구분선 제거 ---
     text = re.sub(r'^---+$', '────────', text, flags=re.MULTILINE)
     
-    # 移除表格语法 |---|---|
+    # 표 문법 제거 |---|---|
     text = re.sub(r'\|[-:]+\|[-:|\s]+\|', '', text)
     text = re.sub(r'^\|(.+)\|$', r'\1', text, flags=re.MULTILINE)
     
-    # 清理多余空行
+    # 불필요한 빈 줄 정리
     text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text.strip()
@@ -376,7 +376,7 @@ def chunk_markdown_preserving_blocks(
 
     measure = len_fn or len
     if max_units < MIN_MAX_WORDS:
-        raise ValueError(f"max_units={max_units} < {MIN_MAX_WORDS}, 可能陷入无限递归。")
+        raise ValueError(f"max_units={max_units} < {MIN_MAX_WORDS}, 무한 재귀에 빠질 수 있습니다.")
     if measure(content) <= max_units:
         return [content]
 
@@ -595,7 +595,7 @@ def _chunk_by_max_bytes(content: str, max_bytes: int) -> List[str]:
     if _bytes(content) <= max_bytes:
         return [content]
     if max_bytes < MIN_MAX_BYTES:
-        raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 可能陷入无限递归。")
+        raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 무한 재귀에 빠질 수 있습니다.")
     
     sections: List[str] = []
     suffix = TRUNCATION_SUFFIX
@@ -609,7 +609,7 @@ def _chunk_by_max_bytes(content: str, max_bytes: int) -> List[str]:
         if content.strip() != "":
             sections.append(chunk + suffix)
         else:
-            # 最后一段了，直接添加并离开循环
+            # 마지막 조각이므로 바로 추가하고 루프 종료
             sections.append(chunk)
             break
     return sections
@@ -617,27 +617,27 @@ def _chunk_by_max_bytes(content: str, max_bytes: int) -> List[str]:
 
 def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bool = False) -> List[str]:
     """
-    按字节数智能分割消息内容
+    바이트 수 기준으로 메시지를 똑똑하게 분할
     
     Args:
-        content: 完整消息内容
-        max_bytes: 单条消息最大字节数
-        add_page_marker: 是否添加分页标记
+        content: 전체 메시지 내용
+        max_bytes: 메시지 1건의 최대 바이트 수
+        add_page_marker: 페이지 표시를 붙일지 여부
         
     Returns:
-        分割后的区块列表
+        분할된 블록 목록
     """
     def _chunk(content: str, max_bytes: int) -> List[str]:
-        # 优先按分隔线/标题分割，保证分页自然
+        # 구분선/제목 기준 분할을 우선해 페이지가 자연스럽게 나뉘도록 함
         if max_bytes < MIN_MAX_BYTES:
-            raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 可能陷入无限递归。")
+            raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 무한 재귀에 빠질 수 있습니다.")
         
         if _bytes(content) <= max_bytes:
             return [content]
         
         sections, separator = _chunk_by_separators(content)
         if separator == "" and len(sections) == 1:
-            # 无法智能分割，则强制按字数分割
+            # 똑똑하게 나눌 수 없으면 글자 수 기준으로 강제 분할
             return _chunk_by_max_bytes(content, max_bytes)
         
         chunks: List[str] = []
@@ -650,15 +650,15 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
             section += separator
             section_bytes = _bytes(section)
             
-            # 如果单个 section 就超长，需要强制截断
+            # section 하나만으로도 너무 길면 강제로 잘라야 함
             if section_bytes > effective_max_bytes:
-                # 先保存当前积累的内容
+                # 지금까지 모은 내용을 먼저 저장
                 if current_chunk:
                     chunks.append("".join(current_chunk))
                     current_chunk = []
                     current_bytes = 0
 
-                # 强制按字节截断，避免整段被截断丢失
+                # 바이트 기준으로 강제로 잘라 단락 전체가 사라지는 것을 막음
                 section_chunks = _chunk(
                     section[:-separator_bytes], effective_max_bytes
                 )
@@ -666,9 +666,9 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
                 chunks.extend(section_chunks)
                 continue
 
-            # 检查加入后是否超长
+            # 추가한 뒤 길이 초과인지 확인
             if current_bytes + section_bytes > effective_max_bytes:
-                # 保存当前块，开始新块
+                # 현재 블록을 저장하고 새 블록 시작
                 if current_chunk:
                     chunks.append("".join(current_chunk))
                 current_chunk = [section]
@@ -677,11 +677,11 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
                 current_chunk.append(section)
                 current_bytes += section_bytes
                 
-        # 添加最后一块
+        # 마지막 블록 추가
         if current_chunk:
             chunks.append("".join(current_chunk))
             
-        # 移除最后一个块的分割符
+        # 마지막 블록의 구분자 제거
         if (chunks and 
             len(chunks[-1]) > separator_bytes and 
             chunks[-1][-separator_bytes:] == separator
@@ -703,20 +703,20 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
 
 def slice_at_max_bytes(text: str, max_bytes: int) -> tuple[str, str]:
     """
-    按字节数截断字符串，确保不会在多字节字符中间截断
+    바이트 수 기준으로 문자열을 자르되, 멀티바이트 문자 중간에서 잘리지 않게 함
 
     Args:
-        text: 要截断的字符串
-        max_bytes: 最大字节数
+        text: 자를 문자열
+        max_bytes: 최대 바이트 수
 
     Returns:
-        (截断后的字符串, 剩余未截断内容)
+        (잘린 문자열, 잘리지 않고 남은 내용)
     """
     encoded = text.encode("utf-8")
     if len(encoded) <= max_bytes:
         return text, ""
 
-    # 从最大字节数开始向前查找，找到完整的 UTF-8 字符边界
+    # 최대 바이트 위치부터 앞으로 거슬러 올라가며 완전한 UTF-8 문자 경계를 찾음
     truncated = encoded[:max_bytes]
     while truncated and (truncated[-1] & 0xC0) == 0x80:
         truncated = truncated[:-1]
@@ -732,34 +732,34 @@ def _format_feishu_markdown_unprotected(content: str) -> str:
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
 
-        # 处理表格行
+        # 표 행 처리
         if line.strip().startswith('|'):
             table_buffer.append(line)
             continue
 
-        # 刷新表格缓冲区
+        # 표 버퍼 비우기
         if table_buffer:
             _flush_table_as_key_value_rows(table_buffer, lines, bullet="•")
             table_buffer = []
 
-        # 转换标题（# ## ### 等）
+        # 제목 변환(# ## ### 등)
         if re.match(r'^#{1,6}\s+', line):
             title = re.sub(r'^#{1,6}\s+', '', line).strip()
             line = f"**{title}**" if title else ""
-        # 转换引用块
+        # 인용 블록 변환
         elif line.startswith('> '):
             quote = line[2:].strip()
             line = quote
-        # 转换分隔线
+        # 구분선 변환
         elif line.strip() == '---':
             line = '────────'
-        # 转换列表项
+        # 목록 항목 변환
         elif line.startswith('- '):
             line = f"• {line[2:].strip()}"
 
         lines.append(line)
 
-    # 处理末尾的表格
+    # 끝에 남은 표 처리
     if table_buffer:
         _flush_table_as_key_value_rows(table_buffer, lines, bullet="•")
 
@@ -768,19 +768,19 @@ def _format_feishu_markdown_unprotected(content: str) -> str:
 
 def format_feishu_markdown(content: str) -> str:
     """
-    将通用 Markdown 转换为飞书 lark_md 更友好的格式
+    일반 Markdown 을 Feishu lark_md 에 더 잘 맞는 형식으로 변환
 
-    转换规则：
-    - 飞书不支持 Markdown 标题（# / ## / ###），用加粗代替
-    - 引用块使用前缀替代
-    - 分隔线统一为细线
-    - 表格转换为条目列表
+    변환 규칙:
+    - Feishu 는 Markdown 제목(# / ## / ###)을 지원하지 않아 굵게 표시로 대체
+    - 인용 블록은 접두어로 대체
+    - 구분선은 가는 선으로 통일
+    - 표는 항목 목록으로 변환
 
     Args:
-        content: 原始 Markdown 内容
+        content: 원본 Markdown 내용
 
     Returns:
-        转换后的飞书 Markdown 格式内容
+        변환된 Feishu Markdown 형식 내용
 
     Example:
         >>> markdown = "# 标题\\n> 引用\\n| 列1 | 列2 |"
@@ -791,17 +791,17 @@ def format_feishu_markdown(content: str) -> str:
         • 列1：值1 | 列2：值2
     """
     def _flush_table_rows(buffer: List[str], output: List[str]) -> None:
-        """将表格缓冲区中的行转换为飞书格式"""
+        """표 버퍼의 행을 Feishu 형식으로 변환"""
         if not buffer:
             return
 
         def _parse_row(row: str) -> List[str]:
-            """解析表格行，提取单元格"""
+            """표 행을 파싱해 셀 추출"""
             return _parse_markdown_table_row(row)
 
         rows = []
         for raw in buffer:
-            # 跳过分隔行（如 |---|---|）
+            # 구분 행 건너뛰기(예: |---|---|)
             if re.match(r'^\s*\|?\s*[:-]+\s*(\|\s*[:-]+\s*)+\|?\s*$', raw):
                 continue
             parsed = _parse_row(raw)
@@ -828,34 +828,34 @@ def format_feishu_markdown(content: str) -> str:
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
 
-        # 处理表格行
+        # 표 행 처리
         if line.strip().startswith('|'):
             table_buffer.append(line)
             continue
 
-        # 刷新表格缓冲区
+        # 표 버퍼 비우기
         if table_buffer:
             _flush_table_rows(table_buffer, lines)
             table_buffer = []
 
-        # 转换标题（# ## ### 等）
+        # 제목 변환(# ## ### 등)
         if re.match(r'^#{1,6}\s+', line):
             title = re.sub(r'^#{1,6}\s+', '', line).strip()
             line = f"**{title}**" if title else ""
-        # 转换引用块
+        # 인용 블록 변환
         elif line.startswith('> '):
             quote = line[2:].strip()
             line = f"💬 {quote}" if quote else ""
-        # 转换分隔线
+        # 구분선 변환
         elif line.strip() == '---':
             line = '────────'
-        # 转换列表项
+        # 목록 항목 변환
         elif line.startswith('- '):
             line = f"• {line[2:].strip()}"
 
         lines.append(line)
 
-    # 处理末尾的表格
+    # 끝에 남은 표 처리
     if table_buffer:
         _flush_table_rows(table_buffer, lines)
 
@@ -931,42 +931,42 @@ def format_slack_mrkdwn(content: str) -> str:
 
 def _chunk_by_separators(content: str) -> tuple[list[str], str]:
     """
-    通过分割线等特殊字符将消息内容分割为多个区块
+    구분선 같은 특수 문자를 기준으로 메시지를 여러 블록으로 분할
     
     Args:
-        content: 完整消息内容
+        content: 전체 메시지 내용
         
     Returns:
-        sections: 分割后的区块列表
-        separator: 区块之间的分隔符，None 表示无法分割
+        sections: 분할된 블록 목록
+        separator: 블록 사이 구분자, None 이면 분할 불가
     """
-    # 智能分割：优先按 "---" 分隔（股票之间的分隔线）
-    # 其次尝试各级标题分割
+    # 스마트 분할: "---"(종목 사이 구분선) 기준을 우선
+    # 그다음 각 단계 제목 기준 분할 시도
     if "\n---\n" in content:
         sections = content.split("\n---\n")
         separator = "\n---\n"
     elif "\n# " in content:
-        # 按 # 分割 (兼容一级标题)
+        # # 기준 분할 (1단계 제목 호환)
         parts = content.split("\n# ")
         sections = [parts[0]] + [f"# {p}" for p in parts[1:]]
         separator = "\n"
     elif "\n## " in content:
-        # 按 ## 分割 (兼容二级标题)
+        # ## 기준 분할 (2단계 제목 호환)
         parts = content.split("\n## ")
         sections = [parts[0]] + [f"## {p}" for p in parts[1:]]
         separator = "\n"
     elif "\n### " in content:
-        # 按 ### 分割
+        # ### 기준 분할
         parts = content.split("\n### ")
         sections = [parts[0]] + [f"### {p}" for p in parts[1:]]
         separator = "\n"
     elif "\n**" in content:
-        # 按 ** 加粗标题分割 (兼容 AI 未输出标准 Markdown 标题的情况)
+        # ** 굵은 제목 기준 분할 (AI 가 표준 Markdown 제목을 출력하지 않은 경우 대응)
         parts = content.split("\n**")
         sections = [parts[0]] + [f"**{p}" for p in parts[1:]]
         separator = "\n"
     elif "\n" in content:
-        # 按 \n 分割
+        # \n 기준 분할
         sections = content.split("\n")
         separator = "\n"
     else:
@@ -976,26 +976,26 @@ def _chunk_by_separators(content: str) -> tuple[list[str], str]:
 
 def _chunk_by_max_words(content: str, max_words: int, special_char_len: int = 2) -> list[str]:
     """
-    按字数分割消息内容
+    글자 수 기준으로 메시지 분할
     
     Args:
-        content: 完整消息内容
-        max_words: 单条消息最大字数
-        special_char_len: 每个特殊字符的长度，默认为 2
+        content: 전체 메시지 내용
+        max_words: 메시지 1건의 최대 글자 수
+        special_char_len: 특수 문자 하나의 길이, 기본값 2
         
     Returns:
-        分割后的区块列表
+        분할된 블록 목록
     """
     if _effective_len(content, special_char_len) <= max_words:
         return [content]
     if max_words < MIN_MAX_WORDS:
         raise ValueError(
-            f"max_words={max_words} < {MIN_MAX_WORDS}, 可能陷入无限递归。"
+            f"max_words={max_words} < {MIN_MAX_WORDS}, 무한 재귀에 빠질 수 있습니다."
         )
 
     sections = []
     suffix = TRUNCATION_SUFFIX
-    effective_max_words = max_words - len(suffix)  # 预留后缀，避免边界超限
+    effective_max_words = max_words - len(suffix)  # 접미어 길이를 미리 빼서 경계 초과 방지
     if effective_max_words <= 0:
         effective_max_words = max_words
         suffix = ""
@@ -1005,7 +1005,7 @@ def _chunk_by_max_words(content: str, max_words: int, special_char_len: int = 2)
         if content.strip() != "":
             sections.append(chunk + suffix)
         else:
-            # 最后一段了，直接添加并离开循环
+            # 마지막 조각이므로 바로 추가하고 루프 종료
             sections.append(chunk)
             break
     return sections
@@ -1018,51 +1018,51 @@ def chunk_content_by_max_words(
     add_page_marker: bool = False
     ) -> list[str]:
     """
-    按字数智能分割消息内容
+    글자 수 기준으로 메시지를 똑똑하게 분할
     
     Args:
-        content: 完整消息内容
-        max_words: 单条消息最大字数
-        special_char_len: 每个特殊字符的长度，默认为 2
-        add_page_marker: 是否添加分页标记
+        content: 전체 메시지 내용
+        max_words: 메시지 1건의 최대 글자 수
+        special_char_len: 특수 문자 하나의 길이, 기본값 2
+        add_page_marker: 페이지 표시를 붙일지 여부
         
     Returns:
-        分割后的区块列表
+        분할된 블록 목록
     """
     def _chunk(content: str, max_words: int, special_char_len: int = 2) -> list[str]:
         if max_words < MIN_MAX_WORDS:
-            # Safe guard，避免无限递归
-            # 理论上，max_words在每次递归中可以减小到无限小，但实际中不太可能发生，
-            # 除非每次_chunk_by_separators都能成功返回分隔符，且max_words初始值太小。
-            raise ValueError(f"max_words={max_words} < {MIN_MAX_WORDS}, 可能陷入无限递归。")
+            # Safe guard, 무한 재귀 방지
+            # 이론상 max_words 는 재귀할 때마다 한없이 작아질 수 있지만 실제로는 거의 일어나지 않음.
+            # _chunk_by_separators 가 매번 구분자를 반환하고 max_words 초기값이 너무 작은 경우에만 발생.
+            raise ValueError(f"max_words={max_words} < {MIN_MAX_WORDS}, 무한 재귀에 빠질 수 있습니다.")
         
         if _effective_len(content, special_char_len) <= max_words:
             return [content]
 
         sections, separator = _chunk_by_separators(content)
         if separator == "" and len(sections) == 1:
-            # 无法智能分割，则强制按字数分割
+            # 똑똑하게 나눌 수 없으면 글자 수 기준으로 강제 분할
             return _chunk_by_max_words(content, max_words, special_char_len)
 
         chunks = []
         current_chunk = []
         current_word_len = 0
         separator_len = len(separator) if separator else 0
-        effective_max_words = max_words - separator_len # 预留分割符长度，避免边界超限
+        effective_max_words = max_words - separator_len # 구분자 길이를 미리 빼서 경계 초과 방지
 
         for section in sections:
             section += separator
             section_word_len = _effective_len(section, special_char_len)
 
-            # 如果单个 section 就超长，需要强制截断
+            # section 하나만으로도 너무 길면 강제로 잘라야 함
             if section_word_len > max_words:
-                # 先保存当前积累的内容
+                # 지금까지 모은 내용을 먼저 저장
                 if current_chunk:
                     chunks.append("".join(current_chunk))
                     current_chunk = []
                     current_word_len = 0
 
-                # 强制截断这个超长 section
+                # 너무 긴 이 section 을 강제로 자름
                 section_chunks = _chunk(
                     section[:-separator_len], effective_max_words, special_char_len
                     )
@@ -1070,9 +1070,9 @@ def chunk_content_by_max_words(
                 chunks.extend(section_chunks)
                 continue
 
-            # 检查加入后是否超长
+            # 추가한 뒤 길이 초과인지 확인
             if current_word_len + section_word_len > max_words:
-                # 保存当前块，开始新块
+                # 현재 블록을 저장하고 새 블록 시작
                 if current_chunk:
                     chunks.append("".join(current_chunk))
                 current_chunk = [section]
@@ -1081,11 +1081,11 @@ def chunk_content_by_max_words(
                 current_chunk.append(section)
                 current_word_len += section_word_len
 
-        # 添加最后一块
+        # 마지막 블록 추가
         if current_chunk:
             chunks.append("".join(current_chunk))
 
-        # 移除最后一个块的分割符
+        # 마지막 블록의 구분자 제거
         if (chunks and
             len(chunks[-1]) > separator_len and
             chunks[-1][-separator_len:] == separator

@@ -46,24 +46,24 @@ def normalize_market_review_region_strict(value: str) -> str:
     normalized = value.strip().lower()
     valid_hint = (
         f"{', '.join(MARKET_REVIEW_REGION_VALID_INPUTS)}，"
-        "或 cn/hk/us/jp/kr 的合法逗号分隔组合"
+        "또는 cn/hk/us/jp/kr 를 쉼표로 구분한 올바른 조합"
     )
     if not normalized:
-        raise ValueError(f"region 不能为空；合法值：{valid_hint}")
+        raise ValueError(f"region 은 비워둘 수 없습니다. 허용 값: {valid_hint}")
 
     tokens = [token.strip() for token in normalized.split(",")]
     if any(not token for token in tokens):
-        raise ValueError(f"region 不能包含空项；合法值：{valid_hint}")
+        raise ValueError(f"region 에 빈 항목이 있으면 안 됩니다. 허용 값: {valid_hint}")
 
     invalid_tokens = sorted({token for token in tokens if token not in MARKET_REVIEW_REGION_SET and token != "both"})
     if invalid_tokens:
         raise ValueError(
-            f"region 包含非法值：{', '.join(invalid_tokens)}；合法值：{valid_hint}"
+            f"region 에 잘못된 값이 있습니다: {', '.join(invalid_tokens)}. 허용 값: {valid_hint}"
         )
 
     if "both" in tokens:
         if len(tokens) != 1:
-            raise ValueError("region 中 both 必须单独使用，不能与其他市场混合")
+            raise ValueError("region 의 both 는 단독으로만 쓸 수 있고 다른 시장과 섞을 수 없습니다")
         return MARKET_REVIEW_REGION_ALL
 
     requested = set(tokens)

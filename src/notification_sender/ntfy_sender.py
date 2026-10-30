@@ -71,12 +71,12 @@ class NtfySender:
     ) -> bool:
         """Publish a notification to ntfy using a JSON body with UTF-8 text."""
         if not self._is_ntfy_configured():
-            logger.warning("ntfy URL 未配置，跳过推送")
+            logger.warning("ntfy URL 미설정, 푸시 건너뜀")
             return False
 
         server_url, topic = self._resolve_ntfy_endpoint()
         if not server_url or not topic:
-            logger.error("NTFY_URL 必须是包含 topic path 的完整 endpoint，例如 https://ntfy.sh/my-topic")
+            logger.error("NTFY_URL은 topic 경로까지 포함한 전체 endpoint여야 함. 예: https://ntfy.sh/my-topic")
             return False
 
         if title is None:
@@ -108,20 +108,20 @@ class NtfySender:
                 verify=self._webhook_verify_ssl,
             )
             if 200 <= response.status_code < 300:
-                logger.info("ntfy 消息发送成功")
+                logger.info("ntfy 메시지 발송 완료")
                 return True
 
-            logger.error("ntfy 请求失败: HTTP %s", response.status_code)
-            logger.debug("ntfy 响应内容: %s", response.text)
+            logger.error("ntfy 요청 실패: HTTP %s", response.status_code)
+            logger.debug("ntfy 응답 내용: %s", response.text)
             return False
         except requests.exceptions.Timeout:
-            logger.error("发送 ntfy 消息失败: 请求超时")
+            logger.error("ntfy 메시지 발송 실패: 요청 시간 초과")
             return False
         except requests.exceptions.RequestException as exc:
-            logger.error("发送 ntfy 消息失败: 网络请求异常")
-            logger.debug("ntfy 请求异常类型: %s", type(exc).__name__)
+            logger.error("ntfy 메시지 발송 실패: 네트워크 요청 오류")
+            logger.debug("ntfy 요청 예외 유형: %s", type(exc).__name__)
             return False
         except Exception as exc:
-            logger.error("发送 ntfy 消息失败: 未知异常")
-            logger.debug("ntfy 未知异常类型: %s", type(exc).__name__)
+            logger.error("ntfy 메시지 발송 실패: 알 수 없는 예외")
+            logger.debug("ntfy 알 수 없는 예외 유형: %s", type(exc).__name__)
             return False

@@ -1,7 +1,7 @@
 """Reusable market review runtime assembly helpers.
 
 Centralize the analyzer/search/notification construction so API, CLI and Bot
-entrypoints share one initialization path for 大盘复盘.
+entrypoints share one initialization path for 大盘复盘 (market review).
 """
 
 from __future__ import annotations
@@ -115,15 +115,15 @@ def build_market_review_runtime(
         analyzer = GeminiAnalyzer(config=config)
         backend_error = _get_analyzer_generation_backend_config_error(analyzer)
         if backend_error is not None:
-            logger.error("AI 分析器生成后端配置错误: %s", backend_error)
+            logger.error("AI 분석기 생성 백엔드 설정 오류: %s", backend_error)
         elif not analyzer.is_available():
-            logger.warning("AI 分析器初始化后不可用，请检查 LLM 配置")
+            logger.warning("AI 분석기 초기화 후에도 사용할 수 없습니다. LLM 설정을 확인하세요")
             analyzer = None
     else:
         backend_error = _get_config_generation_backend_error(config)
         if backend_error is not None:
-            logger.error("AI 分析器生成后端配置错误: %s", backend_error)
+            logger.error("AI 분석기 생성 백엔드 설정 오류: %s", backend_error)
         else:
-            logger.warning("未检测到 LLM 模型配置，将仅使用模板生成报告")
+            logger.warning("LLM 모델 설정이 없어 템플릿만으로 리포트를 만듭니다")
 
     return notifier, analyzer, search_service

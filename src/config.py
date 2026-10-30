@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 配置管理模块
+A주 관심종목 AI 분석 시스템 - 설정 관리 모듈
 ===================================
 
-职责：
-1. 使用单例模式管理全局配置
-2. 从 .env 文件加载敏感配置
-3. 提供类型安全的配置访问接口
+역할:
+1. 싱글턴 패턴으로 전역 설정 관리
+2. .env 파일에서 민감한 설정 불러오기
+3. 타입이 안전한 설정 접근 인터페이스 제공
 """
 
 import json
@@ -127,7 +127,7 @@ AGENT_BACKEND_REMOVED_MESSAGE = (
     "独立 Codex CLI 普通报告不受本项移除影响。"
 )
 TICKFLOW_KLINE_ADJUST_VALUES = {"none", "forward", "backward", "forward_additive", "backward_additive"}
-# 沪深300 / 中证500 / 创业板 / 红利低波 / 纳指 / 黄金；防守资产为货币 ETF
+# CSI 300 / CSI 500 / ChiNext / 고배당 저변동 / 나스닥 / 금; 방어 자산은 머니마켓 ETF
 DEFAULT_ETF_ROTATION_POOL = ("510300", "510500", "159915", "512890", "513100", "518880")
 DEFAULT_ETF_ROTATION_SAFE_ASSET = "511880"
 # Fallback defaults used when ANSPIRE_API_KEYS is reused as legacy OpenAI-compatible source.
@@ -969,23 +969,23 @@ def setup_env(override: bool = False):
 @dataclass
 class Config:
     """
-    系统配置类 - 单例模式
+    시스템 설정 클래스 - 싱글턴 패턴
     
-    设计说明：
-    - 使用 dataclass 简化配置属性定义
-    - 所有配置项从环境变量读取，支持默认值
-    - 类方法 get_instance() 实现单例访问
+    설계 메모:
+    - dataclass로 설정 속성 정의를 단순화
+    - 모든 설정은 환경 변수에서 읽고, 기본값 지원
+    - 클래스 메서드 get_instance()로 싱글턴 접근
     """
     
-    # === 自选股配置 ===
+    # === 관심종목 설정 ===
     stock_list: List[str] = field(default_factory=list)
 
-    # === 飞书云文档配置 ===
+    # === Feishu(페이슈) 클라우드 문서 설정 ===
     feishu_app_id: Optional[str] = None
     feishu_app_secret: Optional[str] = None
-    feishu_folder_token: Optional[str] = None  # 目标文件夹 Token
+    feishu_folder_token: Optional[str] = None  # 대상 폴더 Token
 
-    # === 数据源 API Token ===
+    # === 데이터 소스 API Token ===
     tushare_token: Optional[str] = None
     tickflow_api_key: Optional[str] = None
     tickflow_kline_adjust: str = "none"
@@ -1008,7 +1008,7 @@ class Config:
     # === Built-in stock screening ===
     screening_enabled: bool = False
 
-    # === AI 分析配置 ===
+    # === AI 분석 설정 ===
     generation_backend: str = LITELLM_BACKEND_ID
     generation_fallback_backend: str = LITELLM_BACKEND_ID
     generation_backend_timeout_seconds: int = DEFAULT_LOCAL_CLI_TIMEOUT_SECONDS
@@ -1055,36 +1055,36 @@ class Config:
 
     # Legacy single-key fields (kept for backward compatibility; gemini_api_keys[0] when set)
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-3.1-pro-preview"  # 主模型
-    gemini_model_fallback: str = "gemini-3-flash-preview"  # 备选模型
-    gemini_temperature: float = 0.7  # 温度参数（0.0-2.0，控制输出随机性，默认0.7）
+    gemini_model: str = "gemini-3.1-pro-preview"  # 주 모델
+    gemini_model_fallback: str = "gemini-3-flash-preview"  # 예비 모델
+    gemini_temperature: float = 0.7  # 온도 값(0.0-2.0, 출력 무작위성 조절, 기본 0.7)
 
-    # Gemini API 请求配置（防止 429 限流）
-    gemini_request_delay: float = 2.0  # 请求间隔（秒）
-    gemini_max_retries: int = 5  # 最大重试次数
-    gemini_retry_delay: float = 5.0  # 重试基础延时（秒）
+    # Gemini API 요청 설정(429 요청 제한 방지)
+    gemini_request_delay: float = 2.0  # 요청 간격(초)
+    gemini_max_retries: int = 5  # 최대 재시도 횟수
+    gemini_retry_delay: float = 5.0  # 재시도 기본 대기 시간(초)
 
-    # Anthropic Claude API（备选，当 Gemini 不可用时使用）
+    # Anthropic Claude API(예비용, Gemini를 쓸 수 없을 때 사용)
     anthropic_api_key: Optional[str] = None
     anthropic_model: str = "claude-sonnet-4-6"  # Claude model name
     anthropic_temperature: float = 0.7  # Anthropic temperature (0.0-1.0, default 0.7)
     anthropic_max_tokens: int = 8192  # Max tokens for Anthropic responses
 
-    # OpenAI 兼容 API（备选，当 Gemini/Anthropic 不可用时使用）
+    # OpenAI 호환 API(예비용, Gemini/Anthropic을 쓸 수 없을 때 사용)
     openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1
-    openai_model: str = "gpt-5.5"  # OpenAI 兼容模型名称
+    openai_base_url: Optional[str] = None  # 예: https://api.openai.com/v1
+    openai_model: str = "gpt-5.5"  # OpenAI 호환 모델 이름
     openai_vision_model: Optional[str] = None  # Deprecated: use VISION_MODEL instead
-    openai_temperature: float = 0.7  # OpenAI 温度参数（0.0-2.0，默认0.7）
+    openai_temperature: float = 0.7  # OpenAI 온도 값(0.0-2.0, 기본 0.7)
 
-    # === Vision 配置 ===
+    # === Vision 설정 ===
     # VISION_MODEL: litellm model string used for image understanding calls.
     # Fallback chain: VISION_MODEL → OPENAI_VISION_MODEL → gemini/gemini-2.0-flash
     vision_model: str = ""
     # VISION_PROVIDER_PRIORITY: comma-separated provider order for Vision fallback.
     vision_provider_priority: str = "gemini,anthropic,openai"
 
-    # === 搜索引擎配置（支持多 Key 负载均衡）===
+    # === 검색 엔진 설정(여러 Key 부하 분산 지원) ===
     anspire_api_keys: List[str] = field(default_factory=list)  # Anspire Search API Keys
     bocha_api_keys: List[str] = field(default_factory=list)  # Bocha API Keys
     minimax_api_keys: List[str] = field(default_factory=list)  # MiniMax API Keys
@@ -1093,23 +1093,23 @@ class Config:
     serpapi_keys: List[str] = field(default_factory=list)  # SerpAPI Keys
     searxng_base_urls: List[str] = field(default_factory=list)  # SearXNG instance URLs (self-hosted, no quota)
     searxng_public_instances_enabled: bool = False  # Opt in to public discovery when base URLs are absent
-    searxng_timeout_seconds: int = 10  # 自建 SearXNG 单次搜索超时（秒）
+    searxng_timeout_seconds: int = 10  # 직접 운영하는 SearXNG 1회 검색 제한 시간(초)
 
     # === Social Sentiment (US stocks only, api.adanos.org) ===
     social_sentiment_api_key: Optional[str] = None
     social_sentiment_api_url: str = "https://api.adanos.org"
 
-    # === 新闻与分析筛选配置 ===
-    news_max_age_days: int = 3   # 新闻最大时效（天）
-    news_strategy_profile: str = "short"  # 新闻窗口策略档位：ultra_short/short/medium/long
-    news_intel_retention_days: int = 30  # 本地资讯池保留天数
-    news_intel_fetch_timeout_sec: float = 8.0  # 单个资讯源拉取超时
-    news_intel_max_items_per_source: int = 50  # 单次每个资讯源最多采集条数
-    news_intel_auto_fetch_enabled: bool = False  # 是否在分析前自动初始化并拉取本地资讯源
-    newsnow_base_url: str = "https://newsnow.busiyi.world"  # NewsNow HTTP API base URL (数据源侧，不影响 LLM/provider base URL)
-    bias_threshold: float = 5.0  # 乖离率阈值（%），超过此值提示不追高
+    # === 뉴스·분석 필터 설정 ===
+    news_max_age_days: int = 3   # 뉴스 최대 유효 기간(일)
+    news_strategy_profile: str = "short"  # 뉴스 기간 전략 단계: ultra_short/short/medium/long
+    news_intel_retention_days: int = 30  # 로컬 뉴스 저장소 보관 일수
+    news_intel_fetch_timeout_sec: float = 8.0  # 뉴스 소스 1개당 수집 제한 시간
+    news_intel_max_items_per_source: int = 50  # 1회 수집 시 소스별 최대 건수
+    news_intel_auto_fetch_enabled: bool = False  # 분석 전에 로컬 뉴스 소스를 자동 초기화·수집할지 여부
+    newsnow_base_url: str = "https://newsnow.busiyi.world"  # NewsNow HTTP API base URL (데이터 소스용, LLM/provider base URL에는 영향 없음)
+    bias_threshold: float = 5.0  # 이격도 기준값(%), 넘으면 추격 매수 자제 안내
 
-    # === Agent 模式配置 ===
+    # === Agent 모드 설정 ===
     agent_backend: str = "auto"
     agent_generation_backend: str = AUTO_AGENT_BACKEND_ID
     agent_litellm_model: str = ""  # Optional Agent-only primary model; empty inherits LITELLM_MODEL
@@ -1150,78 +1150,78 @@ class Config:
     agent_event_monitor_interval_minutes: int = 5  # Polling interval for event monitor background checks
     agent_event_alert_rules_json: str = ""  # JSON array of serialized EventMonitor rules
 
-    # === 通知配置（可同时配置多个，全部推送）===
+    # === 알림 설정(여러 개 동시 설정 가능, 모두에게 발송) ===
     
-    # 企业微信 Webhook
+    # WeCom(기업용 위챗) Webhook
     wechat_webhook_url: Optional[str] = None
     
-    # 飞书 Webhook
+    # Feishu Webhook
     feishu_webhook_url: Optional[str] = None
-    feishu_webhook_secret: Optional[str] = None  # 自定义机器人签名密钥（可选）
-    feishu_webhook_keyword: Optional[str] = None  # 自定义机器人关键词（可选）
+    feishu_webhook_secret: Optional[str] = None  # 사용자 정의 봇 서명 키(선택)
+    feishu_webhook_keyword: Optional[str] = None  # 사용자 정의 봇 키워드(선택)
     dingtalk_webhook_url: Optional[str] = None
     dingtalk_secret: Optional[str] = None
 
-    # 飞书应用机器人（App Bot）通知
-    feishu_chat_id: Optional[str] = None  # 目标群会话 chat_id（群聊模式），或用户 open_id（P2P 模式）
-    feishu_receive_id_type: str = "chat_id"  # 接收者 ID 类型: "chat_id"(群聊) / "open_id"(私聊)
-    feishu_domain: str = "feishu"  # 飞书域名: "feishu"(feishu.cn) / "lark"(larksuite.com)
+    # Feishu 앱 봇(App Bot) 알림
+    feishu_chat_id: Optional[str] = None  # 대상 그룹 대화 chat_id(그룹 모드) 또는 사용자 open_id(1:1 모드)
+    feishu_receive_id_type: str = "chat_id"  # 수신자 ID 종류: "chat_id"(그룹) / "open_id"(1:1)
+    feishu_domain: str = "feishu"  # Feishu 도메인: "feishu"(feishu.cn) / "lark"(larksuite.com)
     
-    # Telegram 配置（需要同时配置 Bot Token 和 Chat ID）
-    telegram_bot_token: Optional[str] = None  # Bot Token（@BotFather 获取）
+    # Telegram 설정(Bot Token과 Chat ID를 함께 설정해야 함)
+    telegram_bot_token: Optional[str] = None  # Bot Token(@BotFather에서 발급)
     telegram_chat_id: Optional[str] = None  # Chat ID
     telegram_message_thread_id: Optional[str] = None  # Topic ID (Message Thread ID) for groups
     
-    # 邮件配置（只需邮箱和授权码，SMTP 自动识别）
-    email_sender: Optional[str] = None  # 发件人邮箱
-    email_sender_name: str = "daily_stock_analysis股票分析助手"  # 发件人显示名称
-    email_password: Optional[str] = None  # 邮箱密码/授权码
-    email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
+    # 이메일 설정(주소와 인증 코드만 있으면 SMTP 자동 인식)
+    email_sender: Optional[str] = None  # 보내는 사람 이메일
+    email_sender_name: str = "daily_stock_analysis股票分析助手"  # 보내는 사람 표시 이름
+    email_password: Optional[str] = None  # 이메일 비밀번호/인증 코드
+    email_receivers: List[str] = field(default_factory=list)  # 받는 사람 목록(비워 두면 나에게 발송)
 
     # Stock-to-email group routing (Issue #268): STOCK_GROUP_N + EMAIL_GROUP_N
     # When configured, each group's report is sent to that group's emails only.
     stock_email_groups: List[Tuple[List[str], List[str]]] = field(default_factory=list)
 
-    # Pushover 配置（手机/桌面推送通知）
-    pushover_user_key: Optional[str] = None  # 用户 Key（https://pushover.net 获取）
-    pushover_api_token: Optional[str] = None  # 应用 API Token
+    # Pushover 설정(휴대폰/데스크톱 푸시 알림)
+    pushover_user_key: Optional[str] = None  # 사용자 Key(https://pushover.net 에서 발급)
+    pushover_api_token: Optional[str] = None  # 앱 API Token
 
-    # ntfy 配置（完整 topic endpoint，例如 https://ntfy.sh/my-topic）
+    # ntfy 설정(전체 topic endpoint, 예: https://ntfy.sh/my-topic)
     ntfy_url: Optional[str] = None
     ntfy_token: Optional[str] = None
 
-    # Gotify 配置（server base URL；sender 会拼接 /message）
+    # Gotify 설정(server base URL; sender가 /message를 붙임)
     gotify_url: Optional[str] = None
     gotify_token: Optional[str] = None
     
-    # 自定义 Webhook（支持多个，逗号分隔）
-    # 适用于：钉钉、Discord、Slack、自建服务等任意支持 POST JSON 的 Webhook
+    # 사용자 정의 Webhook(여러 개 가능, 쉼표로 구분)
+    # 대상: DingTalk, Discord, Slack, 직접 운영 서비스 등 POST JSON을 받는 모든 Webhook
     custom_webhook_urls: List[str] = field(default_factory=list)
-    custom_webhook_bearer_token: Optional[str] = None  # Bearer Token（用于需要认证的 Webhook）
-    custom_webhook_body_template: Optional[str] = None  # 自定义 Webhook JSON body 模板
-    webhook_verify_ssl: bool = True  # Webhook HTTPS 证书校验，false 可支持自签名（有 MITM 风险）
+    custom_webhook_bearer_token: Optional[str] = None  # Bearer Token(인증이 필요한 Webhook용)
+    custom_webhook_body_template: Optional[str] = None  # 사용자 정의 Webhook JSON body 템플릿
+    webhook_verify_ssl: bool = True  # Webhook HTTPS 인증서 검사, false면 자체 서명 인증서 허용(MITM 위험 있음)
 
-    # Discord 通知配置
+    # Discord 알림 설정
     discord_bot_token: Optional[str] = None  # Discord Bot Token
-    discord_main_channel_id: Optional[str] = None  # Discord 主频道 ID
+    discord_main_channel_id: Optional[str] = None  # Discord 메인 채널 ID
     discord_webhook_url: Optional[str] = None  # Discord Webhook URL
-    discord_interactions_public_key: Optional[str] = None  # Discord Interaction 入站验签公钥
+    discord_interactions_public_key: Optional[str] = None  # Discord Interaction 수신 서명 검증용 공개 키
 
-    # Slack 通知配置
+    # Slack 알림 설정
     slack_webhook_url: Optional[str] = None  # Slack Incoming Webhook URL
     slack_bot_token: Optional[str] = None  # Slack Bot Token (xoxb-...)
-    slack_channel_id: Optional[str] = None  # Slack 频道 ID (Bot 模式必填)
+    slack_channel_id: Optional[str] = None  # Slack 채널 ID (Bot 모드에서는 필수)
 
-    # AstrBot 通知配置
+    # AstrBot 알림 설정
     astrbot_token: Optional[str] = None
     astrbot_url: Optional[str] = None
 
-    # 通知路由策略（Issue #1200 P3）：留空表示该类型使用全部已配置渠道
+    # 알림 라우팅 정책(Issue #1200 P3): 비워 두면 해당 유형은 설정된 모든 채널 사용
     notification_report_channels: List[str] = field(default_factory=list)
     notification_alert_channels: List[str] = field(default_factory=list)
     notification_system_error_channels: List[str] = field(default_factory=list)
 
-    # 通知降噪机制（Issue #1200 P4）：默认全部关闭，仅对静态通知渠道生效
+    # 알림 줄이기 기능(Issue #1200 P4): 기본은 모두 꺼짐, 정적 알림 채널에만 적용
     notification_dedup_ttl_seconds: int = 0
     notification_cooldown_seconds: int = 0
     notification_quiet_hours: str = ""
@@ -1229,14 +1229,14 @@ class Config:
     notification_min_severity: str = ""
     notification_daily_digest_enabled: bool = False
 
-    # 单股推送模式：每分析完一只股票立即推送，而不是汇总后推送
+    # 종목별 발송 모드: 모아서 보내지 않고 종목 하나 분석이 끝날 때마다 바로 발송
     single_stock_notify: bool = False
 
-    # 报告类型：simple(精简) 或 full(完整)
+    # 리포트 종류: simple(간단) 또는 full(전체)
     report_type: str = "simple"
     report_language: str = "zh"
 
-    # 仅分析结果摘要：true 时只推送汇总，不含个股详情（Issue #262）
+    # 분석 결과 요약만: true면 요약만 보내고 종목별 상세는 제외(Issue #262)
     report_summary_only: bool = False
     report_show_llm_model: bool = True
 
@@ -1247,56 +1247,56 @@ class Config:
     report_integrity_retry: int = 1  # Retry count when mandatory fields missing (0 = placeholder only)
     report_history_compare_n: int = 0  # History comparison count (0 = disabled)
 
-    # PushPlus 推送配置
+    # PushPlus 발송 설정
     pushplus_token: Optional[str] = None  # PushPlus Token
-    pushplus_topic: Optional[str] = None  # PushPlus 群组编码（一对多推送）
+    pushplus_topic: Optional[str] = None  # PushPlus 그룹 코드(여러 명에게 발송)
 
-    # Server酱3 推送配置
-    serverchan3_sendkey: Optional[str] = None  # Server酱3 SendKey
+    # ServerChan3 발송 설정
+    serverchan3_sendkey: Optional[str] = None  # ServerChan3 SendKey
 
-    # 分析间隔时间（秒）- 用于避免API限流
-    analysis_delay: float = 0.0  # 个股分析与大盘分析之间的延迟
+    # 분석 간격(초) - API 요청 제한을 피하기 위함
+    analysis_delay: float = 0.0  # 종목 분석과 시장 전체 분석 사이의 대기 시간
 
     # Merge stock + market report into one notification (Issue #190)
     merge_email_notification: bool = False
 
-    # 消息长度限制（字节）- 超长自动分批发送
-    feishu_max_bytes: int = 20000  # 飞书限制约 20KB，默认 20000 字节
-    feishu_send_as_file: bool = False  # 飞书是否以文件形式发送报告（默认文字消息）
-    wechat_max_bytes: int = 4000   # 企业微信限制 4096 字节，默认 4000 字节
-    discord_max_words: int = 2000  # Discord 限制 2000 字，默认 2000 字
-    wechat_msg_type: str = "markdown"  # 企业微信消息类型，默认 markdown 类型
+    # 메시지 길이 제한(바이트) - 너무 길면 자동으로 나눠 발송
+    feishu_max_bytes: int = 20000  # Feishu 제한 약 20KB, 기본 20000바이트
+    feishu_send_as_file: bool = False  # Feishu에서 리포트를 파일로 보낼지 여부(기본은 텍스트 메시지)
+    wechat_max_bytes: int = 4000   # WeCom 제한 4096바이트, 기본 4000바이트
+    discord_max_words: int = 2000  # Discord 제한 2000자, 기본 2000자
+    wechat_msg_type: str = "markdown"  # WeCom 메시지 종류, 기본은 markdown
 
-    # Markdown 转图片（Issue #289）：对不支持 Markdown 的渠道以图片发送
-    markdown_to_image_channels: List[str] = field(default_factory=list)  # 逗号分隔：telegram,wechat,custom,email
-    markdown_to_image_max_chars: int = 15000  # 超过此长度不转换，避免超大图片
+    # Markdown을 이미지로 변환(Issue #289): Markdown을 지원하지 않는 채널에는 이미지로 발송
+    markdown_to_image_channels: List[str] = field(default_factory=list)  # 쉼표로 구분: telegram,wechat,custom,email
+    markdown_to_image_max_chars: int = 15000  # 이 길이를 넘으면 변환하지 않음(너무 큰 이미지 방지)
     md2img_engine: str = "wkhtmltoimage"  # wkhtmltoimage | markdown-to-file | playwright
     share_image_xiaohongshu_url: Optional[str] = None
     share_image_xiaohongshu_handle: Optional[str] = None
     share_image_xiaohongshu_id: Optional[str] = None
     share_image_xiaohongshu_qr_path: Optional[str] = None
 
-    # 实时行情预取（Issue #455）：设为 false 可禁用，避免 efinance/akshare_em 全市场拉取
+    # 실시간 시세 미리 받기(Issue #455): false면 끔, efinance/akshare_em 전체 시장 수집을 피함
     prefetch_realtime_quotes: bool = True
 
-    # === 数据库配置 ===
+    # === 데이터베이스 설정 ===
     database_path: str = "./data/stock_analysis.db"
     sqlite_wal_enabled: bool = True
     sqlite_busy_timeout_ms: int = 5000
     sqlite_write_retry_max: int = 3
     sqlite_write_retry_base_delay: float = 0.1
 
-    # 是否保存分析上下文快照（用于历史回溯）
+    # 분석 컨텍스트 스냅샷 저장 여부(이력 조회용)
     save_context_snapshot: bool = True
 
-    # === 回测配置 ===
+    # === 백테스트 설정 ===
     backtest_enabled: bool = True
     backtest_eval_window_days: int = 10
     backtest_min_age_days: int = 14
     backtest_engine_version: str = "v1"
     backtest_neutral_band_pct: float = 2.0
 
-    # === ETF 轮动配置（仅 --etf-rotation 使用）===
+    # === ETF 로테이션 설정(--etf-rotation 에서만 사용) ===
     etf_rotation_pool: List[str] = field(default_factory=lambda: list(DEFAULT_ETF_ROTATION_POOL))
     etf_rotation_safe_asset: str = DEFAULT_ETF_ROTATION_SAFE_ASSET
     etf_rotation_lookback_days: int = 60
@@ -1306,66 +1306,66 @@ class Config:
     etf_rotation_cost_bps: float = 10.0
     etf_rotation_backtest_years: int = 8
     
-    # === 日志配置 ===
-    log_dir: str = "./logs"  # 日志文件目录
-    log_level: str = "INFO"  # 日志级别
+    # === 로그 설정 ===
+    log_dir: str = "./logs"  # 로그 파일 폴더
+    log_level: str = "INFO"  # 로그 레벨
     
-    # === 系统配置 ===
-    max_workers: int = 3  # 低并发防封禁
+    # === 시스템 설정 ===
+    max_workers: int = 3  # 동시 실행 수를 낮춰 차단 방지
     debug: bool = False
-    http_proxy: Optional[str] = None  # HTTP 代理 (例如: http://127.0.0.1:10809)
-    https_proxy: Optional[str] = None # HTTPS 代理
+    http_proxy: Optional[str] = None  # HTTP 프록시 (예: http://127.0.0.1:10809)
+    https_proxy: Optional[str] = None # HTTPS 프록시
     
-    # === 定时任务配置 ===
-    schedule_enabled: bool = False            # 是否启用定时任务
-    schedule_time: str = "18:00"              # 每日推送时间（HH:MM 格式）
+    # === 예약 작업 설정 ===
+    schedule_enabled: bool = False            # 예약 작업 사용 여부
+    schedule_time: str = "18:00"              # 매일 발송 시각(HH:MM 형식)
     schedule_times: List[str] = field(default_factory=lambda: ["18:00"])
-    schedule_run_immediately: bool = True     # 启动时是否立即执行一次
-    # 定时模式启动立即执行的当日去重开关：当天已有成功全量分析记录时跳过启动补跑；
-    # 设为 false 可完全旁路该行为（回到上游"每次启动都立即执行"的现状）
+    schedule_run_immediately: bool = True     # 시작할 때 바로 한 번 실행할지 여부
+    # 예약 모드 시작 시 즉시 실행의 당일 중복 방지 스위치: 그날 전체 분석 성공 기록이 있으면 시작 시 재실행을 건너뜀;
+    # false로 두면 이 동작을 완전히 끔(원래의 "시작할 때마다 바로 실행" 방식으로 돌아감)
     schedule_startup_dedup: bool = True
-    run_immediately: bool = True              # 启动时是否立即执行一次（非定时模式）
-    market_review_enabled: bool = True        # 是否启用大盘复盘
-    daily_market_context_enabled: bool = True   # 是否将大盘环境摘要用于个股分析 Prompt 与保守护栏
-    # 大盘复盘市场区域：cn(A股)、hk(港股)、us(美股)、jp(日股)、kr(韩股)、both(全部市场)
+    run_immediately: bool = True              # 시작할 때 바로 한 번 실행할지 여부(예약 모드가 아닐 때)
+    market_review_enabled: bool = True        # 시장 전체 리뷰 사용 여부
+    daily_market_context_enabled: bool = True   # 시장 환경 요약을 종목 분석 Prompt와 보수적 안전장치에 쓸지 여부
+    # 시장 리뷰 대상 지역: cn(중국 A주), hk(홍콩), us(미국), jp(일본), kr(한국), both(전체 시장)
     market_review_region: str = "cn"
     market_review_color_scheme: str = "green_up"
-    # 交易日检查：默认启用，非交易日跳过执行；设为 false 或 --force-run 可强制执行（Issue #373）
+    # 거래일 확인: 기본 켜짐, 휴장일에는 실행 건너뜀; false 또는 --force-run 으로 강제 실행 가능(Issue #373)
     trading_day_check_enabled: bool = True
 
-    # === 实时行情增强数据配置 ===
-    # 实时行情开关（关闭后使用历史收盘价进行分析）
+    # === 실시간 시세 보강 데이터 설정 ===
+    # 실시간 시세 스위치(끄면 과거 종가로 분석)
     enable_realtime_quote: bool = True
-    # 盘中实时技术面：启用时用实时价计算 MA/多头排列（Issue #234）；关闭则用昨日收盘
+    # 장중 실시간 기술 지표: 켜면 실시간 가격으로 MA/정배열 계산(Issue #234); 끄면 전일 종가 사용
     enable_realtime_technical_indicators: bool = True
-    # 筹码分布开关（该接口不稳定，云端部署建议关闭）
+    # 매물대(보유 원가 분포) 스위치(이 API는 불안정해서 클라우드 배포 시 끄기를 권장)
     enable_chip_distribution: bool = True
-    # 东财接口补丁开关
+    # Eastmoney API 패치 스위치
     enable_eastmoney_patch: bool = False
-    # 实时行情数据源优先级（逗号分隔）
-    # 推荐顺序：tencent > akshare_sina > efinance > akshare_em > tushare
-    # - tencent: 腾讯财经，有量比/换手率/市盈率等，单股查询稳定（推荐）
-    # - akshare_sina: 新浪财经，基本行情稳定，但无量比
-    # - efinance/akshare_em: 东财全量接口，数据最全但容易被封
-    # - tushare: Tushare Pro，需要2000积分，数据全面（付费用户可优先使用）
+    # 실시간 시세 데이터 소스 우선순위(쉼표로 구분)
+    # 추천 순서: tencent > akshare_sina > efinance > akshare_em > tushare
+    # - tencent: Tencent 금융, 거래량 비율/회전율/PER 등 제공, 종목별 조회 안정적(추천)
+    # - akshare_sina: Sina 금융, 기본 시세는 안정적이나 거래량 비율 없음
+    # - efinance/akshare_em: Eastmoney 전체 시장 API, 데이터가 가장 풍부하지만 차단되기 쉬움
+    # - tushare: Tushare Pro, 2000포인트 필요, 데이터 풍부(유료 사용자는 우선 사용 가능)
     realtime_source_priority: str = "tencent,akshare_sina,efinance,akshare_em"
-    # 实时行情缓存时间（秒）
+    # 실시간 시세 캐시 시간(초)
     realtime_cache_ttl: int = 600
-    # 熔断器冷却时间（秒）
+    # 서킷 브레이커 대기 시간(초)
     circuit_breaker_cooldown: int = 300
 
-    # === 基本面聚合开关与降级保护 ===
-    # 全局总开关；关闭时返回 not_supported 并保持主流程无变化
+    # === 기본적 분석(펀더멘털) 수집 스위치와 장애 대비 보호 ===
+    # 전체 스위치; 끄면 not_supported를 돌려주고 기본 흐름은 그대로 유지
     enable_fundamental_pipeline: bool = True
-    # 基本面阶段总预算（秒）
+    # 펀더멘털 단계 전체 시간 예산(초)
     fundamental_stage_timeout_seconds: float = FUNDAMENTAL_STAGE_TIMEOUT_SECONDS_DEFAULT
-    # 单能力源调用超时（秒）
+    # 소스 1개 호출 제한 시간(초)
     fundamental_fetch_timeout_seconds: float = 8.0
-    # 单能力失败重试次数（已包含首次）
+    # 항목별 실패 시 재시도 횟수(첫 시도 포함)
     fundamental_retry_max: int = 1
-    # 基本面上下文短 TTL（秒）
+    # 펀더멘털 컨텍스트 짧은 TTL(초)
     fundamental_cache_ttl_seconds: int = 120
-    # 基本面缓存最大条目数（避免长时间运行内存增长）
+    # 펀더멘털 캐시 최대 항목 수(오래 실행할 때 메모리 증가 방지)
     fundamental_cache_max_entries: int = 256
 
     # === Portfolio PR2: import/risk/fx settings ===
@@ -1376,54 +1376,54 @@ class Config:
     portfolio_risk_lookback_days: int = 180
     portfolio_fx_update_enabled: bool = True
 
-    # Discord 机器人状态
+    # Discord 봇 상태
     discord_bot_status: str = "A股智能分析 | /help"
 
-    # === 流控配置（防封禁关键参数）===
-    # Akshare 请求间隔范围（秒）
+    # === 요청 속도 제어 설정(차단 방지 핵심 값) ===
+    # Akshare 요청 간격 범위(초)
     akshare_sleep_min: float = 2.0
     akshare_sleep_max: float = 5.0
     
-    # Tushare 每分钟最大请求数（免费配额）
+    # Tushare 분당 최대 요청 수(무료 한도)
     tushare_rate_limit_per_minute: int = 80
     
-    # 重试配置
+    # 재시도 설정
     max_retries: int = 3
     retry_base_delay: float = 1.0
     retry_max_delay: float = 30.0
     
-    # === WebUI 配置 ===
+    # === WebUI 설정 ===
     webui_enabled: bool = False
     webui_host: str = "127.0.0.1"
     webui_port: int = 8000
     
-    # === 机器人配置 ===
-    bot_enabled: bool = True              # 是否启用机器人功能
-    bot_command_prefix: str = "/"         # 命令前缀
-    bot_rate_limit_requests: int = 10     # 频率限制：窗口内最大请求数
-    bot_rate_limit_window: int = 60       # 频率限制：窗口时间（秒）
-    bot_admin_users: List[str] = field(default_factory=list)  # 管理员用户 ID 列表
+    # === 봇 설정 ===
+    bot_enabled: bool = True              # 봇 기능 사용 여부
+    bot_command_prefix: str = "/"         # 명령어 접두사
+    bot_rate_limit_requests: int = 10     # 빈도 제한: 시간 창 안의 최대 요청 수
+    bot_rate_limit_window: int = 60       # 빈도 제한: 시간 창 길이(초)
+    bot_admin_users: List[str] = field(default_factory=list)  # 관리자 사용자 ID 목록
     
-    # 飞书机器人（事件订阅）- 已有 feishu_app_id, feishu_app_secret
-    feishu_verification_token: Optional[str] = None  # 事件订阅验证 Token
-    feishu_encrypt_key: Optional[str] = None         # 消息加密密钥（可选）
-    feishu_stream_enabled: bool = False              # 是否启用 Stream 长连接模式（无需公网IP）
+    # Feishu 봇(이벤트 구독) - feishu_app_id, feishu_app_secret 은 위에 있음
+    feishu_verification_token: Optional[str] = None  # 이벤트 구독 검증 Token
+    feishu_encrypt_key: Optional[str] = None         # 메시지 암호화 키(선택)
+    feishu_stream_enabled: bool = False              # Stream 상시 연결 모드 사용 여부(공인 IP 불필요)
     
-    # 钉钉机器人
-    dingtalk_app_key: Optional[str] = None      # 应用 AppKey
-    dingtalk_app_secret: Optional[str] = None   # 应用 AppSecret
-    dingtalk_stream_enabled: bool = False       # 是否启用 Stream 模式（无需公网IP）
+    # DingTalk 봇
+    dingtalk_app_key: Optional[str] = None      # 앱 AppKey
+    dingtalk_app_secret: Optional[str] = None   # 앱 AppSecret
+    dingtalk_stream_enabled: bool = False       # Stream 모드 사용 여부(공인 IP 불필요)
     
-    # 企业微信机器人（回调模式）
-    wecom_corpid: Optional[str] = None              # 企业 ID
-    wecom_token: Optional[str] = None               # 回调 Token
-    wecom_encoding_aes_key: Optional[str] = None    # 消息加解密密钥
-    wecom_agent_id: Optional[str] = None            # 应用 AgentId
+    # WeCom 봇(콜백 모드)
+    wecom_corpid: Optional[str] = None              # 기업 ID
+    wecom_token: Optional[str] = None               # 콜백 Token
+    wecom_encoding_aes_key: Optional[str] = None    # 메시지 암호화/복호화 키
+    wecom_agent_id: Optional[str] = None            # 앱 AgentId
     
-    # Telegram 机器人 - 已有 telegram_bot_token, telegram_chat_id
-    telegram_webhook_secret: Optional[str] = None   # Webhook 密钥
+    # Telegram 봇 - telegram_bot_token, telegram_chat_id 는 위에 있음
+    telegram_webhook_secret: Optional[str] = None   # Webhook 비밀 키
 
-    # === 配置校验模式 ===
+    # === 설정 검증 모드 ===
     # CONFIG_VALIDATE_MODE=warn (default): log all issues but always continue startup
     # CONFIG_VALIDATE_MODE=strict: exit(1) when any "error" severity issue is found
     config_validate_mode: str = "warn"
@@ -1483,18 +1483,18 @@ class Config:
         if normalized_profile != self.agent_context_compression_profile:
             object.__setattr__(self, "agent_context_compression_profile", normalized_profile)
 
-    # 单例实例存储
+    # 싱글턴 인스턴스 저장
     _instance: Optional['Config'] = None
     
     @classmethod
     def get_instance(cls) -> 'Config':
         """
-        获取配置单例实例
+        설정 싱글턴 인스턴스 가져오기
         
-        单例模式确保：
-        1. 全局只有一个配置实例
-        2. 配置只从环境变量加载一次
-        3. 所有模块共享相同配置
+        싱글턴 패턴이 보장하는 것:
+        1. 전역에 설정 인스턴스는 하나뿐
+        2. 설정은 환경 변수에서 한 번만 불러옴
+        3. 모든 모듈이 같은 설정을 공유
         """
         if cls._instance is None:
             cls._instance = cls._load_from_env()
@@ -1503,62 +1503,62 @@ class Config:
     @classmethod
     def _load_from_env(cls) -> 'Config':
         """
-        从 .env 文件加载配置
+        .env 파일에서 설정 불러오기
         
-        加载优先级：
-        1. 大多数配置保持系统环境变量优先
-        2. WebUI 可写的运行期关键键优先复用持久化 `.env`，但保留启动时显式进程环境变量的 override
-        3. 代码中的默认值
+        불러오는 우선순위:
+        1. 대부분의 설정은 시스템 환경 변수가 우선
+        2. WebUI에서 바꿀 수 있는 실행 중 핵심 키는 저장된 `.env` 값을 먼저 쓰되, 시작할 때 명시한 프로세스 환경 변수의 override는 유지
+        3. 코드에 적힌 기본값
         """
         cls._capture_bootstrap_runtime_env_overrides()
         preexisting_report_language = os.environ.get("REPORT_LANGUAGE")
 
-        # 确保环境变量已加载
+        # 환경 변수가 불러와졌는지 확인
         setup_env()
 
-        # === 智能代理配置 (关键修复) ===
-        # 如果配置了代理，自动设置 NO_PROXY 以排除国内数据源，避免行情获取失败
+        # === 스마트 프록시 설정 (중요 수정) ===
+        # 프록시를 설정했다면 NO_PROXY를 자동 설정해 중국 내 데이터 소스는 프록시를 거치지 않게 함(시세 수집 실패 방지)
         http_proxy = os.getenv('HTTP_PROXY') or os.getenv('http_proxy')
         if http_proxy:
-            # 国内金融数据源域名列表
+            # 중국 내 금융 데이터 소스 도메인 목록
             domestic_domains = [
-                'eastmoney.com',   # 东方财富 (Efinance/Akshare)
-                'sina.com.cn',     # 新浪财经 (Akshare)
-                '163.com',         # 网易财经 (Akshare)
+                'eastmoney.com',   # Eastmoney (Efinance/Akshare)
+                'sina.com.cn',     # Sina 금융 (Akshare)
+                '163.com',         # NetEase 금융 (Akshare)
                 'tushare.pro',     # Tushare
                 'baostock.com',    # Baostock
-                'sse.com.cn',      # 上交所
-                'szse.cn',         # 深交所
-                'csindex.com.cn',  # 中证指数
-                'cninfo.com.cn',   # 巨潮资讯
+                'sse.com.cn',      # 상하이 증권거래소
+                'szse.cn',         # 선전 증권거래소
+                'csindex.com.cn',  # CSI 지수 회사
+                'cninfo.com.cn',   # CNINFO(공시 사이트)
                 'localhost',
                 '127.0.0.1'
             ]
 
-            # 获取现有的 no_proxy
+            # 기존 no_proxy 가져오기
             current_no_proxy = os.getenv('NO_PROXY') or os.getenv('no_proxy') or ''
             existing_domains = current_no_proxy.split(',') if current_no_proxy else []
 
-            # 合并去重
+            # 합치고 중복 제거
             final_domains = list(set(existing_domains + domestic_domains))
             final_no_proxy = ','.join(filter(None, final_domains))
 
-            # 设置环境变量 (requests/urllib3/aiohttp 都会遵守此设置)
+            # 환경 변수 설정 (requests/urllib3/aiohttp 모두 이 설정을 따름)
             os.environ['NO_PROXY'] = final_no_proxy
             os.environ['no_proxy'] = final_no_proxy
 
-            # 确保 HTTP_PROXY 也被正确设置（以防仅在 .env 中定义但未导出）
+            # HTTP_PROXY도 제대로 설정되게 함(.env에만 있고 export 되지 않은 경우 대비)
             os.environ['HTTP_PROXY'] = http_proxy
             os.environ['http_proxy'] = http_proxy
 
-            # HTTPS_PROXY 同理
+            # HTTPS_PROXY도 마찬가지
             https_proxy = os.getenv('HTTPS_PROXY') or os.getenv('https_proxy')
             if https_proxy:
                 os.environ['HTTPS_PROXY'] = https_proxy
                 os.environ['https_proxy'] = https_proxy
 
         
-        # 解析自选股列表（逗号分隔，统一为大写 Issue #355）
+        # 관심종목 목록 해석(쉼표로 구분, 모두 대문자로 통일 Issue #355)
         stock_list_str = cls._resolve_env_value(
             'STOCK_LIST',
             default='',
@@ -1814,7 +1814,7 @@ class Config:
             maximum=20,
         )
 
-        # 解析搜索引擎 API Keys（支持多个 key，逗号分隔）
+        # 검색 엔진 API Keys 해석(여러 key 가능, 쉼표로 구분)
         bocha_keys_str = os.getenv('BOCHA_API_KEYS', '')
         bocha_api_keys = [k.strip() for k in bocha_keys_str.split(',') if k.strip()]
 
@@ -1841,7 +1841,7 @@ class Config:
                 invalid_searxng_urls.append(u)
         if invalid_searxng_urls:
             logger.warning(
-                "SEARXNG_BASE_URLS 中存在无效 URL，已忽略: %s",
+                "SEARXNG_BASE_URLS 에 잘못된 URL이 있어 무시함: %s",
                 ", ".join(invalid_searxng_urls[:3]),
             )
         searxng_public_instances_enabled = parse_env_bool(
@@ -1849,7 +1849,7 @@ class Config:
             default=False,
         )
 
-        # 企微消息类型与最大字节数逻辑
+        # WeCom 메시지 종류와 최대 바이트 수 처리
         wechat_msg_type = os.getenv('WECHAT_MSG_TYPE', 'markdown')
         wechat_msg_type_lower = wechat_msg_type.lower()
         wechat_max_bytes_env = os.getenv('WECHAT_MAX_BYTES')
@@ -1861,7 +1861,7 @@ class Config:
                 minimum=1,
             )
         else:
-            # 未显式配置时，根据消息类型选择默认字节数
+            # 따로 설정하지 않았으면 메시지 종류에 따라 기본 바이트 수 선택
             wechat_max_bytes = 2048 if wechat_msg_type_lower == 'text' else 4000
 
         # Preserve historical semantics for startup flags: only an explicit
@@ -2362,42 +2362,42 @@ class Config:
             webui_enabled=os.getenv('WEBUI_ENABLED', 'false').lower() == 'true',
             webui_host=os.getenv('WEBUI_HOST', '127.0.0.1'),
             webui_port=parse_env_int(os.getenv('WEBUI_PORT'), 8000, field_name='WEBUI_PORT', minimum=1, maximum=65535),
-            # 机器人配置
+            # 봇 설정
             bot_enabled=os.getenv('BOT_ENABLED', 'true').lower() == 'true',
             bot_command_prefix=os.getenv('BOT_COMMAND_PREFIX', '/'),
             bot_rate_limit_requests=parse_env_int(os.getenv('BOT_RATE_LIMIT_REQUESTS'), 10, field_name='BOT_RATE_LIMIT_REQUESTS', minimum=1),
             bot_rate_limit_window=parse_env_int(os.getenv('BOT_RATE_LIMIT_WINDOW'), 60, field_name='BOT_RATE_LIMIT_WINDOW', minimum=1),
             bot_admin_users=[u.strip() for u in os.getenv('BOT_ADMIN_USERS', '').split(',') if u.strip()],
-            # 飞书机器人
+            # Feishu 봇
             feishu_verification_token=os.getenv('FEISHU_VERIFICATION_TOKEN'),
             feishu_encrypt_key=os.getenv('FEISHU_ENCRYPT_KEY'),
             feishu_stream_enabled=os.getenv('FEISHU_STREAM_ENABLED', 'false').lower() == 'true',
-            # 钉钉机器人
+            # DingTalk 봇
             dingtalk_app_key=os.getenv('DINGTALK_APP_KEY'),
             dingtalk_app_secret=os.getenv('DINGTALK_APP_SECRET'),
             dingtalk_stream_enabled=os.getenv('DINGTALK_STREAM_ENABLED', 'false').lower() == 'true',
-            # 企业微信机器人
+            # WeCom 봇
             wecom_corpid=os.getenv('WECOM_CORPID'),
             wecom_token=os.getenv('WECOM_TOKEN'),
             wecom_encoding_aes_key=os.getenv('WECOM_ENCODING_AES_KEY'),
             wecom_agent_id=os.getenv('WECOM_AGENT_ID'),
             # Telegram
             telegram_webhook_secret=os.getenv('TELEGRAM_WEBHOOK_SECRET'),
-            # Discord 机器人扩展配置
+            # Discord 봇 추가 설정
             discord_bot_status=os.getenv('DISCORD_BOT_STATUS', 'A股智能分析 | /help'),
-            # 实时行情增强数据配置
+            # 실시간 시세 보강 데이터 설정
             enable_realtime_quote=os.getenv('ENABLE_REALTIME_QUOTE', 'true').lower() == 'true',
             enable_realtime_technical_indicators=os.getenv(
                 'ENABLE_REALTIME_TECHNICAL_INDICATORS', 'true'
             ).lower() == 'true',
             enable_chip_distribution=os.getenv('ENABLE_CHIP_DISTRIBUTION', 'true').lower() == 'true',
-            # 东财接口补丁开关
+            # Eastmoney API 패치 스위치
             enable_eastmoney_patch=os.getenv('ENABLE_EASTMONEY_PATCH', 'false').lower() == 'true',
-            # 实时行情数据源优先级：
-            # - tencent: 腾讯财经，有量比/换手率/PE/PB等，单股查询稳定（推荐）
-            # - akshare_sina: 新浪财经，基本行情稳定，但无量比
-            # - efinance/akshare_em: 东财全量接口，数据最全但容易被封
-            # - tushare: Tushare Pro，需要2000积分，数据全面
+            # 실시간 시세 데이터 소스 우선순위:
+            # - tencent: Tencent 금융, 거래량 비율/회전율/PE/PB 등 제공, 종목별 조회 안정적(추천)
+            # - akshare_sina: Sina 금융, 기본 시세는 안정적이나 거래량 비율 없음
+            # - efinance/akshare_em: Eastmoney 전체 시장 API, 데이터가 가장 풍부하지만 차단되기 쉬움
+            # - tushare: Tushare Pro, 2000포인트 필요, 데이터 풍부
             realtime_source_priority=cls._resolve_realtime_source_priority(),
             realtime_cache_ttl=parse_env_int(os.getenv('REALTIME_CACHE_TTL'), 600, field_name='REALTIME_CACHE_TTL', minimum=0),
             circuit_breaker_cooldown=parse_env_int(os.getenv('CIRCUIT_BREAKER_COOLDOWN'), 300, field_name='CIRCUIT_BREAKER_COOLDOWN', minimum=0),
@@ -2772,7 +2772,7 @@ class Config:
 
         Mapping follows:
         - LiteLLM providers: https://docs.litellm.ai/docs/providers
-        - LiteLLM model_list 语义: https://docs.litellm.ai/docs/proxy/configs#the-model_list-key
+        - LiteLLM model_list 의미: https://docs.litellm.ai/docs/proxy/configs#the-model_list-key
         """
         surface_conflicts = find_llm_channel_surface_conflicts(channels)
         if surface_conflicts:
@@ -2837,8 +2837,8 @@ class Config:
         LITELLM_FALLBACK_MODELS.
 
         Compatibility note:
-        - LiteLLM OpenAI-compatible 约定: https://docs.litellm.ai/docs/providers/openai_compatible
-        - OpenAI 请求与鉴权约定: https://platform.openai.com/docs/api-reference/making-requests
+        - LiteLLM OpenAI-compatible 규칙: https://docs.litellm.ai/docs/providers/openai_compatible
+        - OpenAI 요청·인증 규칙: https://platform.openai.com/docs/api-reference/making-requests
           / https://platform.openai.com/docs/api-reference/authentication
         """
         model_list: List[Dict[str, Any]] = []
@@ -3104,13 +3104,13 @@ class Config:
 
     @classmethod
     def _parse_market_review_region(cls, value: str) -> str:
-        """解析大盘复盘市场区域，非法值记录警告后回退为 cn"""
+        """시장 리뷰 지역을 해석. 잘못된 값이면 경고를 남기고 cn으로 되돌림"""
         normalized = normalize_market_review_region_lenient(value)
         if normalized is not None:
             return normalized
 
         logging.getLogger(__name__).warning(
-            f"MARKET_REVIEW_REGION 配置值 '{value}' 无效，已回退为默认值 'cn'（合法值：cn / hk / us / jp / kr / both；支持逗号分隔有效值）"
+            f"MARKET_REVIEW_REGION 설정값 '{value}' 이(가) 잘못되어 기본값 'cn'으로 되돌림(허용 값: cn / hk / us / jp / kr / both; 쉼표로 여러 개 지정 가능)"
         )
         return 'cn'
 
@@ -3122,7 +3122,7 @@ class Config:
         if v in ('green_up', 'red_up'):
             return v
         logging.getLogger(__name__).warning(
-            "MARKET_REVIEW_COLOR_SCHEME 配置值 '%s' 无效，已回退为默认值 'green_up'（合法值：green_up / red_up）",
+            "MARKET_REVIEW_COLOR_SCHEME 설정값 '%s' 이(가) 잘못되어 기본값 'green_up'으로 되돌림(허용 값: green_up / red_up)",
             value,
         )
         return 'green_up'
@@ -3173,7 +3173,7 @@ class Config:
 
     @classmethod
     def reset_instance(cls) -> None:
-        """重置单例（主要用于测试）"""
+        """싱글턴 초기화(주로 테스트용)"""
         cls._instance = None
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES_CAPTURED = False
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES = frozenset()
@@ -3235,23 +3235,23 @@ class Config:
 
     def refresh_stock_list(self) -> None:
         """
-        热读取 STOCK_LIST 环境变量并更新配置中的自选股列表
+        STOCK_LIST 환경 변수를 다시 읽어 설정의 관심종목 목록을 갱신
         
-        支持两种配置方式：
-        1. .env 文件（本地开发、定时任务模式） - 修改后下次执行自动生效
-        2. 系统环境变量（GitHub Actions、Docker） - 启动时固定，运行中不变
+        두 가지 설정 방식 지원:
+        1. .env 파일(로컬 개발, 예약 작업 모드) - 수정하면 다음 실행부터 자동 적용
+        2. 시스템 환경 변수(GitHub Actions, Docker) - 시작할 때 고정, 실행 중에는 바뀌지 않음
         """
-        # 优先从 .env 文件读取最新配置，这样即使在容器环境中修改了 .env 文件，
-        # 也能获取到最新的股票列表配置
+        # .env 파일의 최신 설정을 먼저 읽음. 그래야 컨테이너 안에서 .env 파일을 고쳐도
+        # 최신 종목 목록을 가져올 수 있음
         env_file = os.getenv("ENV_FILE")
         env_path = Path(env_file) if env_file else (Path(__file__).parent.parent / '.env')
         stock_list_str = ''
         if env_path.exists():
-            # 直接从 .env 文件读取最新的配置
+            # .env 파일에서 최신 설정을 바로 읽음
             env_values = dotenv_values(env_path)
             stock_list_str = (env_values.get('STOCK_LIST') or '').strip()
 
-        # 如果 .env 文件不存在或未配置，才尝试从系统环境变量读取
+        # .env 파일이 없거나 값이 없을 때만 시스템 환경 변수에서 읽음
         if not stock_list_str:
             stock_list_str = os.getenv('STOCK_LIST', '')
 
@@ -3321,7 +3321,7 @@ class Config:
         if not self.tushare_token:
             issues.append(ConfigIssue(
                 severity="info",
-                message="未配置 Tushare Token，将使用其他数据源",
+                message="Tushare Token이 설정되지 않아 다른 데이터 소스를 사용합니다",
                 field="TUSHARE_TOKEN",
             ))
 
@@ -3336,9 +3336,9 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "GENERATION_BACKEND 当前支持 "
+                    "GENERATION_BACKEND 지원 값: "
                     f"{'、'.join(sorted(SUPPORTED_GENERATION_BACKENDS))}。"
-                    f"已配置的值为：{generation_backend}。"
+                    f"현재 설정값: {generation_backend}."
                 ),
                 field="GENERATION_BACKEND",
             ))
@@ -3348,8 +3348,8 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "GENERATION_FALLBACK_BACKEND 当前支持 litellm、与 primary 相同的 no-op 值，或空字符串。"
-                    f"已配置的值为：{generation_fallback_backend}。"
+                    "GENERATION_FALLBACK_BACKEND 는 litellm, primary와 같은 값(no-op), 또는 빈 문자열만 지원합니다. "
+                    f"현재 설정값: {generation_fallback_backend}."
                 ),
                 field="GENERATION_FALLBACK_BACKEND",
             ))
@@ -3411,9 +3411,9 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="error",
                     message=(
-                        "OPENCODE_CLI_MODEL 是可选的 OpenCode 模型覆盖值。"
-                        "配置时会作为单个 --model 参数传给 OpenCode，不能包含空白或 shell 元字符；"
-                        "不配置时 DSA 将使用 OpenCode 自身默认模型。"
+                        "OPENCODE_CLI_MODEL 은 선택 사항인 OpenCode 모델 덮어쓰기 값입니다. "
+                        "설정하면 --model 인자 하나로 OpenCode에 전달되므로 공백이나 shell 특수문자를 넣을 수 없습니다. "
+                        "설정하지 않으면 DSA는 OpenCode 자체 기본 모델을 사용합니다."
                     ),
                     field="OPENCODE_CLI_MODEL",
                 ))
@@ -3437,8 +3437,8 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="error",
                     message=(
-                        "已配置 LITELLM_CONFIG，但未解析出可用模型。"
-                        "请检查 YAML 中的 model_list、litellm_params 和环境变量引用。"
+                        "LITELLM_CONFIG 가 설정되어 있지만 쓸 수 있는 모델을 찾지 못했습니다. "
+                        "YAML의 model_list, litellm_params, 환경 변수 참조를 확인하세요."
                     ),
                     field="LITELLM_CONFIG",
                 ))
@@ -3501,7 +3501,7 @@ class Config:
                         severity="error",
                         message=(
                             "Hermes/non-Hermes mixed generation routes are not supported in Phase 3. "
-                            "请选择纯 Hermes 或纯非 Hermes 主模型。"
+                            "Hermes만 쓰는 주 모델 또는 Hermes를 전혀 쓰지 않는 주 모델 중 하나를 고르세요."
                         ),
                         field="LITELLM_MODEL",
                         code="mixed_hermes_route_unsupported",
@@ -3526,8 +3526,8 @@ class Config:
                     issues.append(ConfigIssue(
                         severity="error",
                         message=(
-                            "Hermes-only route 不能作为 Agent 主模型。"
-                            "请选择包含非 Hermes deployment 的 Agent-safe route。"
+                            "Hermes-only route 는 Agent 주 모델로 쓸 수 없습니다. "
+                            "Hermes가 아닌 deployment가 포함된 Agent-safe route를 고르세요."
                         ),
                         field="AGENT_LITELLM_MODEL",
                         code="explicit_agent_model_no_safe_deployment",
@@ -3542,8 +3542,8 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="error",
                     message=(
-                        "已配置的 Agent 主模型未出现在当前渠道或高级模型路由配置中。"
-                        f" 当前可用模型：{', '.join(available_router_models[:6])}"
+                        "설정한 Agent 주 모델이 현재 채널이나 고급 모델 라우팅 설정에 없습니다."
+                        f" 현재 쓸 수 있는 모델: {', '.join(available_router_models[:6])}"
                     ),
                     field="AGENT_LITELLM_MODEL",
                 ))
@@ -3572,7 +3572,7 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="warning",
                     message=(
-                        "备选模型中包含未在当前渠道或高级模型路由配置中声明的模型："
+                        "예비 모델 중 현재 채널이나 고급 모델 라우팅 설정에 없는 모델이 있습니다: "
                         f"{', '.join(invalid_fallbacks[:3])}"
                     ),
                     field="LITELLM_FALLBACK_MODELS",
@@ -3586,8 +3586,8 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="warning",
                     message=(
-                        "VISION_MODEL 未出现在当前渠道声明中。"
-                        f" 当前可用模型：{', '.join(available_router_models[:6])}"
+                        "VISION_MODEL 이 현재 채널 설정에 없습니다."
+                        f" 현재 쓸 수 있는 모델: {', '.join(available_router_models[:6])}"
                     ),
                     field="VISION_MODEL",
                 ))
@@ -3595,7 +3595,7 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="error",
                     message=(
-                        "Hermes Phase 3 未验证 Vision 能力，VISION_MODEL 不能选择包含 Hermes deployment 的 route。"
+                        "Hermes Phase 3 에서는 Vision 기능이 검증되지 않아, VISION_MODEL 에 Hermes deployment가 포함된 route를 고를 수 없습니다."
                     ),
                     field="VISION_MODEL",
                     code="hermes_vision_unsupported",
@@ -3608,8 +3608,8 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "已配置 Agent 主模型，但未找到可用的运行时来源"
-                    "（启用渠道或匹配的 API Key）。"
+                    "Agent 주 모델은 설정되어 있지만 실행에 쓸 수 있는 소스를 찾지 못했습니다"
+                    "(켜진 채널 또는 맞는 API Key)."
                 ),
                 field="AGENT_LITELLM_MODEL",
             ))
@@ -3705,14 +3705,14 @@ class Config:
         if self.ntfy_url and not _has_ntfy_topic_endpoint(self.ntfy_url):
             issues.append(ConfigIssue(
                 severity="error",
-                message="NTFY_URL 必须包含 topic path，例如 https://ntfy.sh/my-topic",
+                message="NTFY_URL 에는 topic path가 있어야 합니다. 예: https://ntfy.sh/my-topic",
                 field="NTFY_URL",
             ))
 
         if self.gotify_url and not _has_gotify_base_url(self.gotify_url):
             issues.append(ConfigIssue(
                 severity="error",
-                message="GOTIFY_URL 必须是 Gotify server base URL，不包含 /message，例如 https://gotify.example",
+                message="GOTIFY_URL 은 /message 없이 Gotify server base URL이어야 합니다. 예: https://gotify.example",
                 field="GOTIFY_URL",
             ))
 
@@ -3723,7 +3723,7 @@ class Config:
         ):
             issues.append(ConfigIssue(
                 severity="warning",
-                message="已配置 GOTIFY_URL，但缺少 GOTIFY_TOKEN，Gotify 渠道不会启用",
+                message="GOTIFY_URL 은 설정됐지만 GOTIFY_TOKEN 이 없어 Gotify 채널이 켜지지 않습니다",
                 field="GOTIFY_TOKEN",
             ))
 
@@ -3733,7 +3733,7 @@ class Config:
             except ValueError as exc:
                 issues.append(ConfigIssue(
                     severity="error",
-                    message=f"通知静默时段配置无效：{exc}",
+                    message=f"알림 무음 시간대 설정이 잘못되었습니다: {exc}",
                     field="NOTIFICATION_QUIET_HOURS",
                 ))
 
@@ -3743,7 +3743,7 @@ class Config:
             except ValueError as exc:
                 issues.append(ConfigIssue(
                     severity="error",
-                    message=f"通知时区配置无效：{exc}",
+                    message=f"알림 시간대 설정이 잘못되었습니다: {exc}",
                     field="NOTIFICATION_TIMEZONE",
                 ))
 
@@ -3751,7 +3751,7 @@ class Config:
             issues.append(ConfigIssue(
                 severity="error",
                 message=(
-                    "通知最低级别配置无效，允许值："
+                    "알림 최소 등급 설정이 잘못되었습니다. 허용 값: "
                     f"{', '.join(NOTIFICATION_SEVERITIES)}"
                 ),
                 field="NOTIFICATION_MIN_SEVERITY",
@@ -3761,8 +3761,8 @@ class Config:
             issues.append(ConfigIssue(
                 severity="warning",
                 message=(
-                    "NOTIFICATION_DAILY_DIGEST_ENABLED 当前为预留配置；"
-                    "P4 不会发送每日摘要或持久化摘要内容。"
+                    "NOTIFICATION_DAILY_DIGEST_ENABLED 는 아직 예약만 된 설정입니다. "
+                    "P4에서는 일일 요약을 보내거나 저장하지 않습니다."
                 ),
                 field="NOTIFICATION_DAILY_DIGEST_ENABLED",
             ))
@@ -3787,16 +3787,16 @@ class Config:
         ):
             suggestions = []
             if has_feishu_app_credentials_complete:
-                suggestions.append("配置 FEISHU_CHAT_ID 开启 App Bot 主动推送")
-                suggestions.append("开启 FEISHU_STREAM_ENABLED 使用应用机器人事件订阅")
+                suggestions.append("FEISHU_CHAT_ID 를 설정해 App Bot 능동 발송 켜기")
+                suggestions.append("FEISHU_STREAM_ENABLED 를 켜서 앱 봇 이벤트 구독 사용")
             else:
-                suggestions.append("补齐 FEISHU_APP_ID / FEISHU_APP_SECRET 后配置 FEISHU_CHAT_ID 开启 App Bot 主动推送")
-            suggestions.append("配置 FEISHU_WEBHOOK_URL 使用自定义机器人 Webhook 推送")
+                suggestions.append("FEISHU_APP_ID / FEISHU_APP_SECRET 을 모두 채운 뒤 FEISHU_CHAT_ID 를 설정해 App Bot 능동 발송 켜기")
+            suggestions.append("FEISHU_WEBHOOK_URL 을 설정해 사용자 정의 봇 Webhook으로 발송")
             issues.append(ConfigIssue(
                 severity="warning",
-                message="仅配置 FEISHU_APP_ID / FEISHU_APP_SECRET 不会开启飞书静态通知。"
-                        + " 请选择以下方式之一："
-                        + "；".join(suggestions) + "。",
+                message="FEISHU_APP_ID / FEISHU_APP_SECRET 만으로는 Feishu 정적 알림이 켜지지 않습니다."
+                        + " 다음 중 하나를 고르세요: "
+                        + "; ".join(suggestions) + ".",
                 field="FEISHU_CHAT_ID",
             ))
 
@@ -3805,8 +3805,8 @@ class Config:
             issues.append(ConfigIssue(
                 severity="info",
                 message=(
-                    "OPENAI_VISION_MODEL 已废弃，请改用 VISION_MODEL。"
-                    "当前值已自动迁移，建议更新配置文件以消除此提示。"
+                    "OPENAI_VISION_MODEL 은 더 이상 쓰지 않습니다. VISION_MODEL 을 쓰세요. "
+                    "현재 값은 자동으로 옮겨졌으니, 이 안내가 사라지도록 설정 파일을 고쳐 주세요."
                 ),
                 field="OPENAI_VISION_MODEL",
             ))
@@ -3851,9 +3851,9 @@ class Config:
                 issues.append(ConfigIssue(
                     severity="warning",
                     message=(
-                        "VISION_MODEL 已配置，但未找到可用的 Vision API Key "
-                        f"（已检查：{', '.join(_checked)}）。"
-                        "图片股票代码提取功能将不可用，请配置对应的 API Key。"
+                        "VISION_MODEL 은 설정됐지만 쓸 수 있는 Vision API Key를 찾지 못했습니다 "
+                        f"(확인한 항목: {', '.join(_checked)}). "
+                        "이미지에서 종목 코드를 뽑는 기능을 쓸 수 없으니 해당 API Key를 설정하세요."
                     ),
                     field="VISION_MODEL",
                 ))
@@ -3873,18 +3873,18 @@ class Config:
     
     def get_db_url(self) -> str:
         """
-        获取 SQLAlchemy 数据库连接 URL
+        SQLAlchemy 데이터베이스 연결 URL 가져오기
         
-        自动创建数据库目录（如果不存在）
+        데이터베이스 폴더가 없으면 자동으로 만듦
         """
         db_path = Path(self.database_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{db_path.absolute()}"
 
 
-# === 便捷的配置访问函数 ===
+# === 간편한 설정 접근 함수 ===
 def get_config() -> Config:
-    """获取全局配置实例的快捷方式"""
+    """전역 설정 인스턴스를 가져오는 바로가기"""
     return Config.get_instance()
 
 
@@ -3931,17 +3931,17 @@ def extra_litellm_params(model: str, config: Config) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # 测试配置加载
+    # 설정 불러오기 테스트
     config = get_config()
-    print("=== 配置加载测试 ===")
-    print(f"自选股列表: {config.stock_list}")
-    print(f"数据库路径: {config.database_path}")
-    print(f"最大并发数: {config.max_workers}")
-    print(f"调试模式: {config.debug}")
+    print("=== 설정 불러오기 테스트 ===")
+    print(f"관심종목 목록: {config.stock_list}")
+    print(f"데이터베이스 경로: {config.database_path}")
+    print(f"최대 동시 실행 수: {config.max_workers}")
+    print(f"디버그 모드: {config.debug}")
     
-    # 验证配置
+    # 설정 검증
     warnings = config.validate()
     if warnings:
-        print("\n配置验证结果:")
+        print("\n설정 검증 결과:")
         for w in warnings:
             print(f"  - {w}")

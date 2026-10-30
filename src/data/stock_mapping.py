@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-股票代码与名称映射
+종목 코드와 종목명 매핑
 ===================================
 
 Shared stock code -> name mapping, used by analyzer, data_provider, and name_to_code_resolver.
@@ -128,15 +128,15 @@ STOCK_NAME_MAP = {
 # of the foreign-ticker keys of STOCK_NAME_MAP. Adding an English alias for a
 # ticker requires the ticker to already exist in STOCK_NAME_MAP, so the two
 # maps cannot drift — exactly the single-source-of-truth property demanded by
-# issue #2026 ("alias 来源建议不要再复制一份静态映射").
+# issue #2026 ("alias 출처를 위해 정적 매핑을 또 하나 복사하지 말 것").
 #
 # Note: tickers map to a *tuple* of English names rather than a single legal
 # name. ``_company_identity_terms`` only strips one legal suffix layer, so it
 # cannot synthesise the common media short names ("Apple", "Amazon", "Google",
 # "Alibaba", "Tencent", "Pinduoduo", "Xiaomi", ...) that journalists actually
 # use in headlines. Encoding those short names explicitly here is the contract
-# massif-01 asked for on PR #2047 ("将搜索 identity 建模为真实 alias 集, 不要
-# 继续给 suffix stripping 堆启发式规则").
+# massif-01 asked for on PR #2047 ("검색 identity를 실제 alias 집합으로 모델링하고,
+# suffix stripping에 휴리스틱 규칙을 계속 덧붙이지 말 것").
 STOCK_ENGLISH_NAME_MAP: Dict[str, Tuple[str, ...]] = {
     # === US stocks ===
     "AAPL": ("Apple Inc.", "Apple"),

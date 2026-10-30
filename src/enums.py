@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-枚举类型定义
+열거형(Enum) 정의
 ===================================
 
-集中管理系统中使用的枚举类型，提供类型安全和代码可读性。
+시스템에서 쓰는 열거형을 한곳에서 관리해 타입 안전성과 가독성을 높입니다.
 """
 
 from enum import Enum
@@ -12,25 +12,25 @@ from enum import Enum
 
 class ReportType(str, Enum):
     """
-    报告类型枚举
+    리포트 유형 열거형
 
-    用于 API 触发分析时选择推送的报告格式。
-    继承 str 使其可以直接与字符串比较和序列化。
+    API로 분석을 실행할 때 보낼 리포트 형식을 고르는 데 씁니다.
+    str을 상속해서 문자열과 바로 비교하고 직렬화할 수 있습니다.
     """
-    SIMPLE = "simple"  # 精简报告：使用 generate_single_stock_report
-    FULL = "full"      # 完整报告：使用 generate_dashboard_report
-    BRIEF = "brief"    # 简洁模式：3-5 句话概括，适合移动端/推送
+    SIMPLE = "simple"  # 간단 리포트: generate_single_stock_report 사용
+    FULL = "full"      # 전체 리포트: generate_dashboard_report 사용
+    BRIEF = "brief"    # 요약 모드: 3-5문장 요약, 모바일/푸시 알림용
 
     @classmethod
     def from_str(cls, value: str) -> "ReportType":
         """
-        从字符串安全地转换为枚举值
+        문자열을 열거형 값으로 안전하게 변환
         
         Args:
-            value: 字符串值
+            value: 문자열 값
             
         Returns:
-            对应的枚举值，无效输入返回默认值 SIMPLE
+            해당 열거형 값. 잘못된 입력이면 기본값 SIMPLE 반환
         """
         try:
             normalized = value.lower().strip()
@@ -42,7 +42,7 @@ class ReportType(str, Enum):
     
     @property
     def display_name(self) -> str:
-        """获取用于显示的名称"""
+        """화면 표시용 이름 반환"""
         return {
             ReportType.SIMPLE: "精简报告",
             ReportType.FULL: "完整报告",

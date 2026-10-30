@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-数据访问层模块初始化
+데이터 접근 계층 모듈 초기화
 ===================================
 
-职责：
-1. 导出所有 Repository 类
+역할:
+1. 모든 Repository 클래스 내보내기
 """
 
 from src.repositories.analysis_repo import AnalysisRepository

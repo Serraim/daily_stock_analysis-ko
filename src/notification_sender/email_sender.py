@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Email 发送提醒服务
+Email 알림 발송 서비스
 
-职责：
-1. 通过 SMTP 发送 Email 消息
+역할:
+1. SMTP로 Email 메시지 발송
 """
 import logging
 from typing import Optional, List
@@ -23,12 +23,12 @@ from src.formatters import markdown_to_html_document, strip_hidden_markdown_meta
 logger = logging.getLogger(__name__)
 
 
-# SMTP 服务器配置（自动识别）
+# SMTP 서버 설정 (자동 인식)
 SMTP_CONFIGS = {
-    # QQ邮箱
+    # QQ 메일
     "qq.com": {"server": "smtp.qq.com", "port": 465, "ssl": True},
     "foxmail.com": {"server": "smtp.qq.com", "port": 465, "ssl": True},
-    # 网易邮箱
+    # 넷이즈(NetEase) 메일
     "163.com": {"server": "smtp.163.com", "port": 465, "ssl": True},
     "126.com": {"server": "smtp.126.com", "port": 465, "ssl": True},
     # Gmail
@@ -37,13 +37,13 @@ SMTP_CONFIGS = {
     "outlook.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
     "hotmail.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
     "live.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
-    # 新浪
+    # 시나(Sina)
     "sina.com": {"server": "smtp.sina.com", "port": 465, "ssl": True},
-    # 搜狐
+    # 소후(Sohu)
     "sohu.com": {"server": "smtp.sohu.com", "port": 465, "ssl": True},
-    # 阿里云
+    # 알리바바 클라우드(Aliyun)
     "aliyun.com": {"server": "smtp.aliyun.com", "port": 465, "ssl": True},
-    # 139邮箱
+    # 139 메일
     "139.com": {"server": "smtp.139.com", "port": 465, "ssl": True},
 }
 
@@ -52,10 +52,10 @@ class EmailSender:
     
     def __init__(self, config: Config):
         """
-        初始化 Email 配置
+        Email 설정 초기화
 
         Args:
-            config: 配置对象
+            config: 설정 객체
         """
         self._email_config = {
             'sender': config.email_sender,
@@ -66,7 +66,7 @@ class EmailSender:
         self._stock_email_groups = getattr(config, 'stock_email_groups', None) or []
         
     def _is_email_configured(self) -> bool:
-        """检查邮件配置是否完整（只需邮箱和授权码）"""
+        """메일 설정이 다 갖춰졌는지 확인 (메일 주소와 인증 코드만 있으면 됨)"""
         return bool(self._email_config['sender'] and self._email_config['password'])
     
     def get_receivers_for_stocks(self, stock_codes: List[str]) -> List[str]:
@@ -140,18 +140,18 @@ class EmailSender:
         timeout_seconds: Optional[float] = None,
     ) -> bool:
         """
-        通过 SMTP 发送邮件（自动识别 SMTP 服务器）
+        SMTP로 메일 발송 (SMTP 서버 자동 인식)
         
         Args:
-            content: 邮件内容（支持 Markdown，会转换为 HTML）
-            subject: 邮件主题（可选，默认自动生成）
-            receivers: 收件人列表（可选，默认使用配置的 receivers）
+            content: 메일 내용 (Markdown 지원, HTML로 변환됨)
+            subject: 메일 제목 (선택, 기본값은 자동 생성)
+            receivers: 받는 사람 목록 (선택, 기본값은 설정된 receivers)
             
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         if not self._is_email_configured():
-            logger.warning("邮件配置不完整，跳过推送")
+            logger.warning("메일 설정이 불완전해 푸시 건너뜀")
             return False
         
         sender = self._email_config['sender']
@@ -160,29 +160,29 @@ class EmailSender:
         server: Optional[smtplib.SMTP] = None
         
         try:
-            # 生成主题
+            # 제목 만들기
             if subject is None:
                 date_str = datetime.now().strftime('%Y-%m-%d')
                 subject = f"📈 股票智能分析报告 - {date_str}"
 
             sanitized_content = strip_hidden_markdown_metadata(content).strip()
             
-            # 将 Markdown 转换为简单 HTML
+            # Markdown을 간단한 HTML로 변환
             html_content = markdown_to_html_document(sanitized_content)
             
-            # 构建邮件
+            # 메일 구성
             msg = MIMEMultipart('alternative')
             msg['Subject'] = Header(subject, 'utf-8')
             msg['From'] = self._format_sender_address(sender)
             msg['To'] = ', '.join(receivers)
             
-            # 添加纯文本和 HTML 两个版本
+            # 일반 텍스트와 HTML 두 버전 추가
             text_part = MIMEText(sanitized_content, 'plain', 'utf-8')
             html_part = MIMEText(html_content, 'html', 'utf-8')
             msg.attach(text_part)
             msg.attach(html_part)
             
-            # 自动识别 SMTP 配置
+            # SMTP 설정 자동 인식
             domain = sender.split('@')[-1].lower()
             smtp_config = SMTP_CONFIGS.get(domain)
             
@@ -190,37 +190,37 @@ class EmailSender:
                 smtp_server = smtp_config['server']
                 smtp_port = smtp_config['port']
                 use_ssl = smtp_config['ssl']
-                logger.info(f"自动识别邮箱类型: {domain} -> {smtp_server}:{smtp_port}")
+                logger.info(f"메일 종류 자동 인식: {domain} -> {smtp_server}:{smtp_port}")
             else:
-                # 未知邮箱，尝试通用配置
+                # 모르는 메일이면 범용 설정으로 시도
                 smtp_server = f"smtp.{domain}"
                 smtp_port = 465
                 use_ssl = True
-                logger.warning(f"未知邮箱类型 {domain}，尝试通用配置: {smtp_server}:{smtp_port}")
+                logger.warning(f"모르는 메일 종류 {domain}, 범용 설정으로 시도: {smtp_server}:{smtp_port}")
             
-            # 根据配置选择连接方式
+            # 설정에 따라 연결 방식 선택
             if use_ssl:
-                # SSL 连接（端口 465）
+                # SSL 연결 (포트 465)
                 server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=timeout_seconds or 30)
             else:
-                # TLS 连接（端口 587）
+                # TLS 연결 (포트 587)
                 server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout_seconds or 30)
                 server.starttls()
             
             server.login(sender, password)
             server.send_message(msg)
             
-            logger.info(f"邮件发送成功，收件人: {receivers}")
+            logger.info(f"메일 발송 완료, 받는 사람: {receivers}")
             return True
             
         except smtplib.SMTPAuthenticationError:
-            logger.error("邮件发送失败：认证错误，请检查邮箱和授权码是否正确")
+            logger.error("메일 발송 실패: 인증 오류. 메일 주소와 인증 코드가 맞는지 확인하세요")
             return False
         except smtplib.SMTPConnectError as e:
-            logger.error(f"邮件发送失败：无法连接 SMTP 服务器 - {e}")
+            logger.error(f"메일 발송 실패: SMTP 서버에 연결할 수 없음 - {e}")
             return False
         except Exception as e:
-            logger.error(f"发送邮件失败: {e}")
+            logger.error(f"메일 발송 실패: {e}")
             return False
         finally:
             self._close_server(server)
@@ -273,10 +273,10 @@ class EmailSender:
                 server.starttls()
             server.login(sender, password)
             server.send_message(msg)
-            logger.info("邮件（内联图片）发送成功，收件人: %s", receivers)
+            logger.info("메일(본문 삽입 이미지) 발송 완료, 받는 사람: %s", receivers)
             return True
         except Exception as e:
-            logger.error("邮件（内联图片）发送失败: %s", e)
+            logger.error("메일(본문 삽입 이미지) 발송 실패: %s", e)
             return False
         finally:
             self._close_server(server)

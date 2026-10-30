@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Wechat 发送提醒服务
+Wechat 알림 발송 서비스
 
-职责：
-1. 通过企业微信 Webhook 发送文本消息
-2. 通过企业微信 Webhook 发送图片消息
+역할:
+1. 위챗 워크(WeCom, 企业微信) Webhook으로 텍스트 메시지 발송
+2. 위챗 워크 Webhook으로 이미지 메시지 발송
 """
 import logging
 import base64
@@ -27,10 +27,10 @@ class WechatSender:
     
     def __init__(self, config: Config):
         """
-        初始化企业微信配置
+        위챗 워크 설정 초기화
 
         Args:
-            config: 配置对象
+            config: 설정 객체
         """
         self._wechat_url = config.wechat_webhook_url
         self._wechat_max_bytes = getattr(config, 'wechat_max_bytes', 4000)
@@ -39,62 +39,62 @@ class WechatSender:
         
     def send_to_wechat(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
         """
-        推送消息到企业微信机器人
+        위챗 워크 봇에 메시지 푸시
         
-        企业微信 Webhook 消息格式：
-        支持 markdown 类型以及 text 类型, markdown 类型在微信中无法展示，可以使用 text 类型,
-        markdown 类型会解析 markdown 格式,text 类型会直接发送纯文本。
+        위챗 워크 Webhook 메시지 형식:
+        markdown 타입과 text 타입을 지원. markdown 타입은 위챗에서 표시되지 않으니 text 타입을 써도 됨.
+        markdown 타입은 markdown 형식을 해석하고, text 타입은 일반 텍스트를 그대로 보냄.
 
-        markdown 类型示例：
+        markdown 타입 예시:
         {
             "msgtype": "markdown",
             "markdown": {
-                "content": "## 标题\n\n内容"
+                "content": "## 제목\n\n내용"
             }
         }
         
-        text 类型示例：
+        text 타입 예시:
         {
             "msgtype": "text",
             "text": {
-                "content": "内容"
+                "content": "내용"
             }
         }
 
-        注意：企业微信 Markdown 限制 4096 字节（非字符）, Text 类型限制 2048 字节，超长内容会自动分批发送
-        可通过环境变量 WECHAT_MAX_BYTES 调整限制值
+        주의: 위챗 워크 Markdown은 4096 바이트(글자 수 아님), Text 타입은 2048 바이트 제한. 길면 자동으로 나눠서 발송
+        환경 변수 WECHAT_MAX_BYTES로 제한값 조정 가능
         
         Args:
-            content: Markdown 格式的消息内容
+            content: Markdown 형식 메시지 내용
             
         Returns:
-            是否发送成功
+            발송 성공 여부
         """
         if not self._wechat_url:
-            logger.warning("企业微信 Webhook 未配置，跳过推送")
+            logger.warning("위챗 워크 Webhook 미설정, 푸시 건너뜀")
             return False
         
         sanitized_content = strip_hidden_markdown_metadata(content).strip()
         if not sanitized_content:
-            logger.warning("企业微信消息内容为空，跳过推送")
+            logger.warning("위챗 워크 메시지 내용이 비어 있어 푸시 건너뜀")
             return False
 
-        # 根据消息类型动态限制上限，避免 text 类型超过企业微信 2048 字节限制
+        # 메시지 타입에 따라 상한을 정함 (text 타입이 위챗 워크 2048 바이트 제한을 넘지 않게)
         if self._wechat_msg_type == 'text':
-            max_bytes = min(self._wechat_max_bytes, 2000)  # 预留一定字节给系统/分页标记
+            max_bytes = min(self._wechat_max_bytes, 2000)  # 시스템/페이지 표시용 바이트를 조금 남겨 둠
         else:
-            max_bytes = self._wechat_max_bytes  # markdown 默认 4000 字节
+            max_bytes = self._wechat_max_bytes  # markdown 기본값 4000 바이트
 
-        # 检查字节长度，超长则分批发送
+        # 바이트 길이 확인, 길면 나눠서 발송
         content_bytes = len(sanitized_content.encode('utf-8'))
         if content_bytes > max_bytes:
-            logger.info(f"消息内容超长({content_bytes}字节/{len(content)}字符)，将分批发送")
+            logger.info(f"메시지가 너무 김 ({content_bytes}바이트/{len(content)}글자), 나눠서 발송")
             return self._send_wechat_chunked(sanitized_content, max_bytes)
         
         try:
             return self._send_wechat_message(sanitized_content, timeout_seconds=timeout_seconds)
         except Exception as e:
-            logger.error(f"发送企业微信消息失败: {e}")
+            logger.error(f"위챗 워크 메시지 발송 실패: {e}")
             return False
 
     def _send_wechat_image(self, image_bytes: bytes) -> bool:
@@ -103,7 +103,7 @@ class WechatSender:
             return False
         if len(image_bytes) > WECHAT_IMAGE_MAX_BYTES:
             logger.warning(
-                "企业微信图片超限 (%d > %d bytes)，拒绝发送，调用方应 fallback 为文本",
+                "위챗 워크 이미지 용량 초과 (%d > %d bytes), 발송 거부. 호출한 쪽에서 텍스트로 대체해야 함",
                 len(image_bytes), WECHAT_IMAGE_MAX_BYTES,
             )
             return False
@@ -120,18 +120,18 @@ class WechatSender:
             if response.status_code == 200:
                 result = response.json()
                 if result.get("errcode") == 0:
-                    logger.info("企业微信图片发送成功")
+                    logger.info("위챗 워크 이미지 발송 완료")
                     return True
-                logger.error("企业微信图片发送失败: %s", result.get("errmsg", ""))
+                logger.error("위챗 워크 이미지 발송 실패: %s", result.get("errmsg", ""))
             else:
-                logger.error("企业微信请求失败: HTTP %s", response.status_code)
+                logger.error("위챗 워크 요청 실패: HTTP %s", response.status_code)
             return False
         except Exception as e:
-            logger.error("企业微信图片发送异常: %s", e)
+            logger.error("위챗 워크 이미지 발송 중 예외: %s", e)
             return False
     
     def _send_wechat_message(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
-        """发送企业微信消息"""
+        """위챗 워크 메시지 발송"""
         payload = self._gen_wechat_payload(content)
         
         response = requests.post(
@@ -144,27 +144,27 @@ class WechatSender:
         if response.status_code == 200:
             result = response.json()
             if result.get('errcode') == 0:
-                logger.info("企业微信消息发送成功")
+                logger.info("위챗 워크 메시지 발송 완료")
                 return True
             else:
-                logger.error(f"企业微信返回错误: {result}")
+                logger.error(f"위챗 워크 오류 응답: {result}")
                 return False
         else:
-            logger.error(f"企业微信请求失败: {response.status_code}")
+            logger.error(f"위챗 워크 요청 실패: {response.status_code}")
             return False
         
     def _send_wechat_chunked(self, content: str, max_bytes: int) -> bool:
         """
-        分批发送长消息到企业微信
+        긴 메시지를 위챗 워크에 나눠서 발송
         
-        按股票分析块（以 --- 或 ### 分隔）智能分割，确保每批不超过限制
+        종목 분석 블록(--- 또는 ### 로 구분) 단위로 나눠 묶음마다 제한을 넘지 않게 함
         
         Args:
-            content: 完整消息内容
-            max_bytes: 单条消息最大字节数
+            content: 전체 메시지 내용
+            max_bytes: 메시지 1건 최대 바이트 수
             
         Returns:
-            是否全部发送成功
+            전부 발송 성공 여부
         """
         chunks = chunk_content_by_max_bytes(content, max_bytes, add_page_marker=True)
         total_chunks = len(chunks)
@@ -173,13 +173,13 @@ class WechatSender:
             if self._send_wechat_message(chunk):
                 success_count += 1
             else:
-                logger.error(f"企业微信第 {i+1}/{total_chunks} 批发送失败")
+                logger.error(f"위챗 워크 {i+1}/{total_chunks}번째 묶음 발송 실패")
             if i < total_chunks - 1:
                 time.sleep(1)
         return success_count == len(chunks)
 
     def _gen_wechat_payload(self, content: str) -> dict:
-        """生成企业微信消息 payload"""
+        """위챗 워크 메시지 payload 생성"""
         sanitized_content = strip_hidden_markdown_metadata(content).strip()
         if self._wechat_msg_type == 'text':
             return {

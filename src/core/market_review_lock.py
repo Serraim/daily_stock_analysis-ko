@@ -84,7 +84,7 @@ def _is_windows_process_alive(pid: int) -> bool:
         finally:
             kernel32.CloseHandle(handle)
     except Exception as exc:
-        logger.warning("Windows 进程存活探测失败，保守视为仍在运行: %s", exc)
+        logger.warning("Windows 프로세스 생존 확인 실패, 안전하게 아직 실행 중으로 간주: %s", exc)
         return True
 
 
@@ -183,11 +183,11 @@ def try_acquire_market_review_lock(
                     if not _is_stale_lock(lock_path):
                         return None
 
-                    logger.warning("检测到过期的 market_review.lock，尝试清理后重试。")
+                    logger.warning("오래된 market_review.lock 발견, 정리 후 다시 시도합니다.")
                     try:
                         lock_path.unlink()
                     except OSError as exc:
-                        logger.warning("清理过期 market_review.lock 失败: %s", exc)
+                        logger.warning("오래된 market_review.lock 정리 실패: %s", exc)
                         return None
 
             if fd is None:

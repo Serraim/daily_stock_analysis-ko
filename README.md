@@ -1,304 +1,148 @@
-<div align="center">
+# daily_stock_analysis 한국어판
 
-# 📈 股票智能分析系统
+매일 관심종목의 시세와 뉴스를 모아 AI가 분석하고, 그 결과를 디스코드·텔레그램 같은 메신저로 보내 주는 도구예요.
 
-[![GitHub stars](https://img.shields.io/github/stars/ZhuLinsen/daily_stock_analysis?style=social)](https://github.com/ZhuLinsen/daily_stock_analysis/stargazers)
-[![arXiv](https://img.shields.io/badge/arXiv-2608.26990-b31b1b.svg)](https://arxiv.org/abs/2608.26990)
-[![CI](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/zhulinsen/daily_stock_analysis)
+> 이 저장소는 [ZhuLinsen/daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)를 한국 사용자에 맞게 고친 포크입니다.
+> - 원작자: ZhuLinsen
+> - 라이선스: 원본과 같은 MIT 라이선스 ([LICENSE](LICENSE) 파일은 원본 그대로)
+> - 원본 중국어 README: [docs/README_CN.md](docs/README_CN.md)
+>
+> 이 도구가 내놓는 분석은 공부용 참고 자료예요. 투자 판단과 그 결과의 책임은 본인에게 있습니다.
 
-<p align="center">
-  <img src="https://trendshift.io/api/badge/trendshift/repositories/18527/daily?language=Python" alt="#1 Python Repository Of The Day | Trendshift" width="250" height="55"/>&nbsp;<a href="https://hellogithub.com/repository/ZhuLinsen/daily_stock_analysis" target="_blank"><img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=6daa16e405ce46ed97b4a57706aeb29f&claim_uid=pfiJMqhR9uvDGlT&theme=neutral" alt="Featured｜HelloGitHub" width="230" /></a>
-</p>
+## 한국어판에서 바뀐 점
 
-> 🤖 基于 AI 大模型的 A股/港股/美股/日股/韩股/台股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/Discord/Slack/邮箱
+- 한국 종목(`.KS`, `.KQ`)은 한국어 회사 이름과 한국어 검색어로 뉴스를 찾아요. 실제로 시험해 보니 삼성전자를 직접 다룬 기사가 0건에서 9건으로 늘었습니다.
+- `REPORT_LANGUAGE=ko`로 두면 보고서 생성이 멈추던 오류(`KeyError: 'ko'`)를 고쳤어요.
+- 보고서에 나오는 단위와 이름표를 한국어로 바꿨어요.
+- 실행 기록(로그)과 설정 설명을 한국어로 옮겼어요.
+- 기본값을 바꿨어요.
+  - AI 모델: Gemini 무료 등급에서 쓸 수 있는 `gemini-3-flash-preview` (원본 기본값 `gemini-3.1-pro-preview`는 무료 등급에서 쓸 수 없어요)
+  - 보고서 언어: 한국어(`ko`)
+  - GitHub Actions 자동 실행: 한국 시간 평일 오전 8시
 
-[**产品预览**](#-产品预览) · [**功能特性**](#-功能特性) · [**快速开始**](#-快速开始) · [**推送效果**](#-推送效果) · [**文档中心**](docs/INDEX.md) · [**完整指南**](docs/full-guide.md)
+## 빠른 시작 (Windows)
 
-简体中文 | [English](docs/README_EN.md) | [繁體中文](docs/README_CHT.md)
+### 1. 준비물
 
-</div>
+- **Python 3.12**를 설치하세요. 3.14나 3.15에서는 일부 패키지(`tiktoken`, `longbridge`) 설치가 실패해요.
+- **Git**이 설치되어 있어야 해요.
+- Gemini API 키 (아래 [키 받는 곳](#키-받는-곳) 참고)
 
-<details open>
-<summary><strong>💖 赞助商 (Sponsors)</strong></summary>
-<hr>
-<div align="center">
-  <p><a href="https://modelflare.dev/sign-up?utm_source=github&amp;utm_campaign=daily_stock_analysis"><img src="./docs/assets/modelflare_banner_zh.png" alt="Modelflare" width="720"></a><br>感谢 <strong>Modelflare</strong> 赞助本项目！由美国 Havenbyte LLC 运营，满血稳定不掺水，低成本接入 GPT、Claude、Gemini、Grok 及 40+ 图片/视频模型。指定 OpenAI 分组提供 <strong>65% / 75% / 85% 每日缓存命中率保障</strong>；单笔充值 <strong>US$20 解锁 GPT 0.015x</strong>，<strong>US$50 解锁 Claude 0.03x</strong>。<a href="https://modelflare.dev/sign-up?utm_source=github&amp;utm_campaign=daily_stock_analysis">专属链接注册</a></p>
-  <hr>
-  <p>
-    <a href="https://serpapi.com/github-daily-stock-analysis" target="_blank"><img src="./docs/assets/serpapi_banner_zh.png" alt="轻松抓取搜索引擎上的实时金融新闻数据 - SerpApi" width="300" height="141" style="width: 300px; height: 141px; object-fit: contain;"></a>
-  </p>
-</div>
-</details>
+### 2. 내려받고 설치하기
 
+PowerShell을 열고 한 줄씩 실행하세요.
 
-## 🖥️ 产品预览
+```powershell
+# 한글이 섞인 파일 때문에 설치가 실패하지 않도록 먼저 실행 (새 창을 열 때마다 다시)
+$env:PYTHONUTF8='1'
 
-<p align="center">
-  <img src="docs/assets/readme_workspace_tour_20260510.gif" alt="DSA Web 工作台演示" width="720">
-</p>
+git clone https://github.com/dkdannyboy/daily_stock_analysis-ko.git
+cd daily_stock_analysis-ko
 
-## ✨ 功能特性
+python -m venv .venv
+.venv\Scripts\activate
 
-| 能力 | 覆盖内容 |
-|------|------|
-| AI 决策报告 | 核心结论、评分、趋势、买卖点位、风险警报、催化因素、操作检查清单 |
-| 多市场数据聚合 | 覆盖 A股、港股、美股、日股、韩股、台股和 ETF，支持行情、K 线、技术指标、新闻、公告、基本面与报告辅助数据；不同市场的数据源和能力边界见 [市场支持边界](docs/market-support.md) |
-| Web / 桌面工作台 | 手动分析、任务进度、历史报告、完整 Markdown、回测、持仓、配置管理、浅色 / 深色主题 |
-| Agent 策略问股 | 多轮追问，支持均线、缠论、波浪、趋势、热点、事件、成长、预期等 15 种内置策略，覆盖 Web/Bot/API |
-| 智能导入与补全 | 图片、CSV/Excel、剪贴板导入；股票代码/名称/拼音/别名补全 |
-| 自动化与推送 | GitHub Actions、Docker、本地定时任务、FastAPI 服务和企业微信/飞书/Telegram/Discord/Slack/邮件推送 |
-
-> 功能细节、字段契约、基本面 P0 超时语义、交易纪律、数据源优先级、Web/API 行为请看 [完整配置与部署指南](docs/full-guide.md)。
-
-### 技术栈与数据来源
-
-| 类型 | 支持 |
-|------|------|
-| AI 模型 | [Modelflare](https://modelflare.dev/sign-up?utm_source=github&utm_campaign=daily_stock_analysis)、[AIHubMix](https://inferera.com/?aff=CfMq)、Gemini、OpenAI 兼容、DeepSeek、通义千问、Claude、Ollama 本地模型等 |
-| 行情数据 | AkShare、Tushare、Pytdx、Baostock、YFinance、Longbridge |
-| 新闻搜索 | [Anspire](https://open.anspire.cn/dsa?share_code=QFBC0FYC)、[SerpAPI](https://serpapi.com/github-daily-stock-analysis)、[Tavily](https://tavily.com/)、[Bocha](https://open.bocha.cn/)、[Brave](https://brave.com/search/api/)、[MiniMax](https://platform.minimaxi.com/)、SearXNG |
-| 社交舆情 | [Stock Sentiment API](https://api.adanos.org/docs)（Reddit / X / Polymarket，仅美股，可选） |
-
-> 项目默认内置 AkShare、Baostock、YFinance 等免费行情源，可零配置运行；免费源受上游限流、接口变动和网络波动影响，稳定性不保证。长期定时、批量分析或更稳定行情建议配置 Tushare、Longbridge 等 token 型数据源，适用市场、Actions 映射和 fallback 规则见 [数据源配置](docs/full-guide.md#数据源配置)。
-
-## 🚀 快速开始
-
-### 方式一：[GitHub Actions（推荐）](https://www.bilibili.com/video/BV11FEb66EXG/)
-
-> 5 分钟完成部署，零成本，无需服务器。
-
-
-#### 1. Fork 本仓库
-
-点击右上角 `Fork` 按钮（顺便点个 Star⭐ 支持一下）
-
-#### 2. 配置 Secrets
-
-`Settings` → `Secrets and variables` → `Actions` → `New repository secret`
-
-**AI 模型配置（至少配置一个）**
-
-默认先选一个模型服务商并填写 API Key；需要多模型、图片识别、本地模型或高级路由时，再参考 [LLM 配置指南](docs/LLM_CONFIG_GUIDE.md)。
-
-| Secret 名称 | 说明 | 必填 |
-|------------|------|:----:|
-| `MODELFLARE_KEY` | [Modelflare](https://modelflare.dev/sign-up?utm_source=github&utm_campaign=daily_stock_analysis) API Key，低成本接入全球热门大模型 | **推荐** |
-| `AIHUBMIX_KEY` | [AIHubMix](https://inferera.com/?aff=CfMq) API Key，一Key切换使用全系模型，无需科学上网，本项目可享 10% 优惠 | **推荐** |
-| `GEMINI_API_KEY` | Google Gemini API Key | 可选 |
-| `ANTHROPIC_API_KEY` | Anthropic Claude API Key | 可选 |
-| `OPENAI_API_KEY` | OpenAI 兼容 API Key（支持 DeepSeek、通义千问等） | 可选 |
-| `OPENAI_BASE_URL` / `OPENAI_MODEL` | 使用 OpenAI 兼容服务时填写 | 可选 |
-
-> Ollama 更适合本地 / Docker 部署，GitHub Actions 推荐使用云端 API。
-
-**通知渠道配置（至少配置一个）**
-
-| Secret 名称 | 说明 |
-|------------|------|
-| `WECHAT_WEBHOOK_URL` | 企业微信机器人 |
-| `FEISHU_WEBHOOK_URL` | 飞书机器人 |
-| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | Telegram |
-| `DISCORD_WEBHOOK_URL` | Discord Webhook |
-| `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` | Slack Bot |
-| `EMAIL_SENDER` + `EMAIL_PASSWORD` | 邮件推送 |
-
-更多渠道、签名校验、分组邮件、Markdown 转图片等配置见 [通知渠道详细配置](docs/full-guide.md#通知渠道详细配置)。
-
-**自选股配置（必填）**
-
-| Secret 名称 | 说明 | 必填 |
-|------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,hk00700,AAPL,7203.T,005930.KS,2330.TW`；已登记指数显式代码（如 `sh000016`、`930606.CSI`）经一次性 `--stocks` 或 GitHub Actions 入口支持，规则见 [指数自选股配置](docs/full-guide.md#指数自选股配置) | ✅ |
-
-**新闻源配置（推荐）**
-
-新闻源会显著影响舆情、公告、事件和催化因素质量，建议至少配置一个搜索服务。
-
-| Secret 名称 | 说明 | 必填 |
-|------------|------|:----:|
-| `ANSPIRE_API_KEYS` | [Anspire AI Search](https://open.anspire.cn/dsa?share_code=QFBC0FYC)：汇聚全球舆情信息，适配A股、美股、港股等新闻和舆情检索；同一Key可复用大模型服务，本项目新用户提供免费30元等额的免费点数 | **推荐** |
-| `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/github-daily-stock-analysis)：搜索引擎结果补强，适合实时金融新闻 | **推荐** |
-| `TAVILY_API_KEYS` | [Tavily](https://tavily.com/)：通用新闻搜索 API | 可选 |
-| `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/)：中文搜索优化，支持 AI 摘要 | 可选 |
-| `BRAVE_API_KEYS` | [Brave Search](https://brave.com/search/api/)：隐私优先，美股资讯补强 | 可选 |
-| `MINIMAX_API_KEYS` | [MiniMax](https://platform.minimaxi.com/)：结构化搜索结果 | 可选 |
-| `SEARXNG_BASE_URLS` | SearXNG 自建实例：无配额兜底，适合私有部署 | 可选 |
-
-更多搜索源、社交舆情和降级规则见 [搜索服务配置](docs/full-guide.md#搜索服务配置)。
-
-**行情数据源配置（可选）**
-
-> 默认使用 AkShare、Baostock、YFinance 等免费数据源，日志中"未配置"的提示不影响运行。
-> 如需更稳定的行情，可按市场配置以下 Secret：
-
-| Secret 名称 | 适用市场 | 说明 |
-|------------|:--------:|------|
-| `TUSHARE_TOKEN` | A 股 | 提升历史行情稳定性 |
-| `LONGBRIDGE_OAUTH_CLIENT_ID` + `LONGBRIDGE_OAUTH_TOKEN_CACHE_B64` | 港股/美股 | 补齐量比、换手率、PE 等字段 |
-
-> 详见 [数据源配置](docs/full-guide.md#数据源配置)。
-
-#### 3. 启用 Actions
-
-`Actions` 标签 → `I understand my workflows, go ahead and enable them`
-
-#### 4. 手动测试
-
-`Actions` → `每日股票分析` → `Run workflow` → `Run workflow`
-
-#### 完成
-
-默认每个**工作日 18:00（北京时间）**自动执行，也可手动触发。默认非交易日（含 A/H/US 节假日）不执行；强制运行、交易日检查、断点续传等规则见 [完整指南](docs/full-guide.md#定时任务配置)。
-
-### 方式二：[客户端配置教程](https://www.bilibili.com/video/BV11FEb66Eyr/) / 本地运行 / Docker 部署
-
-```bash
-# 克隆项目
-git clone https://github.com/ZhuLinsen/daily_stock_analysis.git && cd daily_stock_analysis
-
-# 安装依赖
 pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env && vim .env
-
-# 运行分析
-python main.py
 ```
 
-常用命令：
+- 컴퓨터에 파이썬이 여러 개 깔려 있으면 `python -m venv .venv` 대신 `py -3.12 -m venv .venv`를 쓰세요.
+- `.venv\Scripts\activate`에서 "스크립트를 실행할 수 없습니다" 오류가 나면 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`를 한 번 실행한 뒤 다시 해 보세요.
+
+### 3. 설정 파일 만들기
+
+```powershell
+copy .env.example .env
+notepad .env
+```
+
+`.env` 파일에서 아래 항목을 채우고 저장하세요.
+
+| 항목 | 넣을 값 | 꼭 필요? |
+|---|---|---|
+| `GEMINI_API_KEY` | Gemini API 키 | 필요 |
+| `STOCK_LIST` | 관심종목, 쉼표로 구분 (예: `005930.KS,000660.KS`) | 필요 |
+| `TAVILY_API_KEYS` | Tavily 키. 넣으면 뉴스 검색 결과가 훨씬 좋아져요 | 선택 |
+| `DISCORD_WEBHOOK_URL` | 디스코드 웹후크 주소. 줄 맨 앞의 `#`을 지우고 넣으세요 | 선택 |
+
+한국 종목은 종목번호 뒤에 시장을 붙여요. 코스피는 `.KS`, 코스닥은 `.KQ`입니다. 예를 들어 삼성전자는 `005930.KS`예요.
+
+`.env`에는 진짜 키가 들어가니 다른 사람에게 보내거나 GitHub에 올리지 마세요.
+
+### 4. 실행하기
+
+```powershell
+python main.py --stocks 005930.KS --no-market-review --force-run
+```
+
+- `--stocks 005930.KS`: 이번에는 삼성전자 한 종목만 분석해요 (`.env`의 `STOCK_LIST`보다 우선).
+- `--no-market-review`: 시장 전체 리뷰는 건너뛰어요.
+- `--force-run`: 주말이나 휴장일에도 거래일 확인을 건너뛰고 실행해요.
+
+끝나면 디스코드를 설정한 경우 메시지가 오고, `reports` 폴더에 `report_날짜.md` 파일이 생겨요. 다른 옵션은 `python main.py --help`로 볼 수 있어요.
+
+### Mac / Linux
+
+`$env:PYTHONUTF8='1'`은 필요 없고, 나머지는 명령만 조금 달라요.
 
 ```bash
-python main.py --debug
-python main.py --dry-run
-python main.py --stocks 600519,hk00700,AAPL,2330.TW
-python main.py --market-review
-python main.py --schedule
-python main.py --serve-only
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-> Docker 部署、定时任务、云服务器访问请参考 [完整指南](docs/full-guide.md)；桌面客户端打包请参考 [桌面端打包说明](docs/desktop-package.md)。
+## 키 받는 곳
 
-## 📱 推送效果
+### Gemini (필수)
 
-### 决策仪表盘
-```
-🎯 2026-02-08 决策仪表盘
-共分析3只股票 | 🟢买入:0 🟡观望:2 🔴卖出:1
+1. [aistudio.google.com/apikey](https://aistudio.google.com/apikey)에 구글 계정으로 들어가요.
+2. API 키를 만들고 복사해 `GEMINI_API_KEY`에 넣어요.
 
-📊 分析结果摘要
-⚪ 中钨高新(000657): 观望 | 评分 65 | 看多
-⚪ 永鼎股份(600105): 观望 | 评分 48 | 震荡
-🟡 新莱应材(300260): 卖出 | 评分 35 | 看空
+- **결제 수단은 등록하지 마세요.** 등록하지 않으면 무료 등급으로만 쓰여 요금이 나가지 않아요.
+- 무료 등급으로 쓰면 보낸 내용이 구글 서비스 개선에 쓰일 수 있어요. 개인 정보는 넣지 마세요.
 
-⚪ 中钨高新 (000657)
-📰 重要信息速览
-💭 舆情情绪: 市场关注其AI属性与业绩高增长，情绪偏积极，但需消化短期获利盘和主力流出压力。
-📊 业绩预期: 基于舆情信息，公司2025年前三季度业绩同比大幅增长，基本面强劲，为股价提供支撑。
+### Tavily (선택, 뉴스 검색)
 
-🚨 风险警报:
+1. [tavily.com](https://tavily.com)에서 **Start for free**를 누르고 가입해요.
+2. 요금제 선택 화면에서 **Continue on Free**를 고르세요. 한 달에 1,000크레딧까지 무료예요.
+3. 대시보드의 API 키를 복사해 `TAVILY_API_KEYS`에 넣어요.
 
-风险点1：2月5日主力资金大幅净卖出3.63亿元，需警惕短期抛压。
-风险点2：筹码集中度高达35.15%，表明筹码分散，拉升阻力可能较大。
-风险点3：舆情中提及公司历史违规记录及重组相关风险提示，需保持关注。
-✨ 利好催化:
+### 디스코드 웹후크 (선택, 결과 받기)
 
-利好1：公司被市场定位为AI服务器HDI核心供应商，受益于AI产业发展。
-利好2：2025年前三季度扣非净利润同比暴涨407.52%，业绩表现强劲。
-📢 最新动态: 【最新消息】舆情显示公司是AI PCB微钻领域龙头，深度绑定全球头部PCB/载板厂。2月5日主力资金净卖出3.63亿元，需关注后续资金流向。
+1. 결과를 받을 디스코드 서버에서 **서버 설정 → 연동 → 웹후크**로 들어가요.
+2. **새 웹후크**를 만들고 보낼 채널을 고른 뒤 **웹후크 URL 복사**를 눌러요.
+3. 복사한 주소를 `DISCORD_WEBHOOK_URL`에 넣어요.
 
----
-生成时间: 18:00
-```
+## GitHub Actions로 매일 아침 8시에 자동 실행하기
 
-### 大盘复盘
-```
-🎯 2026-01-10 大盘复盘
+내 컴퓨터를 켜 두지 않아도 GitHub가 매일 대신 실행해 줘요.
 
-📊 主要指数
-- 上证指数: 3250.12 (🟢+0.85%)
-- 深证成指: 10521.36 (🟢+1.02%)
-- 创业板指: 2156.78 (🟢+1.35%)
+1. 이 저장소 오른쪽 위의 **Fork**를 눌러 내 계정으로 복사해요.
+2. 내 포크에서 **Settings → Secrets and variables → Actions → New repository secret**으로 아래 값을 하나씩 등록해요.
+   - `GEMINI_API_KEY` (필수)
+   - `STOCK_LIST` (필수, 예: `005930.KS,000660.KS`)
+   - `TAVILY_API_KEYS` (선택)
+   - `DISCORD_WEBHOOK_URL` (선택)
+3. 내 포크의 **Actions** 탭으로 가서 워크플로 사용 버튼(I understand my workflows, go ahead and enable them)을 눌러 켜요.
+4. 바로 확인하고 싶으면 Actions 탭에서 **매일 주식 분석 → Run workflow**를 눌러요. 주말에 시험할 때는 `강제 실행` 칸을 체크하세요.
 
-📈 市场概况
-上涨: 3920 | 下跌: 1349 | 涨停: 155 | 跌停: 3
+알아 두면 좋은 점:
 
-🔥 板块表现
-领涨: 互联网服务、文化传媒、小金属
-领跌: 保险、航空机场、光伏设备
-```
+- 실행 시각은 한국 시간 월~금 오전 8시예요(`cron: '0 23 * * 0-4'`, UTC 기준 일~목 23시). GitHub 사정으로 몇 분에서 수십 분 늦게 시작될 수 있어요.
+- 휴장일에는 분석을 건너뛰어요. 장이 열리기 전이라 전 거래일 데이터로 분석해요.
+- 보고서 언어(`ko`)와 AI 모델(`gemini-3-flash-preview`)은 기본으로 설정되어 있어요. 바꾸고 싶으면 **Variables** 탭에 `REPORT_LANGUAGE`, `GEMINI_MODEL`을 등록하면 됩니다.
+- 시장 전체 리뷰는 기본이 중국 시장(`cn`)이에요. 한국 시장으로 보려면 Variables에 `MARKET_REVIEW_REGION`을 `kr`로 등록하세요.
+- 공개 저장소에 60일 동안 아무 변화가 없으면 GitHub가 예약 실행을 멈춰요. 그때는 Actions 탭에서 다시 켜면 됩니다.
 
-## ⚙️ 配置说明
+## 더 알아보기
 
-完整环境变量、模型渠道、通知渠道、数据源优先级、交易纪律、基本面 P0 语义和部署说明请参考 [完整配置指南](docs/full-guide.md)。
+더 자세한 설정(다른 AI 모델, 다른 알림 채널, 웹 화면 등)은 원본 문서를 참고하세요. 대부분 중국어나 영어로 되어 있어요.
 
-## 🖥️ Web 界面
+- [원본 중국어 README](docs/README_CN.md)
+- [영어 README](docs/README_EN.md)
+- [전체 설정 안내 (중국어)](docs/full-guide.md)
+- 모든 설정 항목과 한국어 설명: [.env.example](.env.example)
 
-Web 工作台提供配置管理、任务监控、手动分析、历史报告、完整 Markdown 报告、Agent 问股、回测、持仓管理、智能导入和浅色 / 深色主题。启动方式：
+## 라이선스
 
-```bash
-python main.py --webui
-python main.py --webui-only
-```
-
-访问 `http://127.0.0.1:8000` 即可使用。认证、智能导入、搜索补全、历史报告复制、云服务器访问等细节见 [本地 WebUI 管理界面](docs/full-guide.md#本地-webui-管理界面)。
-
-## 🤖 Agent 策略问股
-
-配置任意可用 AI API Key 后，Web `/chat` 页面即可使用策略问股；如需显式关闭可设置 `AGENT_MODE=false`。
-
-- 支持均线金叉、缠论、波浪理论、多头趋势、热点题材、事件驱动、成长质量、预期重估等内置策略
-- 支持实时行情、K 线、技术指标、新闻和风险信息调用
-- 支持多轮追问、会话导出、发送到通知渠道和后台执行
-- 支持自定义策略文件与多 Agent 编排（实验性）
-
-> Agent 具体参数、`skill` 命名兼容、多 Agent 模式和预算护栏见 [完整指南](docs/full-guide.md#本地-webui-管理界面) 与 [LLM 配置指南](docs/LLM_CONFIG_GUIDE.md)。
-
-## 🧩 相关项目 (Related Projects)
-
-> DSA 聚焦日常分析报告；选股实现参考 AlphaSift，AlphaEvo 用于策略验证与进化。
-
-| 项目 | 定位 |
-|------|------|
-| [AlphaSift](https://github.com/ZhuLinsen/alphasift) | DSA 选股实现的参考项目 |
-| [AlphaEvo](https://github.com/ZhuLinsen/alphaevo) | 策略回测与自我进化，用于验证策略规则，并通过迭代探索策略参数与组合 |
-
-## 📬 联系与合作
-
-<table>
-  <tr>
-    <td width="92" valign="top"><strong>合作邮箱</strong></td>
-    <td valign="top">
-      <a href="mailto:zhuls345@gmail.com">zhuls345@gmail.com</a><br>
-      项目咨询、部署支持与功能扩展
-    </td>
-    <td align="center" rowspan="3" valign="middle" width="148">
-      <a href="http://xhslink.com/m/tU520DWCKT" target="_blank"><img src="./docs/assets/xiaohongshu_tick.jpg" width="112" alt="小红书二维码"></a><br>
-      <sub>扫码关注小红书</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="92" valign="top"><strong>小红书</strong></td>
-    <td valign="top"><a href="http://xhslink.com/m/tU520DWCKT">欢迎关注小红书</a></td>
-  </tr>
-  <tr>
-    <td width="92" valign="top"><strong>问题反馈</strong></td>
-    <td valign="top"><a href="https://github.com/ZhuLinsen/daily_stock_analysis/issues">提交 Issue</a></td>
-  </tr>
-</table>
-
-## 📄 License
-
-[MIT License](LICENSE) © 2026 ZhuLinsen
-
-欢迎在二次开发或引用时注明本仓库来源，感谢支持项目持续维护。
-
-## ⚠️ 免责声明
-
-本项目仅供学习和研究使用，不构成任何投资建议。股市有风险，投资需谨慎。作者不对使用本项目产生的任何损失负责。
-
----
+MIT 라이선스예요. 원작자 ZhuLinsen의 저작권 표시가 담긴 [LICENSE](LICENSE) 파일을 그대로 유지하고 있어요.

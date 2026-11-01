@@ -16,7 +16,7 @@ API = "https://api.notion.com/v1"
 TOKEN = os.environ.get("NOTION_TOKEN", "").strip()
 PARENT = re.sub(r"[^0-9a-fA-F]", "", os.environ.get("NOTION_PAGE_ID", ""))[-32:]
 HEAD = {"Authorization": f"Bearer {TOKEN}", "Notion-Version": "2022-06-28", "Content-Type": "application/json"}
-ORDER = ["macro", "market_review", "report"]
+ORDER = ["macro", "paper", "market_review", "report"]
 
 
 def rt(text):

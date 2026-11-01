@@ -578,6 +578,11 @@ jobs:
         continue-on-error: true
         run: python scripts/macro_snapshot.py
 
+      - name: 가상투자 비교 (paper)
+        if: always()
+        continue-on-error: true
+        run: python scripts/paper/engine.py forward
+
       - name: 보고서를 저장소에 쌓기 (history/)
         if: always()
         run: |

@@ -599,6 +599,14 @@ jobs:
             sleep 5
           done
 
+      - name: 노션에 보고서 올리기
+        if: always()
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
+        run: python scripts/push_to_notion.py
+
       - name: 실행 결과 보기
         if: always()
         run: |

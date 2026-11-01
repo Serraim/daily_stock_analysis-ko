@@ -18,6 +18,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import yfinance as yf
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 FEE = 0.00015
 INITIAL = 1_000_000
 MONTHLY = 100_000
@@ -73,6 +75,7 @@ class Port:
     def __init__(self):
         self.cash = 0.0
         self.sh = {}
+        self.cost = {}   # 종목별 평균 매수가
         self.units = 0.0
         self.invested = 0.0
         self.trades = 0
@@ -95,7 +98,9 @@ class Port:
         n = math.floor(min(amt, self.cash) / (p * (1 + FEE)))
         if n > 0:
             self.cash -= n * p * (1 + FEE)
-            self.sh[t] = self.sh.get(t, 0) + n
+            old = self.sh.get(t, 0)
+            self.cost[t] = (self.cost.get(t, 0) * old + p * n) / (old + n)
+            self.sh[t] = old + n
             self.trades += 1
 
     def sell(self, t, px, n=None):
@@ -117,25 +122,40 @@ def contribution_days(idx, start):
     return set(firsts.values) | {days[0]}
 
 
-def rebalance_to(p, weights, px, threshold=None):
-    """threshold=None 이면 현금만 부족한 쪽에 투입, 숫자면 비중 이탈 시 전체 재조정."""
-    total = p.value(px)
+def rebalance_to(p, weights, px, threshold=None, budget=None):
+    """목표 비중으로 맞추기. budget: 이번에 쓸 최대 현금(없으면 보유 현금 전부).
+    threshold 를 주면 비중이 그만큼 틀어졌을 때 초과분을 먼저 판다.
+    정수 주라서 비싼 종목은 못 살 수 있으므로, 가장 모자란 종목부터 1주씩 채운다."""
     live = {t: w for t, w in weights.items() if not math.isnan(px[t])}
-    s = sum(live.values()) or 1
-    live = {t: w / s for t, w in live.items()}
-    cur = {t: p.sh.get(t, 0) * px[t] / total for t in live} if total else {}
-    if threshold is not None and cur and max(abs(cur[t] - w) for t, w in live.items()) > threshold:
-        for t, w in live.items():
-            excess = p.sh.get(t, 0) * px[t] - w * total
-            if excess > px[t]:
-                p.sell(t, px, int(excess // px[t]))
-    deficits = {t: max(w * total - p.sh.get(t, 0) * px[t], 0) for t, w in live.items()}
-    need = sum(deficits.values())
-    if need <= 0:
-        return
-    budget = p.cash
-    for t, d in sorted(deficits.items(), key=lambda x: -x[1]):
-        p.buy(t, budget * d / need, px)
+    s_ = sum(live.values()) or 1
+    live = {t: w / s_ for t, w in live.items()}
+    total = p.value(px)
+    if total <= 0:
+        return 0.0
+    if threshold is not None:
+        cur = {t: p.sh.get(t, 0) * px[t] / total for t in live}
+        if max(abs(cur[t] - w) for t, w in live.items()) > threshold:
+            for t, w in live.items():
+                excess = p.sh.get(t, 0) * px[t] - w * total
+                if excess > px[t]:
+                    p.sell(t, px, int(excess // px[t]))
+    start_cash = p.cash
+    cap = p.cash if budget is None else min(budget, p.cash)
+    floor = start_cash - cap
+    while True:
+        total = p.value(px)
+        gaps = {t: w * total - p.sh.get(t, 0) * px[t] for t, w in live.items()}
+        cands = [t for t in sorted(gaps, key=lambda t: -gaps[t] / (live[t] * total))
+                 if gaps[t] > 0 and p.cash - px[t] * (1 + FEE) >= floor]
+        if not cands:
+            break
+        t = cands[0]
+        n = max(1, int(min(gaps[t], p.cash - floor) // (px[t] * (1 + FEE))))
+        before = p.cash
+        p.buy(t, n * px[t] * (1 + FEE) + 1e-6, px)
+        if p.cash == before:
+            break
+    return start_cash - p.cash
 
 
 # ---------------------------------------------------------------- 전략
@@ -155,17 +175,30 @@ def simulate(name, prices, start, step, extra=None):
     return name, p
 
 
-def s_dca(p, day, px, st, first, cday):
-    if first:
-        st["reserve"] = INITIAL
-    if cday:
-        spend = (0 if first else MONTHLY) + min(st["reserve"], INITIAL / 10)
-        st["reserve"] = max(st["reserve"] - INITIAL / 10, 0)
-        p.buy(SPX, spend, px)
+def _buy_w(p, weights, amt, px):
+    live = {t: w for t, w in weights.items() if not math.isnan(px[t])}
+    tot = sum(live.values()) or 1
+    for t, w in live.items():
+        p.buy(t, amt * w / tot, px)
 
 
-def s_lump(p, day, px, st, first, cday):
-    p.buy(SPX, p.cash, px)
+def make_dca(weights):
+    def step(p, day, px, st, first, cday):
+        if first:
+            st["reserve"] = INITIAL
+            st["carry"] = 0.0
+        if cday:
+            spend = st["carry"] + (0 if first else MONTHLY) + min(st["reserve"], INITIAL / 10)
+            st["reserve"] = max(st["reserve"] - INITIAL / 10, 0)
+            used = rebalance_to(p, weights, px, budget=spend)
+            st["carry"] = spend - used   # 못 산 돈은 다음 달로
+    return step
+
+
+def make_lump(weights):
+    def step(p, day, px, st, first, cday):
+        rebalance_to(p, weights, px)
+    return step
 
 
 def make_alloc(weights, threshold):
@@ -201,13 +234,14 @@ def make_ai(signals, universe):
     return step
 
 
-def make_fear(vix):
+def make_fear(vix, weights):
     def extra(p, day, px, st):
         v = vix.get(day)
         last = st.get("last_fear")
         if v is not None and v > 30 and (last is None or (day - last).days >= 7):
             p.contribute(FEAR_EXTRA, px)
-            p.buy(SPX, FEAR_EXTRA, px)
+            used = rebalance_to(p, weights, px, budget=FEAR_EXTRA)
+            st["carry"] = st.get("carry", 0.0) + FEAR_EXTRA - used
             st["last_fear"] = day
             st["fear_n"] = st.get("fear_n", 0) + 1
     return extra
@@ -245,7 +279,7 @@ GUIDE = """**읽는 법**
 - 공통 조건: 시작 100만 원 + 매달 첫 거래일 10만 원, 종가 체결, 정수 주, 수수료 0.015%. F는 VIX>30인 날 5만 원을 추가로 넣어 투입금이 다를 수 있다.
 """
 
-STRATS = """| 전략 | 규칙 |
+_OLD_STRATS = """| 전략 | 규칙 |
 |---|---|
 | A 적립식 | 시작금 100만 원을 10개월에 나눠, 매달 추가분과 함께 S&P500 ETF 매수 |
 | B 일시 투자 | 들어온 돈은 즉시 전부 S&P500 ETF 매수 |
@@ -259,57 +293,108 @@ STRATS = """| 전략 | 규칙 |
 """
 
 
+def six(krx, sma, vix, sig, start, base, alloc_w, tag, ctx=None):
+    """같은 6가지 규칙을 한 종목 묶음(base)에 적용."""
+    uni = sorted(t for t in base if t in krx.columns)
+    out = [
+        simulate(f"A 적립식", krx, start, make_dca(base)),
+        simulate(f"B 일시 투자", krx, start, make_lump(base)),
+        simulate(f"C {tag}", krx, start, make_alloc(alloc_w, .05)),
+        simulate(f"D 추세 추종", krx, start, make_trend(sma, base)),
+    ]
+    lo, hi = pd.Timestamp(start), krx.index[-1]
+    ai_uni = [t for t in uni if any(t in d for day, d in sig.items() if lo <= day <= hi)]
+    if ai_uni:
+        out.append(simulate(f"E AI 신호", krx, start, make_ai(sig, ai_uni)))
+    out.append(simulate(f"F 공포 매수", krx, start, make_dca(base), extra=make_fear(vix, base)))
+    if ctx is not None:
+        import rules
+        for name, (fn, params) in rules.RULES.items():
+            out.append(simulate(name, krx, start, fn(ctx, base, **params)))
+    return out
+
+
 def run(start, end=None, with_ai=True, portfolio=True):
-    tickers = [SPX, GOLD, BOND] + (list(MY) if portfolio else [])
+    tickers = [SPX, GOLD, BOND] + list(MY)
     prices = load_prices(tickers + [VIX], start, end)
     krx = prices.drop(columns=[VIX], errors="ignore")
     krx = krx[krx[SPX].notna()].ffill()
-    # 전날 미국장 VIX를 한국 거래일에 맞춤
     vix = (prices[VIX].ffill().shift(1).reindex(krx.index).to_dict() if VIX in prices else {})
     sma = krx.rolling(200, min_periods=200).mean()
-    res = [
-        simulate("A 적립식", krx, start, s_dca),
-        simulate("B 일시 투자", krx, start, s_lump),
-        simulate("C 자산배분", krx, start, make_alloc({SPX: .6, GOLD: .2, BOND: .2}, .05)),
-        simulate("D 추세 추종", krx, start, make_trend(sma, {SPX: 1.0})),
-    ]
-    if with_ai:
-        sig = load_ai_signals()
-        uni = sorted({t for d in sig.values() for t in d if t in krx.columns})
-        if uni:
-            res.append(simulate("E AI 신호", krx, start, make_ai(sig, uni)))
-    res.append(simulate("F 공포 매수", krx, start, s_dca, extra=make_fear(vix)))
-    if portfolio:
-        res += [
-            simulate("P1 내 비중 그대로", krx, start, make_alloc(MY_W, None)),
-            simulate("P2 내 비중 + 재조정", krx, start, make_alloc(MY_W, .05)),
-            simulate("P3 내 종목 + 추세", krx, start, make_trend(sma, MY_W)),
-        ]
-    return res, krx
+    sig = load_ai_signals() if with_ai else {}
+    import rules
+    ctx = rules.indicators(krx)
+    market = six(krx, sma, vix, sig, start, {SPX: 1.0}, {SPX: .6, GOLD: .2, BOND: .2}, "자산배분", ctx)
+    mine = six(krx, sma, vix, sig, start, MY_W, MY_W, "비중 재조정", ctx) if portfolio else []
+    return market, mine, krx
+
+
+MARKET_RULES = """| 전략 | 규칙 (시장 기준: S&P500 ETF 하나) |
+|---|---|
+| A 적립식 | 시작금 100만 원을 10개월에 나눠, 매달 추가분과 함께 매수 |
+| B 일시 투자 | 들어온 돈은 즉시 전부 매수 |
+| C 자산배분 | S&P500 60% · 금 20% · 미국채10년 20%, 비중이 5%p 넘게 틀어지면 재조정 |
+| D 추세 추종 | 200일 이동평균선 위면 보유, 아래면 현금 |
+| E AI 신호 | AI 보고서가 '매수'면 사고 '매도'면 팔기 |
+| F 공포 매수 | A와 같되, VIX가 30을 넘는 날 5만 원 추가 매수 (최소 1주 간격) |
+"""
+
+MY_RULES = """| 전략 | 규칙 (내 종목 기준: 10/30 ISA 9개 종목, 실제 비중대로) |
+|---|---|
+| A 적립식 | 시작금을 10개월에 나눠, 매달 내 비중대로 나눠 매수 |
+| B 일시 투자 | 들어온 돈은 즉시 내 비중대로 매수 후 그대로 보유 |
+| C 비중 재조정 | 내 비중을 목표로, 5%p 넘게 틀어지면 재조정 |
+| D 추세 추종 | 종목마다 200일선 위에서만 보유 (이력 짧은 종목은 보유) |
+| E AI 신호 | 내 종목 중 AI 보고서에 있는 종목만, '매수'면 사고 '매도'면 팔기 |
+| F 공포 매수 | A와 같되, VIX>30인 날 5만 원을 내 비중대로 추가 매수 |
+"""
+
+
+def compare_note(market, mine):
+    """같은 규칙끼리 시장 vs 내 종목 한 줄 비교."""
+    mm = {n: metrics(p) for n, p in market}
+    my = {n: metrics(p) for n, p in mine}
+    lines = ["| 규칙 | 시장 기준 투입 대비 | 내 종목 기준 투입 대비 | 시장 최대 하락 | 내 종목 최대 하락 |",
+             "|---|---:|---:|---:|---:|"]
+    for n in my:
+        key = n.split()[0]
+        m = next((v for k, v in mm.items() if k.split()[0] == key), None)
+        if m:
+            lines.append(f"| {n} | {m['ret']:+.1%} | {my[n]['ret']:+.1%} | {m['mdd']:.1%} | {my[n]['mdd']:.1%} |")
+    return "\n".join(lines)
+
+
+def section(title, period, market, mine):
+    txt = f"## {title}\n\n{period}\n\n### ① 시장 기준 (S&P500 ETF)\n\n" + table(market) + "\n\n"
+    if mine:
+        txt += "### ② 내 종목 기준 (ISA 9개, 실제 비중)\n\n" + table(mine) + "\n\n"
+        txt += "### ③ 같은 규칙, 어디에 쓰는 게 나았나\n\n" + compare_note(market, mine) + "\n\n"
+    return txt
 
 
 def main(mode):
     now = dt.datetime.now(ZoneInfo("Asia/Seoul"))
+    import rules
+    tail = GUIDE + "\n" + MARKET_RULES + "\n" + MY_RULES + "\n**매수·매도 규칙 모음 (시장·내 종목 둘 다에 적용)**\n\n" + rules.RULES_MD
     if mode == "forward":
         if now.date() < pd.Timestamp(FORWARD_START).date() + dt.timedelta(days=1):
-            body = f"가상투자는 {FORWARD_START} 장 마감 후부터 기록이 시작됩니다."
+            body = f"가상투자는 {FORWARD_START} 장 마감 후부터 기록이 시작됩니다.\n\n" + tail
         else:
-            res, krx = run(FORWARD_START)
-            body = (f"기간: {FORWARD_START} ~ {krx.index[-1].date()}\n\n" + table(res) +
-                    "\n\n" + GUIDE + "\n" + STRATS)
+            market, mine, krx = run(FORWARD_START)
+            body = section("실전 기록", f"기간: {FORWARD_START} ~ {krx.index[-1].date()}", market, mine) + tail
         os.makedirs("reports", exist_ok=True)
         path = f"reports/paper_{now:%Y%m%d}.md"
         open(path, "w", encoding="utf-8").write(f"# 🧪 가상투자 비교 ({now:%Y-%m-%d})\n\n{body}\n")
     else:
         os.makedirs("paper", exist_ok=True)
-        r1, k1 = run("2022-01-03", with_ai=False, portfolio=False)
-        r2, k2 = run("2026-03-17", with_ai=False, portfolio=True)
-        body = ("## 1) 시장 전략 A~F, 2022-01-03 ~ " + str(k1.index[-1].date()) +
-                " (약 4.8년)\n\n금 ETF(411060)가 2021-12 상장이라 2022년 초부터 시작. E(AI 신호)는 과거 신호가 없어 제외.\n\n" +
-                table(r1) + "\n\n## 2) 내 포트폴리오 포함, 2026-03-17 ~ " + str(k2.index[-1].date()) +
-                "\n\n내 종목 중 가장 늦게 상장한 KODEX 미국우주항공(2026-03-17)부터 가능. 짧은 기간이라 참고만.\n\n" +
-                table(r2) + "\n\n" + GUIDE + "\n" + STRATS +
-                "\n*과거 성과는 미래를 보장하지 않습니다. 공부용 가상 계산입니다.*\n")
+        m1, _, k1 = run("2022-01-03", with_ai=False, portfolio=False)
+        m2, y2, k2 = run("2026-03-17", with_ai=False, portfolio=True)
+        body = (section("1) 시장 기준, 약 4.8년",
+                        f"2022-01-03 ~ {k1.index[-1].date()}. 금 ETF(411060)가 2021-12 상장이라 2022년 초부터. 과거 AI 신호는 없어 E 제외.",
+                        m1, []) +
+                section("2) 시장 vs 내 종목, 약 7개월",
+                        f"2026-03-17 ~ {k2.index[-1].date()}. 내 종목 중 가장 늦게 상장한 KODEX 미국우주항공 상장일부터. 짧은 기간이라 참고만.",
+                        m2, y2) + tail + "\n*과거 성과는 미래를 보장하지 않습니다. 공부용 가상 계산입니다.*\n")
         path = "paper/backtest.md"
         open(path, "w", encoding="utf-8").write(f"# 📜 과거 시험 결과 (계산일 {now:%Y-%m-%d})\n\n{body}")
     print(f"[paper] saved {path}")

@@ -1,0 +1,198 @@
+{
+ "TIGER 미국S&P500": [
+  {
+   "code": "360750",
+   "name": "TIGER 미국S&P500",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2020-08-07"
+  },
+  {
+   "code": "482730",
+   "name": "TIGER 미국S&P500타겟데일리커버드콜",
+   "type": "코스피"
+  },
+  {
+   "code": "448290",
+   "name": "TIGER 미국S&P500(H)",
+   "type": "코스피"
+  },
+  {
+   "code": "429000",
+   "name": "TIGER 미국S&P500배당귀족",
+   "type": "코스피"
+  },
+  {
+   "code": "488500",
+   "name": "TIGER 미국S&P500동일가중",
+   "type": "코스피"
+  }
+ ],
+ "삼성전자": [
+  {
+   "code": "005930",
+   "name": "삼성전자",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2000-01-04"
+  },
+  {
+   "code": "0162Z0",
+   "name": "RISE 삼성전자SK하이닉스채권혼합50",
+   "type": "코스피"
+  },
+  {
+   "code": "0177N0",
+   "name": "KODEX 삼성전자SK하이닉스채권혼합50",
+   "type": "코스피"
+  },
+  {
+   "code": "448330",
+   "name": "KODEX 삼성전자채권혼합",
+   "type": "코스피"
+  },
+  {
+   "code": "0193W0",
+   "name": "KODEX 삼성전자단일종목레버리지",
+   "type": "코스피"
+  }
+ ],
+ "KODEX AI반도체TOP2플러스": [
+  {
+   "code": "395160",
+   "name": "KODEX AI반도체TOP2플러스",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2021-07-30"
+  }
+ ],
+ "RISE 미국나스닥100": [
+  {
+   "code": "368590",
+   "name": "RISE 미국나스닥100",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2020-11-06"
+  }
+ ],
+ "ACE 구글밸류체인액티브": [
+  {
+   "code": "483340",
+   "name": "ACE 구글밸류체인액티브",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2024-06-11"
+  }
+ ],
+ "ACE 미국배당다우존스": [
+  {
+   "code": "402970",
+   "name": "ACE 미국배당다우존스",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2021-10-21"
+  }
+ ],
+ "KODEX 2차전지산업": [
+  {
+   "code": "305720",
+   "name": "KODEX 2차전지산업",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2018-09-12"
+  },
+  {
+   "code": "462330",
+   "name": "KODEX 2차전지산업레버리지",
+   "type": "코스피"
+  }
+ ],
+ "TIGER KRX금현물": [
+  {
+   "code": "0072R0",
+   "name": "TIGER KRX금현물",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2025-06-24"
+  }
+ ],
+ "KODEX 미국우주항공": [
+  {
+   "code": "0167Z0",
+   "name": "KODEX 미국우주항공",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2026-03-17"
+  }
+ ],
+ "KODEX 200": [
+  {
+   "code": "069500",
+   "name": "KODEX 200",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2007-01-29"
+  },
+  {
+   "code": "252670",
+   "name": "KODEX 200선물인버스2X",
+   "type": "코스피"
+  },
+  {
+   "code": "498400",
+   "name": "KODEX 200타겟위클리커버드콜",
+   "type": "코스피"
+  },
+  {
+   "code": "278530",
+   "name": "KODEX 200TR",
+   "type": "코스피"
+  },
+  {
+   "code": "284430",
+   "name": "KODEX 200미국채혼합50",
+   "type": "코스피"
+  }
+ ],
+ "ACE 미국10년국채액티브": [
+  {
+   "code": "0085P0",
+   "name": "ACE 미국10년국채액티브",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2025-07-22"
+  },
+  {
+   "code": "0085N0",
+   "name": "ACE 미국10년국채액티브(H)",
+   "type": "코스피"
+  }
+ ],
+ "TIGER 미국채10년선물": [
+  {
+   "code": "305080",
+   "name": "TIGER 미국채10년선물",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2018-08-30"
+  }
+ ],
+ "KODEX 미국10년국채선물": [
+  {
+   "code": "308620",
+   "name": "KODEX 미국10년국채선물",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2018-10-19"
+  }
+ ],
+ "ACE KRX금현물": [
+  {
+   "code": "411060",
+   "name": "ACE KRX금현물",
+   "type": "코스피",
+   "yahoo_KS_rows": 5,
+   "first_date_5y": "2021-12-15"
+  }
+ ]
+}

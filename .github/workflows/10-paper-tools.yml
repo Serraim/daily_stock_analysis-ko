@@ -1,0 +1,35 @@
+name: 가상투자 도구 (수동)
+
+# 가상투자 관련 스크립트를 수동으로 실행하고 결과를 paper/ 에 커밋한다.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: '실행할 스크립트 (scripts/paper/ 아래 파일명)'
+        required: true
+        default: 'lookup_codes.py'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q yfinance pandas requests
+      - name: 스크립트 실행
+        run: python "scripts/paper/${{ inputs.script }}"
+      - name: 결과 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git add paper/ || true
+          git diff --cached --quiet && { echo "변경 없음"; exit 0; }
+          git commit -m "chore: paper tools output (${{ inputs.script }})"
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

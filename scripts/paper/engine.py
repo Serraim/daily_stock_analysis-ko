@@ -59,7 +59,7 @@ def load_prices(tickers, start, end=None):
 
 def load_ai_signals():
     """history/<날짜>/report_*.md 의 요약 줄에서 (날짜, 종목코드) → 매수/관망/매도."""
-    pat = re.compile(r"\(([0-9A-Z]{6}\.K[SQ]|[A-Z]{1,5})\)\*\*:\s*(매수|관망|매도)")
+    pat = re.compile(r"\(([0-9A-Z]{6}\.K[SQ]|[A-Z]{1,5})\)\*\*:\s*(매수|보유|관망|매도)")
     out = {}
     for f in sorted(glob.glob("history/*/report_*.md")):
         day = pd.Timestamp(os.path.basename(os.path.dirname(f)))

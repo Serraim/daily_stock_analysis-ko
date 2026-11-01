@@ -573,6 +573,11 @@ jobs:
             logs/
           retention-days: 30
 
+      - name: 거시 지표 스냅샷 (환율·금리·VIX)
+        if: always()
+        continue-on-error: true
+        run: python scripts/macro_snapshot.py
+
       - name: 보고서를 저장소에 쌓기 (history/)
         if: always()
         run: |

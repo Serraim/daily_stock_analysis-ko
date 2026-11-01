@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -q yfinance pandas requests
       - name: 스크립트 실행
-        run: python "scripts/paper/${{ inputs.script }}"
+        run: python scripts/paper/${{ inputs.script }}
       - name: 결과 커밋
         run: |
           git config user.name "github-actions[bot]"
